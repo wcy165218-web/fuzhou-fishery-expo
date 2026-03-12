@@ -97,29 +97,22 @@ export default {
         const { results } = await env.DB.prepare("SELECT * FROM Booths WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
-      
-      // 单个新增
       if (url.pathname === '/api/add-booth' && request.method === 'POST') {
         const b = await request.json();
         const exists = await env.DB.prepare("SELECT id FROM Booths WHERE id = ? AND project_id = ?").bind(b.id, b.project_id).first();
         if (exists) return new Response(JSON.stringify({ success: false, error: "展位号已存在" }), { status: 400, headers: corsHeaders });
-        
         await env.DB.prepare("INSERT INTO Booths (id, project_id, hall, type, area, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, '可售')")
           .bind(b.id, b.project_id, b.hall, b.type, Number(b.area)||0, b.price_unit, Number(b.base_price)||0).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
-      // 批量导入
       if (url.pathname === '/api/import-booths' && request.method === 'POST') {
         const { projectId, booths } = await request.json();
         if (!booths || booths.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-        
         const stmt = env.DB.prepare("INSERT OR IGNORE INTO Booths (id, project_id, hall, type, area, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, 0, '可售')");
         const batch = booths.map(b => stmt.bind(b.id, projectId, b.hall, b.type, Number(b.area)||0, b.price_unit));
         await env.DB.batch(batch);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/update-booth-status' && request.method === 'POST') {
         const { projectId, boothIds, status } = await request.json(); 
         if (!boothIds || boothIds.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
@@ -127,20 +120,45 @@ export default {
         await env.DB.prepare(`UPDATE Booths SET status = ? WHERE project_id = ? AND id IN (${placeholders})`).bind(status, projectId, ...boothIds).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
-      // 修改展位信息 (面积/类型/自定义单价)
       if (url.pathname === '/api/edit-booth' && request.method === 'POST') {
         const { projectId, id, type, area, base_price } = await request.json();
-        await env.DB.prepare("UPDATE Booths SET type = ?, area = ?, base_price = ? WHERE id = ? AND project_id = ? AND status != '已成交'")
-          .bind(type, area, base_price, id, projectId).run();
+        await env.DB.prepare("UPDATE Booths SET type = ?, area = ?, base_price = ? WHERE id = ? AND project_id = ? AND status != '已成交'").bind(type, area, base_price, id, projectId).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/delete-booths' && request.method === 'POST') {
         const { projectId, boothIds } = await request.json();
         if (!boothIds || boothIds.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         const placeholders = boothIds.map(() => '?').join(',');
         await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND status != '已成交' AND id IN (${placeholders})`).bind(projectId, ...boothIds).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // ================= 5. 【新增】订单录入模块 =================
+      if (url.pathname === '/api/submit-order' && request.method === 'POST') {
+        const o = await request.json();
+        
+        // 1. 检查统一社会信用代码是否重复 (如果填了的话)
+        if (o.credit_code && !o.no_code_checked) {
+            const existCode = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND credit_code = ?").bind(o.project_id, o.credit_code).first();
+            if (existCode) return new Response(JSON.stringify({ success: false, error: `社会信用代码 [${o.credit_code}] 已存在，无法重复录入！` }), { status: 400, headers: corsHeaders });
+        }
+
+        // 2. 插入订单数据 (将 fascia_count 拼接到 fascia_name 后面暂存)
+        const combinedFascia = o.fascia_name ? `${o.fascia_name} (数量:${o.fascia_count})` : '';
+
+        const stmt = `INSERT INTO Orders (
+          project_id, company_name, credit_code, main_business, is_agent, agent_name, contact_person, phone, region_p,
+          booth_id, area, price_unit, unit_price, discount_reason, total_booth_fee, other_income, total_amount, sales_name, fascia_name
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        
+        await env.DB.prepare(stmt).bind(
+          o.project_id, o.company_name, o.credit_code, o.main_business, o.is_agent, o.agent_name, o.contact_person, o.phone, o.region,
+          o.booth_id, o.area, o.price_unit, o.unit_price, o.discount_reason, o.total_booth_fee, o.other_income, o.total_amount, o.sales_name, combinedFascia
+        ).run();
+
+        // 3. 联动修改展位状态：只要提交了订单，展位马上变“已预订”
+        await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
+
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
