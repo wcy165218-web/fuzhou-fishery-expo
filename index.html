@@ -12,6 +12,35 @@
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
+    <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
+            <h3 class="text-lg font-bold mb-4">修改我的密码</h3>
+            <input type="password" id="modal-old-pass" placeholder="请输入原密码" class="w-full border p-2 rounded mb-3 text-sm">
+            <input type="password" id="modal-new-pass" placeholder="请输入新密码" class="w-full border p-2 rounded mb-5 text-sm">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">取消</button>
+                <button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700">确认修改</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
+            <h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3>
+            <input type="hidden" id="edit-p-id">
+            <div class="space-y-3">
+                <input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm">
+                <input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm">
+                <div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div>
+                <div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">取消</button>
+                <button onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold hover:bg-indigo-700">保存修改</button>
+            </div>
+        </div>
+    </div>
+
     <div id="login-view" class="flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
             <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
@@ -26,6 +55,7 @@
             <div class="p-5 border-b border-slate-700">
                 <h1 class="text-xl font-bold tracking-wider">展位销售系统</h1>
                 <p id="user-info" class="text-sm text-slate-400 mt-2"></p>
+                <button onclick="openPasswordModal()" class="text-xs text-blue-400 mt-1 hover:underline">修改我的密码</button>
             </div>
             <nav id="nav-buttons" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
             <div class="p-4 border-t border-slate-700">
@@ -43,17 +73,44 @@
             </header>
 
             <div class="flex-1 overflow-y-auto p-6">
+                
                 <section id="sec-config" class="page-section">
-                    <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500 mb-6">
-                        <h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3>
-                        <div class="flex gap-2 mb-4">
-                            <input type="text" id="new-proj-name" placeholder="项目名" class="border p-2 rounded text-sm w-1/3">
-                            <input type="number" id="new-proj-year" placeholder="年份" class="border p-2 rounded text-sm w-1/6">
-                            <input type="date" id="new-proj-start" class="border p-2 rounded text-sm w-1/6">
-                            <input type="date" id="new-proj-end" class="border p-2 rounded text-sm w-1/6">
-                            <button onclick="createProject()" class="bg-indigo-600 text-white px-4 rounded text-sm font-bold">新建</button>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500">
+                            <h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3>
+                            <div class="bg-gray-50 p-4 rounded border mb-6">
+                                <input type="text" id="new-proj-name" placeholder="项目名称 (例: 2026福州渔博会)" class="w-full border p-2 rounded text-sm mb-2">
+                                <input type="number" id="new-proj-year" placeholder="归属年份 (例: 2026)" class="w-full border p-2 rounded text-sm mb-2">
+                                <div class="flex gap-2 mb-3 text-sm text-gray-600">
+                                    开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">
+                                    撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1">
+                                </div>
+                                <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button>
+                            </div>
+                            <table class="w-full text-sm text-left border">
+                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th><th class="p-2 text-right">操作</th></tr></thead>
+                                <tbody id="project-list-tbody" class="divide-y"></tbody>
+                            </table>
                         </div>
-                        <table class="w-full text-sm text-left border"><tbody id="project-list-tbody" class="divide-y"></tbody></table>
+
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500">
+                            <h3 class="text-lg font-bold mb-4 flex justify-between items-center">
+                                <span>👥 业务员与目标管理</span>
+                                <span class="text-xs font-normal text-gray-500">目标针对当前选中的项目生效</span>
+                            </h3>
+                            <div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2">
+                                <input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1">
+                                <select id="new-staff-role" class="border p-2 rounded text-sm w-28">
+                                    <option value="user">业务员</option>
+                                    <option value="admin">管理员</option>
+                                </select>
+                                <button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700 transition">添加</button>
+                            </div>
+                            <table class="w-full text-sm text-left border">
+                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead>
+                                <tbody id="staff-list-tbody" class="divide-y"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 
@@ -113,12 +170,8 @@
                             <table class="w-full text-sm text-left">
                                 <thead class="bg-gray-100 border-b sticky top-0 shadow-sm z-10">
                                     <tr>
-                                        <th class="p-3">展位号</th>
-                                        <th class="p-3">展馆</th>
-                                        <th class="p-3">类型</th>
-                                        <th class="p-3 text-blue-700">总面积 (㎡)</th>
-                                        <th class="p-3">计价标准</th>
-                                        <th class="p-3 text-center">状态管理</th>
+                                        <th class="p-3">展位号</th><th class="p-3">展馆</th><th class="p-3">类型</th>
+                                        <th class="p-3 text-blue-700">总面积 (㎡)</th><th class="p-3">计价标准</th><th class="p-3 text-center">状态管理</th>
                                     </tr>
                                 </thead>
                                 <tbody id="booth-list-tbody" class="divide-y"></tbody>
@@ -127,7 +180,12 @@
                     </div>
                 </section>
                 
-                <section id="sec-home" class="page-section">看板</section>
+                <section id="sec-home" class="page-section">
+                    <div class="bg-white p-6 rounded shadow border-l-4 border-blue-500">
+                        <h3 class="text-lg font-bold text-gray-700">欢迎工作！</h3>
+                        <p class="text-gray-500 mt-2">系统底层结构已更新完毕，各项配置功能已完全恢复。</p>
+                    </div>
+                </section>
                 <section id="sec-order" class="page-section">订单模块开发中...</section>
             </div>
         </main>
@@ -144,6 +202,7 @@
             { id: 'order', label: '✍️ 订单与财务录入', roles: ['admin', 'user'] },
         ];
 
+        // ================= 1. 初始化与登录 =================
         const savedUser = localStorage.getItem('exhibition_user');
         if (savedUser) { currentUser = JSON.parse(savedUser); }
 
@@ -153,6 +212,7 @@
 
         async function handleLogin() {
             const u = document.getElementById('login-user').value; const p = document.getElementById('login-pass').value;
+            if(!u || !p) return alert("请输入账号和密码");
             const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({username: u, password: p}) });
             if (res.ok) {
                 currentUser = (await res.json()).user;
@@ -184,6 +244,7 @@
                         document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
                         document.getElementById(`sec-${item.id}`).classList.add('active');
                         document.getElementById('current-page-title').innerText = item.label.substring(3);
+                        if(item.id === 'config') loadStaff(); 
                         if(item.id === 'booth') loadBooths();
                     };
                     container.appendChild(btn);
@@ -191,20 +252,135 @@
             });
         }
 
+        // ================= 2. 项目配置与管理 =================
         async function loadProjects() {
             allProjects = await (await fetch('/api/projects')).json();
-            const sel = document.getElementById('global-project-select'); sel.innerHTML = '';
-            allProjects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+            const sel = document.getElementById('global-project-select'); 
+            const tbody = document.getElementById('project-list-tbody');
+            sel.innerHTML = ''; tbody.innerHTML = '';
+            
+            allProjects.forEach(p => {
+                sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                const d = (p.start_date) ? `${p.start_date} 至 ${p.end_date}` : '未设';
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2 font-bold text-blue-600">${p.name}</td>
+                        <td class="p-2 text-gray-500">${d}</td>
+                        <td class="p-2 text-right"><button onclick='openEditProjectModal(${JSON.stringify(p)})' class="text-indigo-600 hover:underline text-xs">编辑</button></td>
+                    </tr>
+                `;
+            });
             onProjectChange();
         }
 
         function onProjectChange() {
+            if(document.getElementById('sec-config').classList.contains('active')) loadStaff();
             if(document.getElementById('sec-booth').classList.contains('active')) loadBooths();
         }
 
-        // ================= 展位库核心智能逻辑 =================
+        async function createProject() {
+            const data = {
+                name: document.getElementById('new-proj-name').value, 
+                year: document.getElementById('new-proj-year').value,
+                start_date: document.getElementById('new-proj-start').value, 
+                end_date: document.getElementById('new-proj-end').value
+            };
+            if(!data.name) return alert("项目名必填");
+            await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) });
+            alert("项目创建成功"); 
+            document.getElementById('new-proj-name').value = '';
+            loadProjects();
+        }
 
-        // 1. 控制单条录入表单的展开与折叠
+        function openEditProjectModal(p) {
+            document.getElementById('edit-p-id').value = p.id;
+            document.getElementById('edit-p-name').value = p.name;
+            document.getElementById('edit-p-year').value = p.year;
+            document.getElementById('edit-p-start').value = p.start_date;
+            document.getElementById('edit-p-end').value = p.end_date;
+            document.getElementById('edit-project-modal').classList.remove('hidden');
+        }
+
+        async function submitEditProject() {
+            const data = {
+                id: document.getElementById('edit-p-id').value,
+                name: document.getElementById('edit-p-name').value,
+                year: document.getElementById('edit-p-year').value,
+                start_date: document.getElementById('edit-p-start').value,
+                end_date: document.getElementById('edit-p-end').value
+            };
+            const res = await fetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) });
+            if (res.ok) {
+                alert("项目信息修改成功！");
+                closeModal('edit-project-modal');
+                loadProjects();
+            } else alert("修改失败");
+        }
+
+        // ================= 3. 人员与目标管理 =================
+        async function loadStaff() {
+            const pid = document.getElementById('global-project-select').value;
+            if(!pid) return;
+            const res = await fetch(`/api/staff?projectId=${pid}`);
+            const staff = await res.json();
+            const tbody = document.getElementById('staff-list-tbody');
+            tbody.innerHTML = '';
+            staff.forEach(s => {
+                const targetStr = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设置</span>';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 border-b">
+                        <td class="p-2 font-medium">${s.name}</td>
+                        <td class="p-2 text-xs">${s.role==='admin'?'管理员':'业务员'}</td>
+                        <td class="p-2">${targetStr}</td>
+                        <td class="p-2 space-x-2">
+                            ${s.role==='user' ? `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:underline text-xs">设目标</button>` : ''}
+                            <button onclick="resetPass('${s.name}')" class="text-red-400 hover:underline text-xs">重置密码</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function createStaff() {
+            const data = { name: document.getElementById('new-staff-name').value, role: document.getElementById('new-staff-role').value };
+            if(!data.name) return alert("填名字");
+            await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
+            document.getElementById('new-staff-name').value = '';
+            loadStaff();
+        }
+
+        async function setTarget(staffName) {
+            const pid = document.getElementById('global-project-select').value;
+            const t = prompt(`请设置 ${staffName} 在当前项目的招展目标数量:`, "100");
+            if(t && !isNaN(t)) {
+                await fetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: staffName, target: parseFloat(t)}) });
+                loadStaff();
+            }
+        }
+
+        async function resetPass(staffName) {
+            if(confirm(`确定将 ${staffName} 的密码重置为 123456 吗？`)) {
+                await fetch('/api/reset-password', { method: 'POST', body: JSON.stringify({staffName}) });
+                alert("密码已重置为 123456");
+            }
+        }
+
+        // ================= 4. 密码模态框 =================
+        function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        async function submitPasswordChange() {
+            const oldPass = document.getElementById('modal-old-pass').value;
+            const newPass = document.getElementById('modal-new-pass').value;
+            if(!oldPass || !newPass) return alert("请填写完整");
+            const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass, newPass}) });
+            if(res.ok) { 
+                alert("密码修改成功！请重新登录。"); 
+                closeModal('password-modal');
+                handleLogout();
+            } else alert("原密码错误！");
+        }
+
+        // ================= 5. 展位库智能逻辑 =================
         function toggleSingleBoothForm() {
             const form = document.getElementById('single-booth-form');
             const icon = document.getElementById('s-form-icon');
@@ -212,7 +388,6 @@
             else { form.classList.add('hidden'); icon.innerText = '➕'; }
         }
 
-        // 2. 监听展位类型切换，智能改变单位和提示词
         function onBoothTypeChange() {
             const type = document.getElementById('s-type').value;
             const sizeLabel = document.getElementById('s-size-label');
@@ -220,48 +395,36 @@
             const unitDisplay = document.getElementById('s-unit-display');
 
             if(type === '光地') {
-                sizeLabel.innerText = "总面积:";
-                sizeInput.placeholder = "输入平米数(如 36)";
-                unitDisplay.innerText = "/平米";
+                sizeLabel.innerText = "总面积:"; sizeInput.placeholder = "输入平米数(如 36)"; unitDisplay.innerText = "/平米";
             } else {
-                sizeLabel.innerText = "总个数:";
-                sizeInput.placeholder = "输入展位数(默认1)";
-                unitDisplay.innerText = "/个";
+                sizeLabel.innerText = "总个数:"; sizeInput.placeholder = "输入展位数(默认1)"; unitDisplay.innerText = "/个";
             }
         }
 
-        // 3. 智能新增单条展位
         async function addSingleBooth() {
             const pid = document.getElementById('global-project-select').value;
             if(!pid) return alert("请先在右上角选择项目");
             
             const idVal = document.getElementById('s-id').value.trim();
             const hallNum = document.getElementById('s-hall-num').value.trim();
-            if(!idVal || !hallNum) return alert("【拦截】展位号和展馆数字必须填写！");
+            if(!idVal || !hallNum) return alert("展位号和展馆数字必须填写！");
 
             const type = document.getElementById('s-type').value;
             const sizeVal = parseFloat(document.getElementById('s-size-input').value);
-            let finalArea = 0;
-            let priceUnit = '个';
+            let finalArea = 0; let priceUnit = '个';
 
-            // 核心换算逻辑
             if(type === '光地') {
-                finalArea = isNaN(sizeVal) ? 36 : sizeVal; // 光地默认36平
+                finalArea = isNaN(sizeVal) ? 36 : sizeVal; 
                 priceUnit = '平米';
             } else {
-                const count = isNaN(sizeVal) ? 1 : sizeVal; // 标摊默认1个
-                finalArea = count * 9; // 1个=9平米
+                const count = isNaN(sizeVal) ? 1 : sizeVal; 
+                finalArea = count * 9; 
                 priceUnit = '个';
             }
 
             const b = {
-                project_id: pid, 
-                id: idVal, 
-                hall: `${hallNum}号馆`, 
-                type: type, 
-                area: finalArea, // 存入数据库的永远是总面积
-                price_unit: priceUnit,
-                base_price: parseFloat(document.getElementById('s-price').value) || 0
+                project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, 
+                area: finalArea, price_unit: priceUnit, base_price: parseFloat(document.getElementById('s-price').value) || 0
             };
             
             try {
@@ -270,17 +433,11 @@
                     document.getElementById('s-id').value = '';
                     document.getElementById('s-size-input').value = '';
                     alert("新增成功！");
-                    await loadBooths(); // 强力刷新列表
-                } else {
-                    const errData = await res.json();
-                    alert("服务器拒绝了请求: " + (errData.error || "未知原因"));
-                }
-            } catch (error) {
-                alert("网络连接失败，请检查网络或控制台: " + error.message);
-            }
+                    await loadBooths();
+                } else alert("服务器拒绝了请求，请检查数据");
+            } catch (error) { alert("网络连接失败"); }
         }
 
-        // 4. 智能批量导入
         function downloadTemplate() {
             const header = "展位号,展馆数字(只填数字),类型(标摊/光地/豪标),数量或面积,单价\n";
             const sample = "1A01,1,标摊,2,5800\n1A02,1,光地,36,600\n";
@@ -292,55 +449,33 @@
             const pid = document.getElementById('global-project-select').value;
             const text = document.getElementById('booth-import-text').value.trim();
             if(!text) return;
-            const rows = text.split('\n'); 
-            const booths = [];
+            const rows = text.split('\n'); const booths = [];
             
             for(let r of rows) {
-                const cols = r.split(/[\t,]/); 
-                if(cols.length >= 5 && cols[0].trim() !== '展位号') { 
-                    const type = cols[2].trim();
-                    const sizeVal = parseFloat(cols[3]) || 0;
-                    
-                    let finalArea = 0;
-                    let priceUnit = '个';
-
-                    if(type === '光地') {
-                        finalArea = sizeVal || 36;
-                        priceUnit = '平米';
-                    } else {
-                        const count = sizeVal || 1;
-                        finalArea = count * 9;
-                        priceUnit = '个';
-                    }
+                if(!r.trim()) continue;
+                const cols = r.split(/[\s,]+/).filter(c => c.trim() !== ""); 
+                if(cols.length >= 5 && cols[0] !== '展位号') { 
+                    const type = cols[2]; const sizeVal = parseFloat(cols[3]) || 0;
+                    let finalArea = (type === '光地') ? (sizeVal || 36) : (sizeVal || 1) * 9;
+                    let priceUnit = (type === '光地') ? '平米' : '个';
+                    let hallStr = cols[1].replace(/馆|号/g, '') + '号馆';
 
                     booths.push({
-                        id: cols[0].trim(), 
-                        hall: `${cols[1].trim()}号馆`, 
-                        type: type,
-                        area: finalArea, 
-                        price_unit: priceUnit, 
-                        base_price: parseFloat(cols[4]) || 0
+                        id: cols[0], hall: hallStr, type: type, area: finalArea, 
+                        price_unit: priceUnit, base_price: parseFloat(cols[4]) || 0
                     });
                 }
             }
-            if(booths.length === 0) return alert("未解析到有效数据，请检查格式");
+            if(booths.length === 0) return alert("解析失败！请检查格式是否正确。");
             
-            try {
-                const res = await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
-                if (res.ok) {
-                    alert(`成功智能导入 ${booths.length} 个展位`); 
-                    document.getElementById('booth-import-text').value = ''; 
-                    await loadBooths();
-                } else {
-                    const err = await res.json();
-                    alert("导入失败: " + err.error);
-                }
-            } catch (e) {
-                alert("导入出错: " + e.message);
-            }
+            const res = await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
+            if (res.ok) {
+                alert(`成功导入 ${booths.length} 个展位`); 
+                document.getElementById('booth-import-text').value = ''; 
+                await loadBooths();
+            } else alert("导入出错");
         }
 
-        // 5. 渲染列表 (强化面积显示)
         async function loadBooths() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
             const booths = await (await fetch(`/api/booths?projectId=${pid}`)).json();
@@ -356,9 +491,7 @@
                     <tr class="hover:bg-blue-50 transition border-b">
                         <td class="p-3 font-bold text-gray-800">${b.id}</td>
                         <td class="p-3 text-gray-600">${b.hall}</td>
-                        <td class="p-3">
-                            <span class="px-2 py-1 rounded text-xs ${b.type==='光地'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'}">${b.type}</span>
-                        </td>
+                        <td class="p-3"><span class="px-2 py-1 rounded text-xs ${b.type==='光地'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'}">${b.type}</span></td>
                         <td class="p-3 font-bold text-blue-700 text-lg">${b.area} <span class="text-xs font-normal text-gray-400">㎡</span></td>
                         <td class="p-3 text-red-600 font-medium">¥${b.base_price} <span class="text-gray-400 text-xs">/${b.price_unit}</span></td>
                         <td class="p-3 text-center">${selectHtml}</td>
