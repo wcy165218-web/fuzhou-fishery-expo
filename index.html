@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026展位销售管理系统</title>
+    <title>展位销售管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 控制页面切换的简单 CSS */
         .page-section { display: none; }
         .page-section.active { display: block; }
     </style>
@@ -14,179 +13,278 @@
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
     <div id="login-view" class="flex items-center justify-center min-h-screen">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-96">
-            <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">销售管理系统</h2>
-            <input type="text" id="login-user" placeholder="请输入姓名" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
-            <input type="password" id="login-pass" placeholder="请输入密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
+            <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
+            <input type="text" id="login-user" placeholder="姓名 (如: admin)" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
+            <input type="password" id="login-pass" placeholder="密码 (如: 123)" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
             <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">登 录</button>
-            <p id="login-error" class="text-red-500 text-sm mt-3 text-center hidden">账号或密码错误</p>
         </div>
     </div>
 
     <div id="main-view" class="hidden flex h-screen overflow-hidden">
         
-        <aside class="w-64 bg-blue-900 text-white flex flex-col">
-            <div class="p-4 border-b border-blue-800">
-                <h1 class="text-lg font-bold">展位销售管理系统</h1>
-                <p id="user-info" class="text-sm text-blue-300 mt-1"></p>
+        <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-lg z-10">
+            <div class="p-5 border-b border-slate-700">
+                <h1 class="text-xl font-bold tracking-wider">展位销售系统</h1>
+                <p id="user-info" class="text-sm text-slate-400 mt-2"></p>
             </div>
             <nav id="nav-buttons" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
-            <div class="p-4 border-t border-blue-800">
-                <button onclick="location.reload()" class="w-full bg-red-600 p-2 rounded hover:bg-red-700 text-sm">安全退出</button>
+            <div class="p-4 border-t border-slate-700">
+                <button onclick="location.reload()" class="w-full bg-red-600/80 p-2 rounded hover:bg-red-600 text-sm font-bold transition">安全退出</button>
             </div>
         </aside>
 
-        <main class="flex-1 bg-gray-50 overflow-y-auto p-6">
+        <main class="flex-1 flex flex-col bg-gray-50 h-screen overflow-hidden">
             
-            <section id="sec-home" class="page-section active">
-                <h2 class="text-2xl font-bold mb-6">首页概览</h2>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-white p-4 rounded shadow border-l-4 border-blue-500">
-                        <p class="text-gray-500 text-sm">展位销售进度</p>
-                        <div class="flex items-center gap-2 mt-2">
-                            <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
-                            </div>
-                            <span id="progress-text" class="text-sm font-bold text-blue-600">0%</span>
-                        </div>
-                    </div>
-                    <div class="bg-white p-4 rounded shadow border-l-4 border-green-500">
-                        <p class="text-gray-500 text-sm">已确认款项 (元)</p>
-                        <p id="stat-revenue" class="text-2xl font-bold text-green-600 mt-1">¥ 0</p>
-                    </div>
-                    <div class="bg-white p-4 rounded shadow border-l-4 border-orange-500">
-                        <p class="text-gray-500 text-sm">距离开幕倒计时</p>
-                        <p id="countdown-days" class="text-2xl font-bold text-orange-600 mt-1">-- 天</p>
-                    </div>
-                    <div class="bg-white p-4 rounded shadow border-l-4 border-purple-500">
-                        <p class="text-gray-500 text-sm">参与销售人数</p>
-                        <p class="text-2xl font-bold text-purple-600 mt-1">20 人</p>
-                    </div>
+            <header class="bg-white h-16 shadow-sm flex items-center justify-between px-6 shrink-0 z-0">
+                <h2 id="current-page-title" class="text-lg font-bold text-gray-700">首页看板</h2>
+                <div class="flex items-center gap-3">
+                    <span class="text-sm text-gray-500 font-bold">当前操作项目：</span>
+                    <select id="global-project-select" onchange="onProjectChange()" class="border-2 border-blue-500 text-blue-700 font-bold p-2 rounded bg-blue-50 focus:outline-none min-w-[200px]">
+                        <option value="">正在加载项目...</option>
+                    </select>
                 </div>
-            </section>
+            </header>
 
-            <section id="sec-staff-mgr" class="page-section">
-                <h2 class="text-2xl font-bold mb-6 border-b pb-2">业务员管理</h2>
-                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：新增人员、设置目标）</div>
-            </section>
+            <div class="flex-1 overflow-y-auto p-6">
+                
+                <section id="sec-home" class="page-section active">
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded">
+                        <p class="text-blue-700">欢迎进入系统！请先在左侧菜单点击 <strong>“系统与人员配置”</strong>，创建您的第一个展会项目。</p>
+                    </div>
+                </section>
 
-            <section id="sec-booth-mgr" class="page-section">
-                <h2 class="text-2xl font-bold mb-6 border-b pb-2">展位库管理</h2>
-                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：录入展位、修改底价）</div>
-            </section>
+                <section id="sec-config" class="page-section">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500">
+                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">📂 展会项目管理</h3>
+                            
+                            <div class="bg-gray-50 p-4 rounded border mb-6">
+                                <h4 class="text-sm font-bold text-gray-600 mb-3">新建展会项目</h4>
+                                <div class="grid grid-cols-2 gap-3 mb-3">
+                                    <input type="text" id="new-proj-name" placeholder="项目名称 (例: 2026福州渔博会)" class="col-span-2 border p-2 rounded text-sm">
+                                    <input type="number" id="new-proj-year" placeholder="归属年份 (例: 2026)" class="border p-2 rounded text-sm">
+                                    <div></div>
+                                    <div class="col-span-2 flex items-center gap-2 text-sm text-gray-600">
+                                        开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">
+                                        撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1">
+                                    </div>
+                                </div>
+                                <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button>
+                            </div>
 
-            <section id="sec-order-entry" class="page-section">
-                <h2 class="text-2xl font-bold mb-6 border-b pb-2">新增成交订单</h2>
-                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：级联选择、金额计算表单）</div>
-            </section>
+                            <h4 class="text-sm font-bold text-gray-600 mb-2">已有项目列表</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left border">
+                                    <thead class="bg-gray-100 border-b">
+                                        <tr>
+                                            <th class="p-2">项目名称</th>
+                                            <th class="p-2">展期</th>
+                                            <th class="p-2">状态</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="project-list-tbody" class="divide-y">
+                                        <tr><td colspan="3" class="p-2 text-center text-gray-500">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-            <section id="sec-payment-entry" class="page-section">
-                <h2 class="text-2xl font-bold mb-6 border-b pb-2">财务收款登记</h2>
-                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：登记分批收款明细）</div>
-            </section>
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500">
+                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">👥 业务员账号管理</h3>
+                            
+                            <div class="bg-gray-50 p-4 rounded border mb-6">
+                                <h4 class="text-sm font-bold text-gray-600 mb-3">添加新账号</h4>
+                                <div class="grid grid-cols-2 gap-3 mb-3">
+                                    <input type="text" id="new-staff-name" placeholder="员工姓名 (登录账号)" class="col-span-2 border p-2 rounded text-sm">
+                                    <input type="text" id="new-staff-pass" value="123456" placeholder="初始密码" class="border p-2 rounded text-sm">
+                                    <select id="new-staff-role" class="border p-2 rounded text-sm">
+                                        <option value="user">普通业务员</option>
+                                        <option value="admin">管理员</option>
+                                    </select>
+                                </div>
+                                <button onclick="createStaff()" class="w-full bg-emerald-600 text-white p-2 rounded text-sm font-bold hover:bg-emerald-700 transition">添加人员</button>
+                            </div>
 
-            <section id="sec-summary" class="page-section">
-                <h2 class="text-2xl font-bold mb-6 border-b pb-2" id="summary-title">数据汇总</h2>
-                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：各销售人员目标完成表格）</div>
-            </section>
+                            <h4 class="text-sm font-bold text-gray-600 mb-2">系统账号列表</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left border">
+                                    <thead class="bg-gray-100 border-b">
+                                        <tr>
+                                            <th class="p-2">姓名</th>
+                                            <th class="p-2">角色</th>
+                                            <th class="p-2">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="staff-list-tbody" class="divide-y">
+                                        <tr><td colspan="3" class="p-2 text-center text-gray-500">加载中...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </section>
 
+                <section id="sec-booth" class="page-section">展位库开发中...</section>
+                <section id="sec-order" class="page-section">成交录入开发中...</section>
+
+            </div>
         </main>
     </div>
 
     <script>
         let currentUser = null;
+        let allProjects = [];
 
-        // 【导航与权限配置表】
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] },
-            { id: 'staff-mgr', label: '👥 业务员管理', roles: ['admin'] },
-            { id: 'booth-mgr', label: '🎪 展位库管理', roles: ['admin'] },
-            { id: 'order-entry', label: '✍️ 成交订单录入', roles: ['admin', 'user'] },
-            { id: 'payment-entry', label: '💰 财务收款登记', roles: ['admin', 'user'] },
-            { id: 'summary', label: '📈 全局业绩汇总', roles: ['admin'] },
-            { id: 'summary', label: '📈 我的业绩明细', roles: ['user'] } // 同一个页面，对销售显示不同文字
+            { id: 'config', label: '⚙️ 系统与人员配置', roles: ['admin'] },
+            { id: 'booth', label: '🎪 展位库管理', roles: ['admin'] },
+            { id: 'order', label: '✍️ 订单与财务录入', roles: ['admin', 'user'] },
         ];
 
-        // 1. 登录处理
+        // --- 核心初始化与导航 ---
         async function handleLogin() {
             const u = document.getElementById('login-user').value;
             const p = document.getElementById('login-pass').value;
-            document.getElementById('login-error').classList.add('hidden');
+            if(!u || !p) return alert("请输入账号密码");
 
-            try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    body: JSON.stringify({username: u, password: p})
-                });
-
-                if (res.ok) {
-                    const data = await res.json();
-                    currentUser = data.user;
-                    initApp();
-                } else {
-                    document.getElementById('login-error').classList.remove('hidden');
-                }
-            } catch (err) {
-                alert("系统连接失败，请稍后再试。");
+            const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({username: u, password: p}) });
+            if (res.ok) {
+                currentUser = (await res.json()).user;
+                document.getElementById('login-view').classList.add('hidden');
+                document.getElementById('main-view').classList.remove('hidden');
+                
+                const roleName = currentUser.role === 'admin' ? '管理员' : '销售代表';
+                document.getElementById('user-info').innerText = `${currentUser.name} (${roleName})`;
+                
+                renderNav();
+                await loadProjects(); // 登录成功后拉取项目
+                
+            } else {
+                alert('登录失败，请检查账号密码');
             }
         }
 
-        // 2. 初始化系统界面
-        function initApp() {
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('main-view').classList.remove('hidden');
-            
-            // 显示用户身份
-            const roleName = currentUser.role === 'admin' ? '管理员' : '销售代表';
-            document.getElementById('user-info').innerText = `当前登录：${currentUser.name} (${roleName})`;
-
-            // 渲染左侧导航按钮
+        function renderNav() {
             const btnContainer = document.getElementById('nav-buttons');
             btnContainer.innerHTML = '';
-            
             navConfig.forEach(item => {
                 if (item.roles.includes(currentUser.role)) {
                     const btn = document.createElement('button');
-                    btn.className = "w-full text-left px-4 py-3 rounded hover:bg-blue-800 transition text-sm font-medium focus:bg-blue-800";
+                    btn.className = "w-full text-left px-4 py-3 rounded text-slate-300 hover:bg-blue-600 hover:text-white transition text-sm font-medium mb-1";
                     btn.innerText = item.label;
-                    btn.onclick = () => showPage(item.id, item.label);
+                    btn.onclick = () => {
+                        document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
+                        document.getElementById(`sec-${item.id}`).classList.add('active');
+                        document.getElementById('current-page-title').innerText = item.label.substring(3);
+                        // 如果点的是配置页，加载人员列表
+                        if(item.id === 'config') loadStaff();
+                    };
                     btnContainer.appendChild(btn);
                 }
             });
-
-            // 启动倒计时计算
-            calculateCountdown();
-
-            // 默认打开首页
-            showPage('home', '📊 首页看板');
         }
 
-        // 3. 页面切换逻辑
-        function showPage(pageId, label) {
-            // 隐藏所有页面
-            document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
-            // 显示目标页面
-            document.getElementById(`sec-${pageId}`).classList.add('active');
+        // --- 项目管理功能 ---
+        async function loadProjects() {
+            const res = await fetch('/api/projects');
+            allProjects = await res.json();
             
-            // 动态修改汇总页标题
-            if(pageId === 'summary') {
-                document.getElementById('summary-title').innerText = label.substring(3); // 去掉前面的emoji
+            // 填充顶部下拉框
+            const select = document.getElementById('global-project-select');
+            select.innerHTML = '';
+            
+            // 填充配置页的表格
+            const tbody = document.getElementById('project-list-tbody');
+            tbody.innerHTML = '';
+
+            if(allProjects.length === 0) {
+                select.innerHTML = '<option value="">暂无项目，请先创建</option>';
+                tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-500">暂无项目记录</td></tr>';
+                return;
             }
+
+            allProjects.forEach(p => {
+                // 下拉框
+                select.innerHTML += `<option value="${p.id}">${p.name} (${p.year})</option>`;
+                // 表格
+                const dateStr = (p.start_date && p.end_date) ? `${p.start_date.substring(5)} 至 ${p.end_date.substring(5)}` : '未设置';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-2 font-medium text-blue-600">${p.name}</td>
+                        <td class="p-2 text-gray-500">${dateStr}</td>
+                        <td class="p-2"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">${p.status}</span></td>
+                    </tr>
+                `;
+            });
         }
 
-        // 4. 展会倒计时逻辑 (自动计算距离 2026年6月12日 的天数)
-        function calculateCountdown() {
-            const targetDate = new Date("2026-06-12T00:00:00").getTime();
-            const now = new Date().getTime();
-            const distance = targetDate - now;
-            
-            if (distance > 0) {
-                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-                document.getElementById('countdown-days').innerText = days + " 天";
+        async function createProject() {
+            const data = {
+                name: document.getElementById('new-proj-name').value,
+                year: document.getElementById('new-proj-year').value,
+                start_date: document.getElementById('new-proj-start').value,
+                end_date: document.getElementById('new-proj-end').value
+            };
+            if(!data.name || !data.year) return alert("项目名称和年份为必填项！");
+
+            const res = await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) });
+            if(res.ok) {
+                alert("项目创建成功！");
+                document.getElementById('new-proj-name').value = '';
+                loadProjects(); // 刷新列表
             } else {
-                document.getElementById('countdown-days').innerText = "已开展";
-                document.getElementById('countdown-days').classList.replace('text-orange-600', 'text-green-600');
+                alert("创建失败");
             }
+        }
+
+        // --- 人员管理功能 ---
+        async function loadStaff() {
+            const res = await fetch('/api/staff');
+            const staff = await res.json();
+            const tbody = document.getElementById('staff-list-tbody');
+            tbody.innerHTML = '';
+            staff.forEach(s => {
+                const roleBadge = s.role === 'admin' 
+                    ? '<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">管理员</span>' 
+                    : '<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">业务员</span>';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-2 font-medium">${s.name}</td>
+                        <td class="p-2">${roleBadge}</td>
+                        <td class="p-2 text-xs text-blue-500 cursor-pointer hover:underline">重置密码</td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function createStaff() {
+            const data = {
+                name: document.getElementById('new-staff-name').value,
+                password: document.getElementById('new-staff-pass').value,
+                role: document.getElementById('new-staff-role').value
+            };
+            if(!data.name) return alert("请输入员工姓名！");
+
+            const res = await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
+            if(res.ok) {
+                alert("人员添加成功！");
+                document.getElementById('new-staff-name').value = '';
+                loadStaff(); // 刷新列表
+            } else {
+                const err = await res.json();
+                alert(err.message || "添加失败");
+            }
+        }
+
+        // 监听全局项目切换
+        function onProjectChange() {
+            const projId = document.getElementById('global-project-select').value;
+            console.log("当前操作已切换到项目 ID:", projId);
+            // 后续：切换项目后，自动刷新展位库和订单表的数据
         }
     </script>
 </body>
