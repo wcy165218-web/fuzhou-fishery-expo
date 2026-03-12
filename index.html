@@ -306,41 +306,61 @@
             document.getElementById('booth-import-text').value = ''; alert(`导入指令已发送`); loadBooths();
         }
 
-        // ================= 4. 大盘统计 =================
+// ================= 4. 大盘统计 (含分馆明细) =================
         function renderStats() {
             const panel = document.getElementById('stats-panel');
-            if(allBooths.length === 0) { panel.innerHTML = '<div class="col-span-4 text-gray-500">暂无数据</div>'; return; }
+            if(allBooths.length === 0) { panel.innerHTML = '<div class="col-span-2 lg:col-span-4 text-gray-500 text-center py-4">暂无数据</div>'; return; }
 
+            // 全局变量
             let totalArea = 0, totalRev = 0;
-            let gdArea = 0, btArea = 0; // 光地、标摊大类(含豪标)
+            let gdArea = 0, btArea = 0; 
             let statusMap = { '可售':0, '已锁定':0, '已预订':0, '已成交':0 };
             
+            // 分馆变量 (用对象存储每个馆的数据)
+            let hallStats = {};
+            
             allBooths.forEach(b => {
+                // 1. 累加全局大盘
                 totalArea += b.area;
                 statusMap[b.status] = (statusMap[b.status] || 0) + b.area;
                 if(b.type === '光地') gdArea += b.area; else btArea += b.area;
 
                 let price = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0);
-                totalRev += (b.type === '光地') ? (price * b.area) : (price * (b.area/9));
+                let currentRev = (b.type === '光地') ? (price * b.area) : (price * (b.area/9));
+                totalRev += currentRev;
+
+                // 2. 累加分馆大盘
+                if(!hallStats[b.hall]) {
+                    hallStats[b.hall] = {
+                        totalArea: 0, totalRev: 0, gdArea: 0, btArea: 0,
+                        statusMap: { '可售':0, '已锁定':0, '已预订':0, '已成交':0 }
+                    };
+                }
+                let hs = hallStats[b.hall];
+                hs.totalArea += b.area;
+                hs.totalRev += currentRev;
+                hs.statusMap[b.status] += b.area;
+                if(b.type === '光地') hs.gdArea += b.area; else hs.btArea += b.area;
             });
 
-            // 折合数
+            // 折合展位数与比例计算工具
             const formatCount = (a) => Number((a/9).toFixed(2)).toString(); 
             const calcRatio = (v, t) => t > 0 ? ((v/t)*100).toFixed(1) : 0;
 
-            panel.innerHTML = `
+            // ---- 构造【全局统计】HTML ----
+            let htmlStr = `
                 <div class="bg-gray-50 p-3 rounded border">
-                    <div class="text-xs text-gray-500">总可收展位费(挂牌)</div>
+                    <div class="text-xs text-gray-500">💰 总体可收展位费(挂牌)</div>
                     <div class="text-lg font-bold text-red-600">¥${totalRev.toLocaleString()}</div>
                     <div class="text-xs text-gray-400 mt-1">总面积: ${totalArea}㎡ (折 ${formatCount(totalArea)} 个)</div>
                 </div>
                 <div class="bg-blue-50 p-3 rounded border border-blue-100">
-                    <div class="text-xs text-blue-500">光地总览</div>
+                    <div class="text-xs text-blue-500">🟦 总体光地概况</div>
                     <div class="text-lg font-bold text-blue-700">${gdArea} <span class="text-xs">㎡</span></div>
                     <div class="text-xs text-blue-600 mt-1">折合展位数: ${formatCount(gdArea)} 个</div>
                 </div>
                 <div class="bg-indigo-50 p-3 rounded border border-indigo-100">
-                    <div class="text-xs text-indigo-500">标摊/豪标总览</div>
+                    <div class="text-xs text-indigo-500">🟪 总体标摊/豪标概况</div>
                     <div class="text-lg font-bold text-indigo-700">${btArea} <span class="text-xs">㎡</span></div>
                     <div class="text-xs text-indigo-600 mt-1">折合展位数: ${formatCount(btArea)} 个</div>
                 </div>
@@ -351,6 +371,40 @@
                     <div class="flex justify-between text-green-600"><span>🤝 成交: ${statusMap['已成交']}㎡</span><span class="font-bold">${calcRatio(statusMap['已成交'], totalArea)}%</span></div>
                 </div>
             `;
+
+            // ---- 构造【按馆明细】HTML ----
+            // 让按馆明细在下方占满整行，内部再采用网格排版
+            htmlStr += `<div class="col-span-2 lg:col-span-4 mt-2 border-t pt-4">
+                            <h4 class="font-bold text-gray-700 mb-3 text-sm">📍 按展馆明细统计</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            
+            // 提取所有馆号并按字母数字排序
+            const sortedHalls = Object.keys(hallStats).sort();
+            
+            sortedHalls.forEach(hall => {
+                let hs = hallStats[hall];
+                htmlStr += `
+                    <div class="bg-white border p-3 rounded-lg shadow-sm text-xs relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                        <div class="font-bold text-sm text-gray-800 mb-2 border-b pb-1 pl-2">${hall}</div>
+                        <div class="pl-2 space-y-1">
+                            <div class="flex justify-between text-red-600 font-bold mb-2"><span>预计可收:</span> <span>¥${hs.totalRev.toLocaleString()}</span></div>
+                            <div class="flex justify-between text-gray-600"><span>光地: ${hs.gdArea}㎡</span> <span>(折 ${formatCount(hs.gdArea)} 个)</span></div>
+                            <div class="flex justify-between text-gray-600"><span>标摊: ${hs.btArea}㎡</span> <span>(折 ${formatCount(hs.btArea)} 个)</span></div>
+                            
+                            <div class="mt-2 bg-gray-50 p-2 rounded space-y-1">
+                                <div class="flex justify-between text-gray-500"><span>可售: ${hs.statusMap['可售']}㎡</span> <span>${calcRatio(hs.statusMap['可售'], hs.totalArea)}%</span></div>
+                                <div class="flex justify-between text-orange-500"><span>锁定: ${hs.statusMap['已锁定']}㎡</span> <span>${calcRatio(hs.statusMap['已锁定'], hs.totalArea)}%</span></div>
+                                <div class="flex justify-between text-purple-500"><span>预订: ${hs.statusMap['已预订']}㎡</span> <span>${calcRatio(hs.statusMap['已预订'], hs.totalArea)}%</span></div>
+                                <div class="flex justify-between text-green-600 font-bold"><span>成交: ${hs.statusMap['已成交']}㎡</span> <span>${calcRatio(hs.statusMap['已成交'], hs.totalArea)}%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            htmlStr += `</div></div>`;
+            panel.innerHTML = htmlStr;
         }
 
         // ================= 5. 表格渲染与操作 =================
