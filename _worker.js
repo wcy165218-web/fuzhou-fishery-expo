@@ -87,6 +87,13 @@ export default {
         await env.DB.batch(batch);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
+      // 在之前的接口基础上，增加第 8 条：修改项目
+        if (url.pathname === '/api/update-project' && request.method === 'POST') {
+        const p = await request.json();
+        await env.DB.prepare("UPDATE Projects SET name = ?, year = ?, start_date = ?, end_date = ? WHERE id = ?")
+       .bind(p.name, p.year, p.start_date, p.end_date, p.id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
       // 【新增】单条展位添加
       if (url.pathname === '/api/add-booth' && request.method === 'POST') {
         const b = await request.json();
