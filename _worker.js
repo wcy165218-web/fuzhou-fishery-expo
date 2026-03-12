@@ -47,6 +47,6 @@ export default {
     }
 
     // 如果不是 API 请求，直接返回默认响应（或交给 Pages 处理静态资源）
-    return new Response("API Engine Running", { headers: corsHeaders });
+    return env.ASSETS.fetch(request);
   }
 };
