@@ -10,7 +10,6 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
     try {
-      // 1. 登录
       if (url.pathname === '/api/login' && request.method === 'POST') {
         const { username, password } = await request.json();
         const user = await env.DB.prepare("SELECT name, role FROM Staff WHERE name = ? AND password = ?").bind(username, password).first();
@@ -18,7 +17,6 @@ export default {
         return new Response(JSON.stringify({ success: false, message: "账号或密码错误" }), { status: 401, headers: corsHeaders });
       }
 
-      // 2. 项目获取、创建、修改
       if (url.pathname === '/api/projects' && request.method === 'GET') {
         const { results } = await env.DB.prepare("SELECT * FROM Projects ORDER BY year DESC, id DESC").all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
@@ -28,15 +26,12 @@ export default {
         await env.DB.prepare("INSERT INTO Projects (name, year, start_date, end_date, status) VALUES (?, ?, ?, ?, '进行中')").bind(p.name, p.year, p.start_date, p.end_date).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-      // 【关键修复】：修改项目接口
       if (url.pathname === '/api/update-project' && request.method === 'POST') {
         const p = await request.json();
-        await env.DB.prepare("UPDATE Projects SET name = ?, year = ?, start_date = ?, end_date = ? WHERE id = ?")
-          .bind(p.name, p.year, p.start_date, p.end_date, p.id).run();
+        await env.DB.prepare("UPDATE Projects SET name = ?, year = ?, start_date = ?, end_date = ? WHERE id = ?").bind(p.name, p.year, p.start_date, p.end_date, p.id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 3. 员工获取与创建
       if (url.pathname === '/api/staff' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare(`
@@ -55,13 +50,9 @@ export default {
         }
       }
 
-      // 4. 设置目标与密码管理
       if (url.pathname === '/api/set-target' && request.method === 'POST') {
         const { projectId, staffName, target } = await request.json();
-        await env.DB.prepare(`
-          INSERT INTO Project_Staff_Map (project_id, staff_name, target_value) VALUES (?, ?, ?) 
-          ON CONFLICT(project_id, staff_name) DO UPDATE SET target_value = excluded.target_value
-        `).bind(projectId, staffName, target).run();
+        await env.DB.prepare(`INSERT INTO Project_Staff_Map (project_id, staff_name, target_value) VALUES (?, ?, ?) ON CONFLICT(project_id, staff_name) DO UPDATE SET target_value = excluded.target_value`).bind(projectId, staffName, target).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/reset-password' && request.method === 'POST') {
@@ -77,7 +68,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 5. 展位库相关
+      // ==== 展位模块 ==== (移除开口数逻辑，简化结构)
       if (url.pathname === '/api/booths' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare("SELECT * FROM Booths WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
@@ -85,14 +76,15 @@ export default {
       }
       if (url.pathname === '/api/add-booth' && request.method === 'POST') {
         const b = await request.json();
-        await env.DB.prepare("INSERT OR REPLACE INTO Booths (id, project_id, hall, type, area, open_sides, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '可售')")
-          .bind(b.id, b.project_id, b.hall, b.type, b.area, b.open_sides, b.price_unit, b.base_price).run();
+        // 剥离了 open_sides
+        await env.DB.prepare("INSERT OR REPLACE INTO Booths (id, project_id, hall, type, area, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, '可售')")
+          .bind(b.id, b.project_id, b.hall, b.type, b.area, b.price_unit, b.base_price).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/import-booths' && request.method === 'POST') {
         const { projectId, booths } = await request.json();
-        const stmt = env.DB.prepare("INSERT OR REPLACE INTO Booths (id, project_id, hall, type, area, open_sides, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '可售')");
-        const batch = booths.map(b => stmt.bind(b.id, projectId, b.hall, b.type, b.area, b.open_sides, b.price_unit, b.base_price));
+        const stmt = env.DB.prepare("INSERT OR REPLACE INTO Booths (id, project_id, hall, type, area, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, '可售')");
+        const batch = booths.map(b => stmt.bind(b.id, projectId, b.hall, b.type, b.area, b.price_unit, b.base_price));
         await env.DB.batch(batch);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
