@@ -1,52 +1,64 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const { DB } = env;
-
-    // 跨域设置，允许前端调用
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
     };
 
-    // 1. 登录验证接口
-    if (url.pathname === "/api/login" && request.method === "POST") {
-      const { username, password } = await request.json();
-      const user = await DB.prepare("SELECT * FROM Staff WHERE name = ? AND password = ?")
-        .bind(username, password)
-        .first();
+    if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-      if (user) {
-        return Response.json({ success: true, user: { name: user.name, role: user.role } }, { headers: corsHeaders });
-      } else {
-        return Response.json({ success: false, message: "账号或密码错误" }, { status: 401, headers: corsHeaders });
+    try {
+      // 1. 登录接口
+      if (url.pathname === '/api/login' && request.method === 'POST') {
+        const { username, password } = await request.json();
+        const user = await env.DB.prepare("SELECT name, role FROM Staff WHERE name = ? AND password = ?")
+          .bind(username, password).first();
+        if (user) {
+          return new Response(JSON.stringify({ success: true, user }), { headers: corsHeaders });
+        }
+        return new Response(JSON.stringify({ success: false, message: "账号或密码错误" }), { status: 401, headers: corsHeaders });
       }
+
+      // 2. 获取所有项目列表
+      if (url.pathname === '/api/projects' && request.method === 'GET') {
+        const { results } = await env.DB.prepare("SELECT * FROM Projects ORDER BY year DESC, id DESC").all();
+        return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+
+      // 3. 新增项目
+      if (url.pathname === '/api/projects' && request.method === 'POST') {
+        const p = await request.json();
+        await env.DB.prepare("INSERT INTO Projects (name, year, start_date, end_date, status) VALUES (?, ?, ?, ?, '进行中')")
+          .bind(p.name, p.year, p.start_date, p.end_date).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 4. 获取所有业务员列表
+      if (url.pathname === '/api/staff' && request.method === 'GET') {
+        const { results } = await env.DB.prepare("SELECT name, role FROM Staff").all();
+        return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+
+      // 5. 新增业务员
+      if (url.pathname === '/api/staff' && request.method === 'POST') {
+        const s = await request.json();
+        try {
+          await env.DB.prepare("INSERT INTO Staff (name, password, role) VALUES (?, ?, ?)")
+            .bind(s.name, s.password || '123456', s.role).run();
+          return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        } catch (err) {
+          // 如果名字重复会报错
+          return new Response(JSON.stringify({ success: false, message: "该姓名已存在" }), { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // 如果不是 API 请求，统一返回前端网页
+      return env.ASSETS.fetch(request);
+
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
     }
-
-    // 2. 获取可选展位接口
-    if (url.pathname === "/api/get-booths" && request.method === "GET") {
-      const { results } = await DB.prepare("SELECT * FROM Booths WHERE status = '可售'").all();
-      return Response.json(results, { headers: corsHeaders });
-    }
-
-    // 3. 提交成交订单接口
-    if (url.pathname === "/api/submit-order" && request.method === "POST") {
-      const data = await request.json();
-      
-      // 开启事务：1. 插入订单 2. 更新展位状态为 '预定'
-      const info = await DB.prepare(
-        "INSERT INTO Orders (company_name, booth_id, total_amount, sales_name, region_info) VALUES (?, ?, ?, ?, ?)"
-      ).bind(data.company_name, data.booth_id, data.total_amount, data.sales_name, data.region_info).run();
-
-      await DB.prepare("UPDATE Booths SET status = '预定' WHERE id = ?")
-        .bind(data.booth_id)
-        .run();
-
-      return Response.json({ success: true }, { headers: corsHeaders });
-    }
-
-    // 如果不是 API 请求，直接返回默认响应（或交给 Pages 处理静态资源）
-    return env.ASSETS.fetch(request);
   }
-};
+}
