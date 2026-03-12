@@ -3,193 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026渔博会 - 展位销售系统</title>
+    <title>2026展位销售管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 控制页面切换的简单 CSS */
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-100 min-h-screen text-gray-800">
 
-    <div id="login-view" class="min-h-screen flex items-center justify-center">
-        <div class="bg-white p-8 rounded-lg shadow-lg w-96">
-            <h2 class="text-2xl font-bold text-center text-blue-600 mb-6">渔博会销售系统</h2>
-            <input type="text" id="username" placeholder="请输入姓名 (测试输入: admin)" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
-            <input type="password" id="password" placeholder="请输入密码 (测试输入: 123)" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
-            <button onclick="login()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">登 录</button>
+    <div id="login-view" class="flex items-center justify-center min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96">
+            <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">销售管理系统</h2>
+            <input type="text" id="login-user" placeholder="请输入姓名" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
+            <input type="password" id="login-pass" placeholder="请输入密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">登 录</button>
             <p id="login-error" class="text-red-500 text-sm mt-3 text-center hidden">账号或密码错误</p>
         </div>
     </div>
 
-    <div id="main-view" class="hidden min-h-screen p-6 max-w-5xl mx-auto">
-        <header class="flex justify-between items-center mb-8 bg-white p-4 rounded shadow">
-            <h1 class="text-xl font-bold">欢迎, <span id="current-user" class="text-blue-600"></span></h1>
-            <button onclick="location.reload()" class="text-gray-500 hover:text-red-500">安全退出</button>
-        </header>
-
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h2 class="text-lg font-bold border-b pb-3 mb-4">录入成交信息</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="text" id="company_name" placeholder="企业名称 *" class="border p-2 rounded w-full">
-                <input type="text" id="credit_code" placeholder="统一社会信用代码" class="border p-2 rounded w-full">
-                
-                <div class="col-span-1 md:col-span-2 flex gap-2">
-                    <select id="region_level1" onchange="changeRegion1()" class="border p-2 rounded w-1/3">
-                        <option value="">选择国家/地区 *</option>
-                        <option value="国内">国内</option>
-                        <option value="港澳台">港澳台</option>
-                        <option value="国际">国际</option>
-                    </select>
-                    <div id="region_level2_container" class="w-2/3 flex gap-2"></div>
-                </div>
-
-                <input type="text" id="contact_person" placeholder="联系人" class="border p-2 rounded w-full">
-                <input type="text" id="phone" placeholder="手机号码" class="border p-2 rounded w-full">
-                
-                <select id="booth_select" onchange="changeBooth()" class="border p-2 rounded w-full">
-                    <option value="">正在加载可售展位...</option>
-                </select>
-                
-                <div class="bg-blue-50 p-2 rounded text-sm flex items-center gap-4 border border-blue-100">
-                    <span>类型: <strong id="show_type">-</strong></span>
-                    <span>面积: <strong id="show_area">0</strong> ㎡</span>
-                </div>
-
-                <input type="number" id="unit_price" oninput="calculateTotal()" placeholder="展位单价 (元/㎡) *" class="border p-2 rounded w-full">
-                
-                <div class="bg-green-50 p-2 rounded border border-green-100 flex items-center">
-                    <span>展位费总计：<strong class="text-green-600 text-lg" id="total_amount">0</strong> 元</span>
-                </div>
+    <div id="main-view" class="hidden flex h-screen overflow-hidden">
+        
+        <aside class="w-64 bg-blue-900 text-white flex flex-col">
+            <div class="p-4 border-b border-blue-800">
+                <h1 class="text-lg font-bold">展位销售管理系统</h1>
+                <p id="user-info" class="text-sm text-blue-300 mt-1"></p>
             </div>
+            <nav id="nav-buttons" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
+            <div class="p-4 border-t border-blue-800">
+                <button onclick="location.reload()" class="w-full bg-red-600 p-2 rounded hover:bg-red-700 text-sm">安全退出</button>
+            </div>
+        </aside>
 
-            <button onclick="submitOrder()" class="mt-6 w-full bg-green-600 text-white p-3 rounded font-bold hover:bg-green-700">提交成交订单</button>
-        </div>
+        <main class="flex-1 bg-gray-50 overflow-y-auto p-6">
+            
+            <section id="sec-home" class="page-section active">
+                <h2 class="text-2xl font-bold mb-6">首页概览</h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white p-4 rounded shadow border-l-4 border-blue-500">
+                        <p class="text-gray-500 text-sm">展位销售进度</p>
+                        <div class="flex items-center gap-2 mt-2">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <span id="progress-text" class="text-sm font-bold text-blue-600">0%</span>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded shadow border-l-4 border-green-500">
+                        <p class="text-gray-500 text-sm">已确认款项 (元)</p>
+                        <p id="stat-revenue" class="text-2xl font-bold text-green-600 mt-1">¥ 0</p>
+                    </div>
+                    <div class="bg-white p-4 rounded shadow border-l-4 border-orange-500">
+                        <p class="text-gray-500 text-sm">距离开幕倒计时</p>
+                        <p id="countdown-days" class="text-2xl font-bold text-orange-600 mt-1">-- 天</p>
+                    </div>
+                    <div class="bg-white p-4 rounded shadow border-l-4 border-purple-500">
+                        <p class="text-gray-500 text-sm">参与销售人数</p>
+                        <p class="text-2xl font-bold text-purple-600 mt-1">20 人</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sec-staff-mgr" class="page-section">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2">业务员管理</h2>
+                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：新增人员、设置目标）</div>
+            </section>
+
+            <section id="sec-booth-mgr" class="page-section">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2">展位库管理</h2>
+                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：录入展位、修改底价）</div>
+            </section>
+
+            <section id="sec-order-entry" class="page-section">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2">新增成交订单</h2>
+                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：级联选择、金额计算表单）</div>
+            </section>
+
+            <section id="sec-payment-entry" class="page-section">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2">财务收款登记</h2>
+                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：登记分批收款明细）</div>
+            </section>
+
+            <section id="sec-summary" class="page-section">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2" id="summary-title">数据汇总</h2>
+                <div class="bg-white p-6 rounded shadow text-gray-500 italic">（功能开发预留位置：各销售人员目标完成表格）</div>
+            </section>
+
+        </main>
     </div>
 
     <script>
-        let allBooths = []; // 存放从数据库获取的展位数据
-        let currentSalesName = "";
+        let currentUser = null;
 
-        // 1. 登录逻辑
-        async function login() {
-            const u = document.getElementById('username').value;
-            const p = document.getElementById('password').value;
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            
-            if(res.ok) {
-                const data = await res.json();
-                currentSalesName = data.user.name;
-                document.getElementById('login-view').classList.add('hidden');
-                document.getElementById('main-view').classList.remove('hidden');
-                document.getElementById('current-user').innerText = currentSalesName;
-                loadBooths(); // 登录成功后拉取展位
-            } else {
-                document.getElementById('login-error').classList.remove('hidden');
-            }
-        }
+        // 【导航与权限配置表】
+        const navConfig = [
+            { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] },
+            { id: 'staff-mgr', label: '👥 业务员管理', roles: ['admin'] },
+            { id: 'booth-mgr', label: '🎪 展位库管理', roles: ['admin'] },
+            { id: 'order-entry', label: '✍️ 成交订单录入', roles: ['admin', 'user'] },
+            { id: 'payment-entry', label: '💰 财务收款登记', roles: ['admin', 'user'] },
+            { id: 'summary', label: '📈 全局业绩汇总', roles: ['admin'] },
+            { id: 'summary', label: '📈 我的业绩明细', roles: ['user'] } // 同一个页面，对销售显示不同文字
+        ];
 
-        // 2. 加载可售展位
-        async function loadBooths() {
-            const res = await fetch('/api/get-booths');
-            if(res.ok) {
-                allBooths = await res.json();
-                const sel = document.getElementById('booth_select');
-                sel.innerHTML = '<option value="">请选择展位 *</option>';
-                allBooths.forEach(b => {
-                    sel.innerHTML += `<option value="${b.id}">${b.hall} - ${b.id}</option>`;
+        // 1. 登录处理
+        async function handleLogin() {
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            document.getElementById('login-error').classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    body: JSON.stringify({username: u, password: p})
                 });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUser = data.user;
+                    initApp();
+                } else {
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            } catch (err) {
+                alert("系统连接失败，请稍后再试。");
             }
         }
 
-        // 3. 展位选择联动
-        function changeBooth() {
-            const boothId = document.getElementById('booth_select').value;
-            const booth = allBooths.find(b => b.id === boothId);
-            if(booth) {
-                document.getElementById('show_type').innerText = booth.booth_type;
-                document.getElementById('show_area').innerText = booth.area;
-            } else {
-                document.getElementById('show_type').innerText = '-';
-                document.getElementById('show_area').innerText = '0';
-            }
-            calculateTotal();
-        }
+        // 2. 初始化系统界面
+        function initApp() {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            
+            // 显示用户身份
+            const roleName = currentUser.role === 'admin' ? '管理员' : '销售代表';
+            document.getElementById('user-info').innerText = `当前登录：${currentUser.name} (${roleName})`;
 
-        // 4. 自动计算总价
-        function calculateTotal() {
-            const area = parseFloat(document.getElementById('show_area').innerText) || 0;
-            const price = parseFloat(document.getElementById('unit_price').value) || 0;
-            document.getElementById('total_amount').innerText = area * price;
-        }
-
-        // 5. 地区级联逻辑
-        function changeRegion1() {
-            const lvl1 = document.getElementById('region_level1').value;
-            const container = document.getElementById('region_level2_container');
-            if (lvl1 === '国际') {
-                container.innerHTML = '<input type="text" id="region_detail" placeholder="输入国家名称" class="border p-2 rounded w-full">';
-            } else if (lvl1 === '港澳台') {
-                container.innerHTML = `<select id="region_detail" class="border p-2 rounded w-full">
-                    <option value="香港">香港</option><option value="澳门">澳门</option><option value="台湾">台湾</option></select>`;
-            } else if (lvl1 === '国内') {
-                container.innerHTML = `<select id="prov" onchange="changeProv()" class="border p-2 rounded w-1/2"><option value="">选择省份</option><option value="福建">福建省</option><option value="广东">广东省</option><option value="浙江">浙江省</option><option value="其他省份">其他省份</option></select><div id="city_container" class="w-1/2"></div>`;
-            } else {
-                container.innerHTML = '';
-            }
-        }
-
-        function changeProv() {
-            const prov = document.getElementById('prov').value;
-            const cityCon = document.getElementById('city_container');
-            if (prov === '福建') {
-                cityCon.innerHTML = `<select id="city" onchange="changeCity()" class="border p-2 rounded w-full"><option value="">选择城市</option><option value="福州">福州市</option><option value="厦门">厦门市</option><option value="其他地市">其他地市</option></select><div id="county_container" class="mt-2 w-full"></div>`;
-            } else if(prov) {
-                cityCon.innerHTML = `<input type="text" id="city" placeholder="输入城市名" class="border p-2 rounded w-full">`;
-            } else {
-                cityCon.innerHTML = '';
-            }
-        }
-
-        function changeCity() {
-            const city = document.getElementById('city').value;
-            const countyCon = document.getElementById('county_container');
-            if (city === '福州') {
-                countyCon.innerHTML = `<select id="county" class="border p-2 rounded w-full"><option value="">选择区县</option><option value="鼓楼区">鼓楼区</option><option value="台江区">台江区</option><option value="仓山区">仓山区</option><option value="马尾区">马尾区</option><option value="晋安区">晋安区</option><option value="长乐区">长乐区</option><option value="其他区县">其他</option></select>`;
-            } else {
-                countyCon.innerHTML = '';
-            }
-        }
-
-        // 6. 提交订单
-        async function submitOrder() {
-            const data = {
-                company_name: document.getElementById('company_name').value,
-                booth_id: document.getElementById('booth_select').value,
-                total_amount: parseFloat(document.getElementById('total_amount').innerText) || 0,
-                sales_name: currentSalesName,
-                region_info: document.getElementById('region_level1').value // 简化的地区提交
-            };
-
-            if(!data.company_name || !data.booth_id || data.total_amount <= 0) {
-                alert("请填写完整的企业名称、选择展位并输入单价！"); return;
-            }
-
-            const res = await fetch('/api/submit-order', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
+            // 渲染左侧导航按钮
+            const btnContainer = document.getElementById('nav-buttons');
+            btnContainer.innerHTML = '';
+            
+            navConfig.forEach(item => {
+                if (item.roles.includes(currentUser.role)) {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full text-left px-4 py-3 rounded hover:bg-blue-800 transition text-sm font-medium focus:bg-blue-800";
+                    btn.innerText = item.label;
+                    btn.onclick = () => showPage(item.id, item.label);
+                    btnContainer.appendChild(btn);
+                }
             });
 
-            if(res.ok) {
-                alert("成交订单提交成功！");
-                location.reload(); // 刷新页面
+            // 启动倒计时计算
+            calculateCountdown();
+
+            // 默认打开首页
+            showPage('home', '📊 首页看板');
+        }
+
+        // 3. 页面切换逻辑
+        function showPage(pageId, label) {
+            // 隐藏所有页面
+            document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
+            // 显示目标页面
+            document.getElementById(`sec-${pageId}`).classList.add('active');
+            
+            // 动态修改汇总页标题
+            if(pageId === 'summary') {
+                document.getElementById('summary-title').innerText = label.substring(3); // 去掉前面的emoji
+            }
+        }
+
+        // 4. 展会倒计时逻辑 (自动计算距离 2026年6月12日 的天数)
+        function calculateCountdown() {
+            const targetDate = new Date("2026-06-12T00:00:00").getTime();
+            const now = new Date().getTime();
+            const distance = targetDate - now;
+            
+            if (distance > 0) {
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                document.getElementById('countdown-days').innerText = days + " 天";
             } else {
-                alert("提交失败，请重试。");
+                document.getElementById('countdown-days').innerText = "已开展";
+                document.getElementById('countdown-days').classList.replace('text-orange-600', 'text-green-600');
             }
         }
     </script>
 </body>
 </html>
- 
