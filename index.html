@@ -14,12 +14,29 @@
 
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
-            <h3 class="text-lg font-bold mb-4 text-gray-800">修改我的密码</h3>
+            <h3 class="text-lg font-bold mb-4">修改我的密码</h3>
             <input type="password" id="modal-old-pass" placeholder="请输入原密码" class="w-full border p-2 rounded mb-3 text-sm">
             <input type="password" id="modal-new-pass" placeholder="请输入新密码" class="w-full border p-2 rounded mb-5 text-sm">
             <div class="flex justify-end gap-2">
-                <button onclick="closePasswordModal()" class="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">取消</button>
+                <button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">取消</button>
                 <button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700">确认修改</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
+            <h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3>
+            <input type="hidden" id="edit-p-id">
+            <div class="space-y-3">
+                <input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm">
+                <input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm">
+                <div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div>
+                <div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">取消</button>
+                <button onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold hover:bg-indigo-700">保存修改</button>
             </div>
         </div>
     </div>
@@ -34,8 +51,7 @@
     </div>
 
     <div id="main-view" class="hidden flex h-screen overflow-hidden">
-        
-        <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-lg z-10">
+        <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-lg z-10 shrink-0">
             <div class="p-5 border-b border-slate-700">
                 <h1 class="text-xl font-bold tracking-wider">展位销售系统</h1>
                 <p id="user-info" class="text-sm text-slate-400 mt-2"></p>
@@ -43,7 +59,7 @@
             </div>
             <nav id="nav-buttons" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
             <div class="p-4 border-t border-slate-700">
-                <button onclick="location.reload()" class="w-full bg-red-600/80 p-2 rounded hover:bg-red-600 text-sm font-bold transition">安全退出</button>
+                <button onclick="handleLogout()" class="w-full bg-red-600/80 p-2 rounded hover:bg-red-600 text-sm font-bold transition">退出登录</button>
             </div>
         </aside>
 
@@ -57,7 +73,6 @@
             </header>
 
             <div class="flex-1 overflow-y-auto p-6">
-                
                 <section id="sec-config" class="page-section">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500">
@@ -72,7 +87,7 @@
                                 <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700">保存新项目</button>
                             </div>
                             <table class="w-full text-sm text-left border">
-                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th></tr></thead>
+                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th><th class="p-2">操作</th></tr></thead>
                                 <tbody id="project-list-tbody" class="divide-y"></tbody>
                             </table>
                         </div>
@@ -106,7 +121,6 @@
                                 📥 下载 CSV 导入模板
                             </button>
                         </div>
-                        
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                             <div class="bg-gray-50 border p-4 rounded col-span-1">
                                 <h4 class="text-sm font-bold text-gray-700 mb-3">➕ 手动新增单条展位</h4>
@@ -121,13 +135,11 @@
                                 </div>
                                 <button onclick="addSingleBooth()" class="w-full mt-3 bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black">保存单个展位</button>
                             </div>
-
                             <div class="col-span-2 relative">
                                 <textarea id="booth-import-text" rows="7" class="w-full h-full border-2 border-orange-200 p-3 rounded text-sm font-mono focus:outline-orange-400 bg-orange-50/30" placeholder="在此粘贴 Excel 内容..."></textarea>
                                 <button onclick="parseAndImportBooths()" class="absolute bottom-3 right-3 bg-orange-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-orange-700 shadow-md">解析并导入</button>
                             </div>
                         </div>
-                        
                         <h4 class="text-md font-bold mb-2">当前项目已有展位表</h4>
                         <div class="overflow-y-auto max-h-[500px] border rounded">
                             <table class="w-full text-sm text-left">
@@ -143,7 +155,7 @@
                 <section id="sec-home" class="page-section active">
                     <div class="bg-white p-6 rounded shadow border-l-4 border-blue-500">
                         <h3 class="text-lg font-bold text-gray-700">欢迎工作！</h3>
-                        <p class="text-gray-500 mt-2">系统已完成全面升级。您可以正常设置起止时间、设定业务员目标，并顺利单条或批量录入展位了。</p>
+                        <p class="text-gray-500 mt-2">系统已完全修复持久化登录与项目编辑功能，请在左侧菜单进行相应操作。</p>
                     </div>
                 </section>
                 <section id="sec-order" class="page-section">订单模块开发中...</section>
@@ -162,18 +174,42 @@
             { id: 'order', label: '✍️ 订单与财务录入', roles: ['admin', 'user'] },
         ];
 
-        // ================= 1. 登录及导航 =================
+        // ================= 1. 初始化与登录持久化 =================
+        // 将这段代码提取到最外面，保证一加载就执行，不会因为刷新导致重新跳回登录
+        const savedUser = localStorage.getItem('exhibition_user');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (currentUser) {
+                enterMainView();
+            }
+        });
+
         async function handleLogin() {
             const u = document.getElementById('login-user').value; 
             const p = document.getElementById('login-pass').value;
+            if(!u || !p) return alert("请输入账号和密码");
             const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({username: u, password: p}) });
             if (res.ok) {
                 currentUser = (await res.json()).user;
-                document.getElementById('login-view').classList.add('hidden');
-                document.getElementById('main-view').classList.remove('hidden');
-                document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`;
-                renderNav(); await loadProjects();
+                localStorage.setItem('exhibition_user', JSON.stringify(currentUser));
+                enterMainView();
             } else alert('登录失败，账号或密码错误');
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('exhibition_user');
+            location.reload();
+        }
+
+        function enterMainView() {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`;
+            renderNav(); 
+            loadProjects();
         }
 
         function renderNav() {
@@ -196,7 +232,7 @@
             });
         }
 
-        // ================= 2. 项目下拉联动 =================
+        // ================= 2. 项目下拉与管理 =================
         async function loadProjects() {
             allProjects = await (await fetch('/api/projects')).json();
             const sel = document.getElementById('global-project-select'); 
@@ -206,7 +242,13 @@
             allProjects.forEach(p => {
                 sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
                 const d = (p.start_date) ? `${p.start_date} 至 ${p.end_date}` : '未设';
-                tbody.innerHTML += `<tr><td class="p-2 font-bold text-blue-600">${p.name}</td><td class="p-2 text-gray-500">${d}</td></tr>`;
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2 font-bold text-blue-600">${p.name}</td>
+                        <td class="p-2 text-gray-500">${d}</td>
+                        <td class="p-2"><button onclick='openEditProjectModal(${JSON.stringify(p)})' class="text-indigo-600 hover:underline text-xs">编辑</button></td>
+                    </tr>
+                `;
             });
             onProjectChange();
         }
@@ -216,7 +258,6 @@
             if(document.getElementById('sec-booth').classList.contains('active')) loadBooths();
         }
 
-        // 恢复：新增项目
         async function createProject() {
             const data = {
                 name: document.getElementById('new-proj-name').value, 
@@ -226,11 +267,40 @@
             };
             if(!data.name) return alert("项目名必填");
             await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) });
-            alert("创建成功"); loadProjects();
+            alert("创建成功"); 
+            document.getElementById('new-proj-name').value = '';
+            loadProjects();
+        }
+
+        // 【关键修复】：保存编辑项目并给出反馈
+        function openEditProjectModal(p) {
+            document.getElementById('edit-p-id').value = p.id;
+            document.getElementById('edit-p-name').value = p.name;
+            document.getElementById('edit-p-year').value = p.year;
+            document.getElementById('edit-p-start').value = p.start_date;
+            document.getElementById('edit-p-end').value = p.end_date;
+            document.getElementById('edit-project-modal').classList.remove('hidden');
+        }
+
+        async function submitEditProject() {
+            const data = {
+                id: document.getElementById('edit-p-id').value,
+                name: document.getElementById('edit-p-name').value,
+                year: document.getElementById('edit-p-year').value,
+                start_date: document.getElementById('edit-p-start').value,
+                end_date: document.getElementById('edit-p-end').value
+            };
+            const res = await fetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) });
+            if (res.ok) {
+                alert("项目信息修改成功！");
+                closeModal('edit-project-modal');
+                loadProjects();
+            } else {
+                alert("修改失败，请确保您已更新后端的 _worker.js 代码。");
+            }
         }
 
         // ================= 3. 员工与目标管理 =================
-        // 恢复：加载员工及目标
         async function loadStaff() {
             const pid = document.getElementById('global-project-select').value;
             if(!pid) return;
@@ -254,7 +324,6 @@
             });
         }
 
-        // 恢复：新增员工
         async function createStaff() {
             const data = { name: document.getElementById('new-staff-name').value, role: document.getElementById('new-staff-role').value };
             if(!data.name) return alert("填名字");
@@ -263,7 +332,6 @@
             loadStaff();
         }
 
-        // 恢复：设置目标
         async function setTarget(staffName) {
             const pid = document.getElementById('global-project-select').value;
             const t = prompt(`请设置 ${staffName} 在当前项目的招展目标数量:`, "100");
@@ -273,7 +341,6 @@
             }
         }
 
-        // 恢复：重置密码
         async function resetPass(staffName) {
             if(confirm(`确定将 ${staffName} 的密码重置为 123456 吗？`)) {
                 await fetch('/api/reset-password', { method: 'POST', body: JSON.stringify({staffName}) });
@@ -283,16 +350,19 @@
 
         // ================= 4. 密码模态框逻辑 =================
         function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
-        function closePasswordModal() { 
-            document.getElementById('password-modal').classList.add('hidden');
-            document.getElementById('modal-old-pass').value = ''; document.getElementById('modal-new-pass').value = '';
+        function closeModal(id) { 
+            document.getElementById(id).classList.add('hidden');
         }
         async function submitPasswordChange() {
             const oldPass = document.getElementById('modal-old-pass').value;
             const newPass = document.getElementById('modal-new-pass').value;
             if(!oldPass || !newPass) return alert("请填写完整");
             const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass, newPass}) });
-            if(res.ok) { alert("密码修改成功！"); closePasswordModal(); } else alert("原密码错误！");
+            if(res.ok) { 
+                alert("密码修改成功！请重新登录。"); 
+                closeModal('password-modal');
+                handleLogout(); // 密码修改后强制退出
+            } else alert("原密码错误！");
         }
 
         // ================= 5. 展位库管理逻辑 =================
@@ -308,14 +378,22 @@
             const pid = document.getElementById('global-project-select').value;
             if(!pid) return alert("请选择项目");
             const b = {
-                project_id: pid, id: document.getElementById('s-id').value, hall: document.getElementById('s-hall').value,
-                type: document.getElementById('s-type').value, area: parseFloat(document.getElementById('s-area').value)||9,
-                open_sides: parseInt(document.getElementById('s-open').value)||1, price_unit: document.getElementById('s-unit').value,
+                project_id: pid, 
+                id: document.getElementById('s-id').value, 
+                hall: document.getElementById('s-hall').value,
+                type: document.getElementById('s-type').value, 
+                area: parseFloat(document.getElementById('s-area').value)||9,
+                open_sides: parseInt(document.getElementById('s-open').value)||1, 
+                price_unit: document.getElementById('s-unit').value,
                 base_price: parseFloat(document.getElementById('s-price').value)||0
             };
             if(!b.id) return alert("展位号必填");
             await fetch('/api/add-booth', { method: 'POST', body: JSON.stringify(b) });
-            alert("单个新增成功"); loadBooths();
+            
+            // 清空单条输入的表单
+            document.getElementById('s-id').value = '';
+            alert("新增展位成功！");
+            loadBooths();
         }
 
         async function parseAndImportBooths() {
@@ -336,7 +414,8 @@
             if(booths.length === 0) return alert("未解析到数据");
             await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
             alert(`成功导入 ${booths.length} 个展位`); 
-            document.getElementById('booth-import-text').value = ''; loadBooths();
+            document.getElementById('booth-import-text').value = ''; 
+            loadBooths();
         }
 
         async function loadBooths() {
