@@ -8,7 +8,6 @@
     <style>
         .page-section { display: none; }
         .page-section.active { display: block; }
-        /* 自定义滚动条 */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     </style>
@@ -17,33 +16,36 @@
 
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
-            <h3 class="text-lg font-bold mb-4">修改我的密码</h3>
-            <input type="password" id="modal-old-pass" placeholder="请输入原密码" class="w-full border p-2 rounded mb-3 text-sm">
-            <input type="password" id="modal-new-pass" placeholder="请输入新密码" class="w-full border p-2 rounded mb-5 text-sm">
+            <h3 class="text-lg font-bold mb-4">修改密码</h3>
+            <input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm">
+            <input type="password" id="modal-new-pass" placeholder="新密码" class="w-full border p-2 rounded mb-5 text-sm">
             <div class="flex justify-end gap-2">
                 <button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button>
-                <button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold">确认修改</button>
+                <button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold">确认</button>
             </div>
         </div>
     </div>
 
     <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
-            <h3 class="text-lg font-bold mb-4 text-orange-600">修改展位信息</h3>
-            <p class="text-xs text-gray-500 mb-3">当前编辑：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p>
+            <h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3>
+            <p class="text-xs text-gray-500 mb-3">当前编辑展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p>
             <div class="space-y-3">
-                <select id="eb-type" class="w-full border p-2 rounded text-sm">
-                    <option>标摊</option><option>豪标</option><option>光地</option>
-                </select>
-                <div class="flex items-center">
-                    <span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600">总面积</span>
-                    <input type="number" id="eb-area" class="w-full border p-2 rounded-r text-sm">
-                    <span class="ml-2 text-gray-500 text-sm">㎡</span>
+                <div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span>
+                    <select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select>
                 </div>
+                <div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span>
+                    <input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span>
+                </div>
+                <div class="flex items-center mt-2 border-t pt-2">
+                    <span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span>
+                    <input type="number" id="eb-custom-price" placeholder="填0则随全局单价" class="w-full border border-red-200 p-2 rounded-r text-sm">
+                </div>
+                <p class="text-xs text-gray-400 mt-1">* 独立单价用于特殊位置(如角摊)一口价。填 0 恢复全局默认计价。</p>
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="closeModal('edit-booth-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button>
-                <button onclick="submitEditBooth()" class="px-4 py-2 bg-orange-600 text-white rounded text-sm font-bold">保存修改</button>
+                <button onclick="submitEditBooth()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存修改</button>
             </div>
         </div>
     </div>
@@ -80,115 +82,100 @@
             </header>
 
             <div class="flex-1 overflow-y-auto p-6">
-                <section id="sec-config" class="page-section">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500">
-                            <h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3>
-                            <div class="bg-gray-50 p-4 rounded border mb-4 flex gap-2">
-                                <input type="text" id="new-proj-name" placeholder="项目名" class="border p-2 rounded text-sm w-1/2">
-                                <input type="number" id="new-proj-year" placeholder="年份" class="border p-2 rounded text-sm w-1/4">
-                                <button onclick="createProject()" class="bg-indigo-600 text-white px-4 rounded text-sm font-bold w-1/4">新建</button>
-                            </div>
-                            <table class="w-full text-sm text-left border"><tbody id="project-list-tbody" class="divide-y"></tbody></table>
-                        </div>
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500">
-                            <h3 class="text-lg font-bold mb-4">👥 业务员与目标</h3>
-                            <div class="bg-gray-50 p-4 rounded border mb-4 flex gap-2">
-                                <input type="text" id="new-staff-name" placeholder="姓名" class="border p-2 rounded text-sm flex-1">
-                                <select id="new-staff-role" class="border p-2 rounded text-sm w-28"><option value="user">业务员</option><option value="admin">管理员</option></select>
-                                <button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold">添加</button>
-                            </div>
-                            <table class="w-full text-sm text-left border"><tbody id="staff-list-tbody" class="divide-y"></tbody></table>
-                        </div>
-                    </div>
-                </section>
+                <section id="sec-config" class="page-section">...</section>
 
                 <section id="sec-booth" class="page-section active">
-                    <div class="bg-white p-4 rounded shadow border-l-4 border-red-500 mb-6 flex flex-wrap items-center justify-between gap-4">
+                    
+                    <div class="bg-white p-4 rounded shadow border-l-4 border-red-500 mb-4 flex flex-wrap items-center justify-between gap-4">
                         <div class="flex items-center gap-2">
-                            <span class="font-bold text-gray-700">💰 全局指导单价配置:</span>
-                            <span class="text-xs text-gray-400">(用于自动计算底价)</span>
+                            <span class="font-bold text-gray-700">💰 全局单价策略:</span>
+                            <span class="text-xs text-gray-400">(系统默认计价标准)</span>
                         </div>
                         <div class="flex gap-4 text-sm items-center">
-                            <div>标摊(元/个): <input type="number" id="price-bt" class="border p-1 w-20 rounded text-red-600 font-bold"></div>
-                            <div>豪标(元/个): <input type="number" id="price-hb" class="border p-1 w-20 rounded text-red-600 font-bold"></div>
-                            <div>光地(元/㎡): <input type="number" id="price-gd" class="border p-1 w-20 rounded text-red-600 font-bold"></div>
-                            <button onclick="savePrices()" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded font-bold border border-red-300">保存单价</button>
+                            <div class="flex items-center bg-gray-50 p-1 rounded border">标摊 <input type="number" id="price-bt" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div>
+                            <div class="flex items-center bg-gray-50 p-1 rounded border">豪标 <input type="number" id="price-hb" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div>
+                            <div class="flex items-center bg-gray-50 p-1 rounded border">光地 <input type="number" id="price-gd" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/㎡</div>
+                            <button onclick="savePrices()" class="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-1.5 rounded font-bold border border-red-300 transition">保存策略</button>
                         </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded shadow border-t-4 border-blue-500 mb-4">
+                        <h3 class="text-sm font-bold text-blue-800 mb-3 flex items-center gap-2">📊 展位数据大盘概览</h3>
+                        <div id="stats-panel" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                            </div>
                     </div>
 
                     <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold">🎪 展位库导入与录入</h3>
-                            <button onclick="downloadTemplate()" class="bg-blue-100 text-blue-700 border border-blue-300 px-3 py-1 rounded text-sm font-bold hover:bg-blue-200">📥 下载批量导入模板</button>
-                        </div>
                         
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                            <div class="bg-gray-50 border p-4 rounded col-span-1 h-fit">
-                                <button onclick="toggleSingleBoothForm()" class="text-sm font-bold text-blue-600 flex items-center gap-1 w-full text-left">
-                                    <span id="s-form-icon">➕</span> 展开手动新增单条表单
-                                </button>
-                                <div id="single-booth-form" class="hidden mt-4 space-y-3 border-t pt-3">
+                        <div class="mb-6 border rounded border-orange-200">
+                            <button onclick="toggleEntrySection()" class="w-full bg-orange-50 text-orange-800 p-3 font-bold text-left flex justify-between items-center rounded-t hover:bg-orange-100">
+                                <span>➕ 展开【单条新增】与【Excel批量导入】面板</span>
+                                <span id="entry-arrow">▼</span>
+                            </button>
+                            <div id="entry-section" class="hidden p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white rounded-b">
+                                <div class="col-span-1 border-r pr-6 space-y-3">
+                                    <h4 class="font-bold text-gray-700 mb-2 border-b pb-1">手动新增单条</h4>
                                     <input type="text" id="s-id" placeholder="展位号 (如 1A01)" class="w-full border p-2 rounded text-sm font-bold">
                                     <div class="flex items-center">
                                         <input type="number" id="s-hall-num" placeholder="展馆数字 (如 1)" class="w-full border p-2 rounded-l text-sm">
-                                        <span class="bg-gray-200 border border-l-0 p-2 rounded-r text-sm text-gray-700">号馆</span>
+                                        <span class="bg-gray-200 border border-l-0 p-2 rounded-r text-sm text-gray-700 shrink-0 whitespace-nowrap">号馆</span>
                                     </div>
-                                    <select id="s-type" class="w-full border p-2 rounded text-sm font-bold text-blue-700" onchange="onBoothTypeChange()">
-                                        <option value="标摊">类型：标摊 (计算为9㎡)</option>
-                                        <option value="豪标">类型：豪标 (计算为9㎡)</option>
-                                        <option value="光地">类型：光地 (自由面积)</option>
-                                    </select>
+                                    <select id="s-type" class="w-full border p-2 rounded text-sm font-bold text-blue-700"><option>标摊</option><option>豪标</option><option>光地</option></select>
                                     <div class="flex items-center">
-                                        <span id="s-size-label" class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 whitespace-nowrap">展位个数</span>
-                                        <input type="number" id="s-size-input" placeholder="默认1" class="w-full border p-2 rounded-r text-sm">
+                                        <span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 shrink-0 whitespace-nowrap">总面积(㎡)</span>
+                                        <input type="number" id="s-area" placeholder="录入实际面积" class="w-full border p-2 rounded-r text-sm">
                                     </div>
-                                    <button onclick="addSingleBooth()" class="w-full bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black mt-2">保存展位</button>
+                                    <button onclick="addSingleBooth()" class="w-full bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black mt-2">存入库中</button>
                                 </div>
-                            </div>
-
-                            <div class="col-span-2 relative">
-                                <textarea id="booth-import-text" rows="7" class="w-full h-full border-2 border-orange-200 p-3 rounded text-sm font-mono focus:outline-orange-400 bg-orange-50/30" placeholder="批量导入格式：&#10;展位号 | 馆号(数字) | 类型 | 数量或面积(㎡)&#10;&#10;例1：1A01  1  标摊  2  (系统自动算为18㎡)&#10;例2：1A02  1  光地  36 (系统自动算为36㎡)"></textarea>
-                                <button onclick="parseAndImportBooths()" class="absolute bottom-3 right-3 bg-orange-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-orange-700 shadow-md">智能解析并导入</button>
+                                <div class="col-span-2 relative pl-2">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <h4 class="font-bold text-gray-700">Excel批量导入 (仅识别面积)</h4>
+                                        <button onclick="downloadTemplate()" class="text-blue-600 hover:underline text-xs">下载模板</button>
+                                    </div>
+                                    <textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded text-sm font-mono bg-orange-50/30" placeholder="复制Excel包含4列：展位号 | 馆号(数字) | 类型 | 总面积(㎡)&#10;例：1A01  1  标摊  18&#10;例：1A02  1  光地  36"></textarea>
+                                    <button onclick="parseAndImportBooths()" class="absolute bottom-2 right-2 bg-orange-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-orange-700 shadow-md">解析导入</button>
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="border-t pt-4">
-                            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                                <div class="flex items-center gap-2">
-                                    <input type="text" id="filter-search" placeholder="🔍 搜展位号..." class="border p-1.5 rounded text-sm w-32" onkeyup="renderBooths()">
-                                    <select id="filter-hall" class="border p-1.5 rounded text-sm text-gray-600" onchange="renderBooths()"><option value="">所有展馆</option></select>
-                                    <select id="filter-type" class="border p-1.5 rounded text-sm text-gray-600" onchange="renderBooths()"><option value="">所有类型</option></select>
-                                    <select id="filter-status" class="border p-1.5 rounded text-sm text-gray-600" onchange="renderBooths()">
-                                        <option value="">所有状态</option><option>可售</option><option>已锁定</option><option>已预订</option><option>已成交</option>
-                                    </select>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <select id="batch-status-select" class="border p-1.5 rounded text-sm border-blue-400 text-blue-700"><option value="可售">标为可售</option><option value="已锁定">标为锁定</option></select>
-                                    <button onclick="batchUpdateStatus()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded text-sm font-bold">批量改状态</button>
-                                    <button onclick="batchDelete()" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded text-sm font-bold border border-red-300">🗑️ 批量删除</button>
-                                </div>
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="filter-search" placeholder="🔍 搜展位号..." class="border p-1.5 rounded text-sm w-32" onkeyup="renderBooths()">
+                                <select id="filter-hall" class="border p-1.5 rounded text-sm text-gray-600" onchange="renderBooths()"><option value="">所有展馆</option></select>
+                                <select id="filter-type" class="border p-1.5 rounded text-sm text-gray-600" onchange="renderBooths()">
+                                    <option value="">所有类型</option><option value="标摊">标摊</option><option value="豪标">豪标</option><option value="光地">光地</option>
+                                </select>
+                                <select id="filter-status" class="border p-1.5 rounded text-sm text-gray-600" onchange="renderBooths()">
+                                    <option value="">所有状态</option><option>可售</option><option>已锁定</option><option>已预订</option><option>已成交</option>
+                                </select>
                             </div>
+                            <div class="flex items-center gap-2">
+                                <select id="batch-status-select" class="border p-1.5 rounded text-sm border-blue-400 text-blue-700 font-bold"><option value="可售">置为: 可售</option><option value="已锁定">置为: 锁定</option></select>
+                                <button onclick="batchUpdateStatus()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded text-sm font-bold">批量改状态</button>
+                                <button onclick="batchDelete()" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded text-sm font-bold border border-red-300">🗑️ 批量删除</button>
+                            </div>
+                        </div>
 
-                            <div class="overflow-y-auto max-h-[600px] border rounded bg-white relative">
-                                <table class="w-full text-sm text-left">
-                                    <thead class="bg-gray-100 border-b sticky top-0 shadow-sm z-10">
-                                        <tr>
-                                            <th class="p-3 w-10"><input type="checkbox" id="check-all" onchange="toggleAllChecks(this)"></th>
-                                            <th class="p-3">展位号</th><th class="p-3">展馆</th><th class="p-3">类型</th>
-                                            <th class="p-3 text-blue-700">总面积</th><th class="p-3">单价策略</th>
-                                            <th class="p-3 text-center">状态管理</th><th class="p-3 text-center">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="booth-list-tbody" class="divide-y"></tbody>
-                                </table>
-                            </div>
+                        <div class="overflow-y-auto max-h-[600px] border rounded bg-white relative">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-100 border-b sticky top-0 shadow-sm z-10">
+                                    <tr>
+                                        <th class="p-3 w-10"><input type="checkbox" id="check-all" onchange="toggleAllChecks(this)"></th>
+                                        <th class="p-3">展位号</th><th class="p-3">展馆</th><th class="p-3">类型</th>
+                                        <th class="p-3 text-blue-700">总面积</th>
+                                        <th class="p-3 text-indigo-700">折合展位数</th>
+                                        <th class="p-3">实际执行单价</th>
+                                        <th class="p-3 text-center">状态管理</th><th class="p-3 text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="booth-list-tbody" class="divide-y"></tbody>
+                            </table>
                         </div>
                     </div>
                 </section>
                 
-                <section id="sec-home" class="page-section">看板...</section>
-                <section id="sec-order" class="page-section">订单...</section>
+                <section id="sec-home" class="page-section">...</section>
+                <section id="sec-order" class="page-section">订单模块开发中...</section>
             </div>
         </main>
     </div>
@@ -196,7 +183,7 @@
     <script>
         let currentUser = null; let allProjects = []; 
         let globalPrices = { '标摊': 0, '豪标': 0, '光地': 0 };
-        let allBooths = []; // 存储当前项目所有展位数据，用于前端筛选
+        let allBooths = []; 
 
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] },
@@ -205,31 +192,21 @@
             { id: 'order', label: '✍️ 订单与财务录入', roles: ['admin', 'user'] },
         ];
 
-        // ================= 1. 基础逻辑 =================
+        // 基础登录/路由略去细释，维持原样
         const savedUser = localStorage.getItem('exhibition_user');
         if (savedUser) { currentUser = JSON.parse(savedUser); }
-
         document.addEventListener('DOMContentLoaded', () => { if (currentUser) enterMainView(); });
-
         async function handleLogin() {
             const u = document.getElementById('login-user').value; const p = document.getElementById('login-pass').value;
             const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({username: u, password: p}) });
-            if (res.ok) {
-                currentUser = (await res.json()).user;
-                localStorage.setItem('exhibition_user', JSON.stringify(currentUser));
-                enterMainView();
-            } else alert('登录失败');
+            if (res.ok) { currentUser = (await res.json()).user; localStorage.setItem('exhibition_user', JSON.stringify(currentUser)); enterMainView(); } else alert('登录失败');
         }
-
         function handleLogout() { localStorage.removeItem('exhibition_user'); location.reload(); }
-
         function enterMainView() {
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('main-view').classList.remove('hidden');
+            document.getElementById('login-view').classList.add('hidden'); document.getElementById('main-view').classList.remove('hidden');
             document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`;
             renderNav(); loadProjects();
         }
-
         function renderNav() {
             const container = document.getElementById('nav-buttons'); container.innerHTML = '';
             navConfig.forEach(item => {
@@ -241,29 +218,24 @@
                         document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
                         document.getElementById(`sec-${item.id}`).classList.add('active');
                         document.getElementById('current-page-title').innerText = item.label.substring(3);
-                        if(item.id === 'config') loadStaff(); 
                         if(item.id === 'booth') { loadPrices(); loadBooths(); }
                     };
                     container.appendChild(btn);
                 }
             });
         }
-
         async function loadProjects() {
             allProjects = await (await fetch('/api/projects')).json();
             const sel = document.getElementById('global-project-select'); sel.innerHTML = '';
-            allProjects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+            allProjects.forEach(p => sel.innerHTML += `<option value="${p.id}">${p.name}</option>`);
             onProjectChange();
         }
-
         function onProjectChange() {
-            if(document.getElementById('sec-config').classList.contains('active')) loadStaff();
             if(document.getElementById('sec-booth').classList.contains('active')) { loadPrices(); loadBooths(); }
         }
-
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        // ================= 2. 价格配置体系 =================
+        // ================= 2. 价格配置 =================
         async function loadPrices() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
             const res = await fetch(`/api/prices?projectId=${pid}`);
@@ -282,51 +254,35 @@
                 '光地': Number(document.getElementById('price-gd').value)||0,
             };
             await fetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) });
-            alert("全局单价已保存！下方表格策略将自动更新。");
-            loadPrices(); loadBooths(); // 刷新表格以应用新价格展示
+            alert("全局单价已保存！"); loadPrices(); loadBooths();
         }
 
-        // ================= 3. 展位库核心逻辑 =================
-        function toggleSingleBoothForm() {
-            const form = document.getElementById('single-booth-form'); const icon = document.getElementById('s-form-icon');
-            if(form.classList.contains('hidden')) { form.classList.remove('hidden'); icon.innerText = '➖'; } else { form.classList.add('hidden'); icon.innerText = '➕'; }
+        // ================= 3. 面板折叠与录入 =================
+        function toggleEntrySection() {
+            const sec = document.getElementById('entry-section'); const arr = document.getElementById('entry-arrow');
+            if(sec.classList.contains('hidden')) { sec.classList.remove('hidden'); arr.innerText = '▲'; } 
+            else { sec.classList.add('hidden'); arr.innerText = '▼'; }
         }
 
-        function onBoothTypeChange() {
-            const type = document.getElementById('s-type').value;
-            const sizeLabel = document.getElementById('s-size-label');
-            const sizeInput = document.getElementById('s-size-input');
-            if(type === '光地') { sizeLabel.innerText = "总面积(㎡)"; sizeInput.placeholder = "如 36"; } 
-            else { sizeLabel.innerText = "展位个数"; sizeInput.placeholder = "默认1 (系统算9㎡)"; }
-        }
-
-        // 新增单条 (移除前端设单价，加入查重报错)
         async function addSingleBooth() {
             const pid = document.getElementById('global-project-select').value;
             const idVal = document.getElementById('s-id').value.trim();
             const hallNum = document.getElementById('s-hall-num').value.trim();
-            if(!idVal || !hallNum) return alert("展位号和展馆必填！");
+            if(!idVal || !hallNum) return alert("展位号和展馆数字必填！");
 
             const type = document.getElementById('s-type').value;
-            const sizeVal = parseFloat(document.getElementById('s-size-input').value);
-            let finalArea = (type === '光地') ? (sizeVal || 36) : (sizeVal || 1) * 9;
+            const area = parseFloat(document.getElementById('s-area').value);
+            if(isNaN(area) || area <= 0) return alert("请正确填写面积");
 
-            const b = { project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: finalArea };
-            
+            const b = { project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 };
             const res = await fetch('/api/add-booth', { method: 'POST', body: JSON.stringify(b) });
-            if(res.ok) {
-                document.getElementById('s-id').value = ''; document.getElementById('s-size-input').value = '';
-                alert("新增成功！"); loadBooths();
-            } else {
-                const err = await res.json();
-                alert("新增失败：" + err.error);
-            }
+            if(res.ok) { document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; loadBooths(); } 
+            else { const err = await res.json(); alert("失败：" + err.error); }
         }
 
-        // 批量导入 (只按面积)
         function downloadTemplate() {
-            const header = "展位号,展馆数字(如1),类型(标摊/光地/豪标),数量或面积\n";
-            const sample = "A01,1,标摊,2\nA02,1,光地,36\n";
+            const header = "展位号,展馆数字(如1),类型(标摊/光地/豪标),面积(㎡)\n";
+            const sample = "A01,1,标摊,18\nA02,1,光地,36\n";
             const blob = new Blob(["\uFEFF" + header + sample], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "展位导入模板.csv"; link.click();
         }
@@ -336,34 +292,78 @@
             const text = document.getElementById('booth-import-text').value.trim();
             if(!text) return;
             const rows = text.split('\n'); const booths = [];
-            
             for(let r of rows) {
                 if(!r.trim()) continue;
                 const cols = r.split(/[\s,]+/).filter(c => c.trim() !== ""); 
                 if(cols.length >= 4 && cols[0] !== '展位号') { 
-                    const type = cols[2]; const sizeVal = parseFloat(cols[3]) || 0;
-                    let finalArea = (type === '光地') ? (sizeVal || 36) : (sizeVal || 1) * 9;
+                    const type = cols[2]; const area = parseFloat(cols[3]) || 0;
                     let hallStr = cols[1].replace(/馆|号/g, '') + '号馆';
-                    booths.push({ id: cols[0], hall: hallStr, type: type, area: finalArea });
+                    booths.push({ id: cols[0], hall: hallStr, type: type, area: area, price_unit: type==='光地'?'平米':'个' });
                 }
             }
-            if(booths.length === 0) return alert("解析失败！");
-            
-            const res = await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
-            if (res.ok) { alert(`导入命令已发送(自动跳过重复展位号)`); document.getElementById('booth-import-text').value = ''; loadBooths(); }
+            if(booths.length === 0) return alert("解析失败");
+            await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
+            document.getElementById('booth-import-text').value = ''; alert(`导入指令已发送`); loadBooths();
         }
 
-        // ================= 4. 高级表格处理 =================
+        // ================= 4. 大盘统计 =================
+        function renderStats() {
+            const panel = document.getElementById('stats-panel');
+            if(allBooths.length === 0) { panel.innerHTML = '<div class="col-span-4 text-gray-500">暂无数据</div>'; return; }
+
+            let totalArea = 0, totalRev = 0;
+            let gdArea = 0, btArea = 0; // 光地、标摊大类(含豪标)
+            let statusMap = { '可售':0, '已锁定':0, '已预订':0, '已成交':0 };
+            
+            allBooths.forEach(b => {
+                totalArea += b.area;
+                statusMap[b.status] = (statusMap[b.status] || 0) + b.area;
+                if(b.type === '光地') gdArea += b.area; else btArea += b.area;
+
+                let price = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0);
+                totalRev += (b.type === '光地') ? (price * b.area) : (price * (b.area/9));
+            });
+
+            // 折合数
+            const formatCount = (a) => Number((a/9).toFixed(2)).toString(); 
+            const calcRatio = (v, t) => t > 0 ? ((v/t)*100).toFixed(1) : 0;
+
+            panel.innerHTML = `
+                <div class="bg-gray-50 p-3 rounded border">
+                    <div class="text-xs text-gray-500">总可收展位费(挂牌)</div>
+                    <div class="text-lg font-bold text-red-600">¥${totalRev.toLocaleString()}</div>
+                    <div class="text-xs text-gray-400 mt-1">总面积: ${totalArea}㎡ (折 ${formatCount(totalArea)} 个)</div>
+                </div>
+                <div class="bg-blue-50 p-3 rounded border border-blue-100">
+                    <div class="text-xs text-blue-500">光地总览</div>
+                    <div class="text-lg font-bold text-blue-700">${gdArea} <span class="text-xs">㎡</span></div>
+                    <div class="text-xs text-blue-600 mt-1">折合展位数: ${formatCount(gdArea)} 个</div>
+                </div>
+                <div class="bg-indigo-50 p-3 rounded border border-indigo-100">
+                    <div class="text-xs text-indigo-500">标摊/豪标总览</div>
+                    <div class="text-lg font-bold text-indigo-700">${btArea} <span class="text-xs">㎡</span></div>
+                    <div class="text-xs text-indigo-600 mt-1">折合展位数: ${formatCount(btArea)} 个</div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded border flex flex-col gap-1 text-xs">
+                    <div class="flex justify-between text-gray-700"><span>✅ 可售: ${statusMap['可售']}㎡</span><span class="font-bold">${calcRatio(statusMap['可售'], totalArea)}%</span></div>
+                    <div class="flex justify-between text-orange-600"><span>🔒 锁定: ${statusMap['已锁定']}㎡</span><span class="font-bold">${calcRatio(statusMap['已锁定'], totalArea)}%</span></div>
+                    <div class="flex justify-between text-purple-600"><span>⏳ 预订: ${statusMap['已预订']}㎡</span><span class="font-bold">${calcRatio(statusMap['已预订'], totalArea)}%</span></div>
+                    <div class="flex justify-between text-green-600"><span>🤝 成交: ${statusMap['已成交']}㎡</span><span class="font-bold">${calcRatio(statusMap['已成交'], totalArea)}%</span></div>
+                </div>
+            `;
+        }
+
+        // ================= 5. 表格渲染与操作 =================
         async function loadBooths() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
             allBooths = await (await fetch(`/api/booths?projectId=${pid}`)).json();
             
-            // 提取所有的馆号用于筛选下拉框
             const halls = [...new Set(allBooths.map(b => b.hall))].sort();
             const hallFilter = document.getElementById('filter-hall');
             hallFilter.innerHTML = '<option value="">所有展馆</option>';
             halls.forEach(h => hallFilter.innerHTML += `<option value="${h}">${h}</option>`);
 
+            renderStats(); // 渲染大盘统计
             renderBooths(); // 渲染表格
         }
 
@@ -373,7 +373,6 @@
             const typeTxt = document.getElementById('filter-type').value;
             const statusTxt = document.getElementById('filter-status').value;
 
-            // 过滤逻辑
             const filtered = allBooths.filter(b => {
                 if(searchTxt && !b.id.toLowerCase().includes(searchTxt)) return false;
                 if(hallTxt && b.hall !== hallTxt) return false;
@@ -383,27 +382,28 @@
             });
 
             const tbody = document.getElementById('booth-list-tbody'); tbody.innerHTML = '';
-            document.getElementById('check-all').checked = false; // 重置全选
+            document.getElementById('check-all').checked = false;
 
             filtered.forEach(b => {
-                // 计算挂牌价展示
-                const p = globalPrices[b.type] || 0;
-                const pStr = b.type === '光地' ? `¥${p}/㎡` : `¥${p}/个`;
+                // 价格逻辑：定制价格优先
+                const isCustomPrice = b.base_price > 0;
+                const p = isCustomPrice ? b.base_price : (globalPrices[b.type] || 0);
+                const unit = b.type === '光地' ? '㎡' : '个';
+                const pStr = isCustomPrice ? `<span class="bg-red-100 text-red-700 px-1 rounded text-xs">定制价</span> ¥${p}/${unit}` : `<span class="text-gray-500 text-xs">随局</span> ¥${p}/${unit}`;
                 
-                // 状态颜色与下拉框
+                // 展位数折合计算 (除以9)
+                const boothCount = Number((b.area / 9).toFixed(2)).toString();
+
                 const isSold = b.status === '已成交';
                 const statusOpts = ['可售', '已预订', '已锁定', '已成交'];
                 let selectHtml = `<select onchange="updateSingleBoothStatus('${b.id}', this.value)" class="border p-1 text-xs rounded w-20 ${isSold?'bg-green-100 text-green-700 font-bold':'bg-white'}">`;
                 statusOpts.forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${opt}</option>`);
                 selectHtml += `</select>`;
 
-                // 操作按钮 (已成交不能删不能改)
-                const actionHtml = isSold ? `<span class="text-xs text-gray-400">成交锁定</span>` : `
-                    <button onclick="openEditBooth('${b.id}', '${b.type}', ${b.area})" class="text-indigo-600 hover:underline mr-2 text-xs">修改</button>
+                const actionHtml = isSold ? `<span class="text-xs text-gray-400">已售锁定</span>` : `
+                    <button onclick="openEditBooth('${b.id}', '${b.type}', ${b.area}, ${b.base_price})" class="text-indigo-600 hover:underline mr-2 text-xs font-bold">修改</button>
                     <button onclick="deleteSingleBooth('${b.id}')" class="text-red-500 hover:underline text-xs">删除</button>
                 `;
-
-                // 复选框 (已成交不可选)
                 const checkHtml = isSold ? `<input type="checkbox" disabled>` : `<input type="checkbox" class="booth-check" value="${b.id}">`;
 
                 tbody.innerHTML += `
@@ -413,71 +413,63 @@
                         <td class="p-3 text-gray-600">${b.hall}</td>
                         <td class="p-3"><span class="px-2 py-1 rounded text-xs ${b.type==='光地'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'}">${b.type}</span></td>
                         <td class="p-3 font-bold text-blue-700">${b.area} <span class="text-xs font-normal text-gray-400">㎡</span></td>
-                        <td class="p-3 text-red-600 text-xs">${pStr}</td>
+                        <td class="p-3 font-bold text-indigo-700 bg-indigo-50/50">${boothCount} <span class="text-xs font-normal text-gray-400">个</span></td>
+                        <td class="p-3 font-medium">${pStr}</td>
                         <td class="p-3 text-center">${selectHtml}</td>
                         <td class="p-3 text-center">${actionHtml}</td>
                     </tr>`;
             });
         }
 
-        // ================= 5. 展位操作逻辑 =================
-        function toggleAllChecks(source) {
-            document.querySelectorAll('.booth-check').forEach(cb => cb.checked = source.checked);
-        }
-        function getCheckedIds() {
-            return Array.from(document.querySelectorAll('.booth-check:checked')).map(cb => cb.value);
-        }
+        // 批量及单条操作
+        function toggleAllChecks(source) { document.querySelectorAll('.booth-check').forEach(cb => cb.checked = source.checked); }
+        function getCheckedIds() { return Array.from(document.querySelectorAll('.booth-check:checked')).map(cb => cb.value); }
 
         async function updateSingleBoothStatus(boothId, status) {
             const pid = document.getElementById('global-project-select').value;
             await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [boothId], status: status}) });
             loadBooths();
         }
-
         async function batchUpdateStatus() {
-            const ids = getCheckedIds();
-            if(ids.length === 0) return alert("请先勾选要修改的展位");
+            const ids = getCheckedIds(); if(ids.length === 0) return alert("请先勾选展位");
             const st = document.getElementById('batch-status-select').value;
             const pid = document.getElementById('global-project-select').value;
             await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) });
             loadBooths();
         }
-
         async function deleteSingleBooth(id) {
-            if(!confirm(`确定要删除展位 ${id} 吗？`)) return;
+            if(!confirm(`确定删除展位 ${id} 吗？`)) return;
             const pid = document.getElementById('global-project-select').value;
             await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) });
             loadBooths();
         }
-
         async function batchDelete() {
-            const ids = getCheckedIds();
-            if(ids.length === 0) return alert("请先勾选要删除的展位");
-            if(!confirm(`🚨 确定删除选中的 ${ids.length} 个非成交状态展位吗？`)) return;
+            const ids = getCheckedIds(); if(ids.length === 0) return alert("请先勾选要删除的展位");
+            if(!confirm(`🚨 删除选中的 ${ids.length} 个未售展位？`)) return;
             const pid = document.getElementById('global-project-select').value;
             await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) });
             loadBooths();
         }
 
-        // 修改信息弹窗
-        function openEditBooth(id, type, area) {
+        // 修改窗口
+        function openEditBooth(id, type, area, basePrice) {
             document.getElementById('eb-id').innerText = id;
             document.getElementById('eb-type').value = type;
             document.getElementById('eb-area').value = area;
+            document.getElementById('eb-custom-price').value = basePrice > 0 ? basePrice : '';
             document.getElementById('edit-booth-modal').classList.remove('hidden');
         }
-
         async function submitEditBooth() {
             const pid = document.getElementById('global-project-select').value;
             const id = document.getElementById('eb-id').innerText;
             const type = document.getElementById('eb-type').value;
             const area = parseFloat(document.getElementById('eb-area').value);
+            const customPrice = parseFloat(document.getElementById('eb-custom-price').value) || 0; // 填空或非数字记为0
             
-            await fetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area}) });
+            await fetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: customPrice}) });
             closeModal('edit-booth-modal');
             loadBooths();
         }
-
     </script>
 </body>
 </html>
