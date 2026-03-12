@@ -114,7 +114,7 @@
                     </div>
                 </section>
 
-                <section id="sec-booth" class="page-section active">
+                <section id="sec-booth" class="page-section">
                     <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-bold">🎪 展位库管理中心</h3>
@@ -180,10 +180,10 @@
                     </div>
                 </section>
                 
-                <section id="sec-home" class="page-section">
+                <section id="sec-home" class="page-section active">
                     <div class="bg-white p-6 rounded shadow border-l-4 border-blue-500">
                         <h3 class="text-lg font-bold text-gray-700">欢迎工作！</h3>
-                        <p class="text-gray-500 mt-2">系统底层结构已更新完毕，各项配置功能已完全恢复。</p>
+                        <p class="text-gray-500 mt-2">系统代码已全面完整更新。人员权限修改、目标设定与安全删除功能已就绪。</p>
                     </div>
                 </section>
                 <section id="sec-order" class="page-section">订单模块开发中...</section>
@@ -218,7 +218,7 @@
                 currentUser = (await res.json()).user;
                 localStorage.setItem('exhibition_user', JSON.stringify(currentUser));
                 enterMainView();
-            } else alert('登录失败');
+            } else alert('登录失败，账号或密码错误');
         }
 
         function handleLogout() {
@@ -317,7 +317,7 @@
             } else alert("修改失败");
         }
 
-        // ================= 3. 人员与目标管理 =================
+        // ================= 3. 人员与目标管理 (增强版) =================
         async function loadStaff() {
             const pid = document.getElementById('global-project-select').value;
             if(!pid) return;
@@ -325,33 +325,60 @@
             const staff = await res.json();
             const tbody = document.getElementById('staff-list-tbody');
             tbody.innerHTML = '';
+            
             staff.forEach(s => {
-                const targetStr = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设置</span>';
+                const isSuperAdmin = s.name === 'admin'; 
+                const targetStr = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设</span>';
+                
+                // 角色选择下拉框
+                let roleHtml = '';
+                if (isSuperAdmin) {
+                    roleHtml = '<span class="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">超级管理员</span>';
+                } else {
+                    roleHtml = `
+                        <select onchange="updateStaffRole('${s.name}', this.value)" class="border border-gray-300 p-1 text-xs rounded bg-white text-gray-700 cursor-pointer hover:border-blue-500 focus:outline-none">
+                            <option value="user" ${s.role==='user'?'selected':''}>业务员</option>
+                            <option value="admin" ${s.role==='admin'?'selected':''}>管理员</option>
+                        </select>
+                    `;
+                }
+
+                // 操作按钮
+                let actionHtml = '';
+                if (!isSuperAdmin) {
+                    actionHtml = `
+                        <button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:text-indigo-800 font-medium text-xs">设目标</button>
+                        <button onclick="resetPass('${s.name}')" class="text-orange-500 hover:text-orange-700 font-medium text-xs">重置密码</button>
+                        <button onclick="deleteStaff('${s.name}')" class="text-red-500 hover:text-red-700 font-medium text-xs">删除</button>
+                    `;
+                } else {
+                    actionHtml = '<span class="text-gray-300 text-xs">系统保护锁定</span>';
+                }
+
                 tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2 font-medium">${s.name}</td>
-                        <td class="p-2 text-xs">${s.role==='admin'?'管理员':'业务员'}</td>
+                    <tr class="hover:bg-gray-50 border-b transition">
+                        <td class="p-2 font-bold text-gray-700">${s.name}</td>
+                        <td class="p-2">${roleHtml}</td>
                         <td class="p-2">${targetStr}</td>
-                        <td class="p-2 space-x-2">
-                            ${s.role==='user' ? `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:underline text-xs">设目标</button>` : ''}
-                            <button onclick="resetPass('${s.name}')" class="text-red-400 hover:underline text-xs">重置密码</button>
-                        </td>
+                        <td class="p-2 space-x-3">${actionHtml}</td>
                     </tr>
                 `;
             });
         }
 
         async function createStaff() {
-            const data = { name: document.getElementById('new-staff-name').value, role: document.getElementById('new-staff-role').value };
-            if(!data.name) return alert("填名字");
-            await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
-            document.getElementById('new-staff-name').value = '';
-            loadStaff();
+            const data = { name: document.getElementById('new-staff-name').value.trim(), role: document.getElementById('new-staff-role').value };
+            if(!data.name) return alert("请填写姓名");
+            const res = await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
+            if(res.ok) {
+                document.getElementById('new-staff-name').value = '';
+                loadStaff();
+            } else alert("添加失败，可能是该姓名已存在");
         }
 
         async function setTarget(staffName) {
             const pid = document.getElementById('global-project-select').value;
-            const t = prompt(`请设置 ${staffName} 在当前项目的招展目标数量:`, "100");
+            const t = prompt(`请设置【${staffName}】在当前项目的招展目标数量:`, "100");
             if(t && !isNaN(t)) {
                 await fetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: staffName, target: parseFloat(t)}) });
                 loadStaff();
@@ -359,9 +386,21 @@
         }
 
         async function resetPass(staffName) {
-            if(confirm(`确定将 ${staffName} 的密码重置为 123456 吗？`)) {
+            if(confirm(`确定将【${staffName}】的密码重置为 123456 吗？`)) {
                 await fetch('/api/reset-password', { method: 'POST', body: JSON.stringify({staffName}) });
                 alert("密码已重置为 123456");
+            }
+        }
+
+        async function updateStaffRole(staffName, newRole) {
+            await fetch('/api/update-staff-role', { method: 'POST', body: JSON.stringify({staffName, role: newRole}) });
+            loadStaff();
+        }
+
+        async function deleteStaff(staffName) {
+            if(confirm(`🚨 高危操作：确定要永久删除员工【${staffName}】的账号吗？\n注：删除后其历史数据中的名字会被保留。`)) {
+                const res = await fetch('/api/delete-staff', { method: 'POST', body: JSON.stringify({staffName}) });
+                if(res.ok) loadStaff(); else alert("删除失败");
             }
         }
 
