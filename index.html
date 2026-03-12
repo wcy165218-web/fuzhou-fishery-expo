@@ -14,19 +14,36 @@
 
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
-            <h3 class="text-lg font-bold mb-4 text-gray-800">修改我的密码</h3>
-            <input type="password" id="modal-old-pass" placeholder="请输入原密码" class="w-full border p-2 rounded mb-3 text-sm">
-            <input type="password" id="modal-new-pass" placeholder="请输入新密码" class="w-full border p-2 rounded mb-5 text-sm">
+            <h3 class="text-lg font-bold mb-4">修改我的密码</h3>
+            <input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3">
+            <input type="password" id="modal-new-pass" placeholder="新密码" class="w-full border p-2 rounded mb-5">
             <div class="flex justify-end gap-2">
-                <button onclick="closePasswordModal()" class="px-4 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300">取消</button>
-                <button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700">确认修改</button>
+                <button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded">取消</button>
+                <button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">修改</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-96">
+            <h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3>
+            <input type="hidden" id="edit-p-id">
+            <div class="space-y-3">
+                <input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm">
+                <input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm">
+                <div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div>
+                <div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button>
+                <button onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存修改</button>
             </div>
         </div>
     </div>
 
     <div id="login-view" class="flex items-center justify-center min-h-screen">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
-            <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600 text-center">
+            <h2 class="text-2xl font-bold mb-6 text-blue-800">系统登录</h2>
             <input type="text" id="login-user" placeholder="姓名" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
             <input type="password" id="login-pass" placeholder="密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
             <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">登 录</button>
@@ -34,66 +51,46 @@
     </div>
 
     <div id="main-view" class="hidden flex h-screen overflow-hidden">
-        
-        <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-lg z-10">
+        <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-lg shrink-0">
             <div class="p-5 border-b border-slate-700">
-                <h1 class="text-xl font-bold tracking-wider">展位销售系统</h1>
+                <h1 class="text-xl font-bold">展位销售系统</h1>
                 <p id="user-info" class="text-sm text-slate-400 mt-2"></p>
                 <button onclick="openPasswordModal()" class="text-xs text-blue-400 mt-1 hover:underline">修改我的密码</button>
             </div>
             <nav id="nav-buttons" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
             <div class="p-4 border-t border-slate-700">
-                <button onclick="location.reload()" class="w-full bg-red-600/80 p-2 rounded hover:bg-red-600 text-sm font-bold transition">安全退出</button>
+                <button onclick="handleLogout()" class="w-full bg-red-600/80 p-2 rounded hover:bg-red-600 text-sm font-bold transition">退出登录</button>
             </div>
         </aside>
 
-        <main class="flex-1 flex flex-col bg-gray-50 h-screen overflow-hidden">
-            <header class="bg-white h-16 shadow-sm flex items-center justify-between px-6 shrink-0 z-0">
+        <main class="flex-1 flex flex-col bg-gray-50 overflow-hidden">
+            <header class="bg-white h-16 shadow-sm flex items-center justify-between px-6 shrink-0">
                 <h2 id="current-page-title" class="text-lg font-bold text-gray-700">首页看板</h2>
                 <div class="flex items-center gap-3">
-                    <span class="text-sm text-gray-500 font-bold">当前操作项目：</span>
-                    <select id="global-project-select" onchange="onProjectChange()" class="border-2 border-blue-500 text-blue-700 font-bold p-2 rounded bg-blue-50 focus:outline-none min-w-[200px]"></select>
+                    <span class="text-sm text-gray-500 font-bold">当前项目：</span>
+                    <select id="global-project-select" onchange="onProjectChange()" class="border-2 border-blue-500 text-blue-700 font-bold p-2 rounded bg-blue-50 min-w-[200px]"></select>
                 </div>
             </header>
 
             <div class="flex-1 overflow-y-auto p-6">
-                
                 <section id="sec-config" class="page-section">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500">
-                            <h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3>
+                            <h3 class="text-lg font-bold mb-4">📂 项目管理</h3>
                             <div class="bg-gray-50 p-4 rounded border mb-6">
-                                <input type="text" id="new-proj-name" placeholder="项目名称 (例: 2026福州渔博会)" class="w-full border p-2 rounded text-sm mb-2">
-                                <input type="number" id="new-proj-year" placeholder="归属年份 (例: 2026)" class="w-full border p-2 rounded text-sm mb-2">
-                                <div class="flex gap-2 mb-3 text-sm text-gray-600">
-                                    开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">
-                                    撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1">
-                                </div>
-                                <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700">保存新项目</button>
+                                <input type="text" id="new-proj-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm mb-2">
+                                <input type="number" id="new-proj-year" placeholder="年份" class="w-full border p-2 rounded text-sm mb-2">
+                                <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold">创建新项目</button>
                             </div>
-                            <table class="w-full text-sm text-left border">
-                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th></tr></thead>
-                                <tbody id="project-list-tbody" class="divide-y"></tbody>
-                            </table>
+                            <table class="w-full text-sm border"><tbody id="project-list-tbody" class="divide-y"></tbody></table>
                         </div>
-
                         <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500">
-                            <h3 class="text-lg font-bold mb-4 flex justify-between items-center">
-                                <span>👥 业务员与目标管理</span>
-                                <span class="text-xs font-normal text-gray-500">目标针对当前选中的项目生效</span>
-                            </h3>
+                            <h3 class="text-lg font-bold mb-4">👥 人员管理</h3>
                             <div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2">
-                                <input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1">
-                                <select id="new-staff-role" class="border p-2 rounded text-sm w-32">
-                                    <option value="user">业务员</option>
-                                    <option value="admin">管理员</option>
-                                </select>
-                                <button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700">添加</button>
+                                <input type="text" id="new-staff-name" placeholder="姓名" class="border p-2 rounded text-sm flex-1">
+                                <button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold">添加</button>
                             </div>
-                            <table class="w-full text-sm text-left border">
-                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead>
-                                <tbody id="staff-list-tbody" class="divide-y"></tbody>
-                            </table>
+                            <table class="w-full text-sm border"><tbody id="staff-list-tbody" class="divide-y"></tbody></table>
                         </div>
                     </div>
                 </section>
@@ -101,51 +98,29 @@
                 <section id="sec-booth" class="page-section">
                     <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold">🎪 展位库管理中心</h3>
-                            <button onclick="downloadTemplate()" class="bg-blue-100 text-blue-700 border border-blue-300 px-3 py-1 rounded text-sm font-bold hover:bg-blue-200">
-                                📥 下载 CSV 导入模板
-                            </button>
+                            <h3 class="text-lg font-bold">🎪 展位库管理</h3>
+                            <button onclick="downloadTemplate()" class="text-sm text-blue-600 underline">下载 CSV 模板</button>
                         </div>
-                        
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                            <div class="bg-gray-50 border p-4 rounded col-span-1">
-                                <h4 class="text-sm font-bold text-gray-700 mb-3">➕ 手动新增单条展位</h4>
-                                <div class="grid grid-cols-2 gap-2 text-sm">
-                                    <input type="text" id="s-id" placeholder="展位号(如1A01)" class="border p-1 rounded">
-                                    <input type="text" id="s-hall" placeholder="馆号" class="border p-1 rounded">
-                                    <select id="s-type" class="border p-1 rounded"><option>标摊</option><option>光地</option><option>豪标</option></select>
-                                    <input type="number" id="s-area" placeholder="面积" class="border p-1 rounded">
-                                    <input type="number" id="s-open" placeholder="开口数(默认1)" class="border p-1 rounded">
-                                    <select id="s-unit" class="border p-1 rounded"><option>个</option><option>平米</option></select>
-                                    <input type="number" id="s-price" placeholder="底价" class="col-span-2 border p-1 rounded">
+                            <div class="bg-gray-50 border p-4 rounded space-y-2">
+                                <input type="text" id="s-id" placeholder="展位号" class="w-full border p-2 rounded text-sm">
+                                <input type="text" id="s-hall" placeholder="馆号" class="w-full border p-2 rounded text-sm">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="number" id="s-area" placeholder="面积" class="border p-2 rounded text-sm">
+                                    <input type="number" id="s-open" placeholder="开口" class="border p-2 rounded text-sm">
                                 </div>
-                                <button onclick="addSingleBooth()" class="w-full mt-3 bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black">保存单个展位</button>
+                                <button onclick="addSingleBooth()" class="w-full bg-gray-800 text-white p-2 rounded text-sm">保存单条</button>
                             </div>
-
                             <div class="col-span-2 relative">
-                                <textarea id="booth-import-text" rows="7" class="w-full h-full border-2 border-orange-200 p-3 rounded text-sm font-mono focus:outline-orange-400 bg-orange-50/30" placeholder="在此粘贴 Excel 内容..."></textarea>
-                                <button onclick="parseAndImportBooths()" class="absolute bottom-3 right-3 bg-orange-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-orange-700 shadow-md">解析并导入</button>
+                                <textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded text-sm font-mono bg-orange-50/30" placeholder="粘贴 Excel 内容..."></textarea>
+                                <button onclick="parseAndImportBooths()" class="absolute bottom-2 right-2 bg-orange-600 text-white px-4 py-1 rounded text-sm">批量导入</button>
                             </div>
                         </div>
-                        
-                        <h4 class="text-md font-bold mb-2">当前项目已有展位表</h4>
-                        <div class="overflow-y-auto max-h-[500px] border rounded">
-                            <table class="w-full text-sm text-left">
-                                <thead class="bg-gray-100 border-b sticky top-0 shadow-sm">
-                                    <tr><th class="p-2">展位号</th><th class="p-2">馆号</th><th class="p-2">类型</th><th class="p-2">面积</th><th class="p-2">开口</th><th class="p-2">底价</th><th class="p-2">人工状态干预</th></tr>
-                                </thead>
-                                <tbody id="booth-list-tbody" class="divide-y"></tbody>
-                            </table>
-                        </div>
+                        <div class="overflow-x-auto border rounded"><table class="w-full text-sm text-left"><thead class="bg-gray-100 border-b"><tr><th class="p-2">展位号</th><th class="p-2">馆号</th><th class="p-2">类型</th><th class="p-2">面积</th><th class="p-2">状态干预</th></tr></thead><tbody id="booth-list-tbody" class="divide-y"></tbody></table></div>
                     </div>
                 </section>
-                
-                <section id="sec-home" class="page-section active">
-                    <div class="bg-white p-6 rounded shadow border-l-4 border-blue-500">
-                        <h3 class="text-lg font-bold text-gray-700">欢迎工作！</h3>
-                        <p class="text-gray-500 mt-2">系统已完成全面升级。您可以正常设置起止时间、设定业务员目标，并顺利单条或批量录入展位了。</p>
-                    </div>
-                </section>
+
+                <section id="sec-home" class="page-section active">首页看板</section>
                 <section id="sec-order" class="page-section">订单模块开发中...</section>
             </div>
         </main>
@@ -162,209 +137,132 @@
             { id: 'order', label: '✍️ 订单与财务录入', roles: ['admin', 'user'] },
         ];
 
-        // ================= 1. 登录及导航 =================
+        // 1. 初始化检查持久化登录
+        window.onload = () => {
+            const savedUser = localStorage.getItem('exhibition_user');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                enterMainView();
+            }
+        };
+
         async function handleLogin() {
-            const u = document.getElementById('login-user').value; 
+            const u = document.getElementById('login-user').value;
             const p = document.getElementById('login-pass').value;
             const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({username: u, password: p}) });
             if (res.ok) {
                 currentUser = (await res.json()).user;
-                document.getElementById('login-view').classList.add('hidden');
-                document.getElementById('main-view').classList.remove('hidden');
-                document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`;
-                renderNav(); await loadProjects();
-            } else alert('登录失败，账号或密码错误');
+                localStorage.setItem('exhibition_user', JSON.stringify(currentUser));
+                enterMainView();
+            } else alert('登录失败');
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('exhibition_user');
+            location.reload();
+        }
+
+        function enterMainView() {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`;
+            renderNav();
+            loadProjects();
         }
 
         function renderNav() {
-            const container = document.getElementById('nav-buttons'); 
-            container.innerHTML = '';
+            const container = document.getElementById('nav-buttons'); container.innerHTML = '';
             navConfig.forEach(item => {
                 if (item.roles.includes(currentUser.role)) {
                     const btn = document.createElement('button');
                     btn.className = "w-full text-left px-4 py-3 rounded text-slate-300 hover:bg-blue-600 transition text-sm mb-1";
                     btn.innerText = item.label;
-                    btn.onclick = () => {
-                        document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-                        document.getElementById(`sec-${item.id}`).classList.add('active');
-                        document.getElementById('current-page-title').innerText = item.label.substring(3);
-                        if(item.id === 'config') loadStaff(); 
-                        if(item.id === 'booth') loadBooths();
-                    };
+                    btn.onclick = () => switchPage(item.id, item.label);
                     container.appendChild(btn);
                 }
             });
         }
 
-        // ================= 2. 项目下拉联动 =================
+        function switchPage(id, label) {
+            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+            document.getElementById(`sec-${id}`).classList.add('active');
+            document.getElementById('current-page-title').innerText = label.substring(3);
+            if(id === 'config') loadStaff(); 
+            if(id === 'booth') loadBooths();
+        }
+
+        // 2. 项目管理 (增加编辑功能)
         async function loadProjects() {
-            allProjects = await (await fetch('/api/projects')).json();
-            const sel = document.getElementById('global-project-select'); 
+            const res = await fetch('/api/projects');
+            allProjects = await res.json();
+            const sel = document.getElementById('global-project-select');
             const tbody = document.getElementById('project-list-tbody');
             sel.innerHTML = ''; tbody.innerHTML = '';
             
             allProjects.forEach(p => {
                 sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
-                const d = (p.start_date) ? `${p.start_date} 至 ${p.end_date}` : '未设';
-                tbody.innerHTML += `<tr><td class="p-2 font-bold text-blue-600">${p.name}</td><td class="p-2 text-gray-500">${d}</td></tr>`;
+                tbody.innerHTML += `<tr class="border-b"><td class="p-2 font-bold">${p.name}</td><td class="p-2 text-right"><button onclick='openEditProjectModal(${JSON.stringify(p)})' class="text-blue-500 text-xs">编辑</button></td></tr>`;
             });
             onProjectChange();
         }
 
-        function onProjectChange() {
-            if(document.getElementById('sec-config').classList.contains('active')) loadStaff();
-            if(document.getElementById('sec-booth').classList.contains('active')) loadBooths();
+        function openEditProjectModal(p) {
+            document.getElementById('edit-p-id').value = p.id;
+            document.getElementById('edit-p-name').value = p.name;
+            document.getElementById('edit-p-year').value = p.year;
+            document.getElementById('edit-p-start').value = p.start_date;
+            document.getElementById('edit-p-end').value = p.end_date;
+            document.getElementById('edit-project-modal').classList.remove('hidden');
         }
 
-        // 恢复：新增项目
-        async function createProject() {
+        async function submitEditProject() {
             const data = {
-                name: document.getElementById('new-proj-name').value, 
-                year: document.getElementById('new-proj-year').value,
-                start_date: document.getElementById('new-proj-start').value, 
-                end_date: document.getElementById('new-proj-end').value
+                id: document.getElementById('edit-p-id').value,
+                name: document.getElementById('edit-p-name').value,
+                year: document.getElementById('edit-p-year').value,
+                start_date: document.getElementById('edit-p-start').value,
+                end_date: document.getElementById('edit-p-end').value
             };
-            if(!data.name) return alert("项目名必填");
+            await fetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) });
+            closeModal('edit-project-modal');
+            loadProjects();
+        }
+
+        async function createProject() {
+            const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value };
             await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) });
-            alert("创建成功"); loadProjects();
+            loadProjects();
         }
 
-        // ================= 3. 员工与目标管理 =================
-        // 恢复：加载员工及目标
-        async function loadStaff() {
-            const pid = document.getElementById('global-project-select').value;
-            if(!pid) return;
-            const res = await fetch(`/api/staff?projectId=${pid}`);
-            const staff = await res.json();
-            const tbody = document.getElementById('staff-list-tbody');
-            tbody.innerHTML = '';
-            staff.forEach(s => {
-                const targetStr = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设置</span>';
-                tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2 font-medium">${s.name}</td>
-                        <td class="p-2 text-xs">${s.role==='admin'?'管理员':'业务员'}</td>
-                        <td class="p-2">${targetStr}</td>
-                        <td class="p-2 space-x-2">
-                            ${s.role==='user' ? `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:underline text-xs">设目标</button>` : ''}
-                            <button onclick="resetPass('${s.name}')" class="text-red-400 hover:underline text-xs">重置密码</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-
-        // 恢复：新增员工
-        async function createStaff() {
-            const data = { name: document.getElementById('new-staff-name').value, role: document.getElementById('new-staff-role').value };
-            if(!data.name) return alert("填名字");
-            await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
-            document.getElementById('new-staff-name').value = '';
-            loadStaff();
-        }
-
-        // 恢复：设置目标
-        async function setTarget(staffName) {
-            const pid = document.getElementById('global-project-select').value;
-            const t = prompt(`请设置 ${staffName} 在当前项目的招展目标数量:`, "100");
-            if(t && !isNaN(t)) {
-                await fetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: staffName, target: parseFloat(t)}) });
-                loadStaff();
-            }
-        }
-
-        // 恢复：重置密码
-        async function resetPass(staffName) {
-            if(confirm(`确定将 ${staffName} 的密码重置为 123456 吗？`)) {
-                await fetch('/api/reset-password', { method: 'POST', body: JSON.stringify({staffName}) });
-                alert("密码已重置为 123456");
-            }
-        }
-
-        // ================= 4. 密码模态框逻辑 =================
-        function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
-        function closePasswordModal() { 
-            document.getElementById('password-modal').classList.add('hidden');
-            document.getElementById('modal-old-pass').value = ''; document.getElementById('modal-new-pass').value = '';
-        }
-        async function submitPasswordChange() {
-            const oldPass = document.getElementById('modal-old-pass').value;
-            const newPass = document.getElementById('modal-new-pass').value;
-            if(!oldPass || !newPass) return alert("请填写完整");
-            const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass, newPass}) });
-            if(res.ok) { alert("密码修改成功！"); closePasswordModal(); } else alert("原密码错误！");
-        }
-
-        // ================= 5. 展位库管理逻辑 =================
-        function downloadTemplate() {
-            const header = "展位号,馆号,类型(标摊/光地/豪标),面积,开口数,计价单位(个/平米),底价\n";
-            const sample = "1A01,1号馆,标摊,9,2,个,5800\n1A02,1号馆,光地,36,3,平米,600\n";
-            const blob = new Blob(["\uFEFF" + header + sample], { type: "text/csv;charset=utf-8;" });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob); link.download = "展位批量导入模板.csv"; link.click();
-        }
-
+        // 3. 展位库 (修复刷新显示问题)
         async function addSingleBooth() {
             const pid = document.getElementById('global-project-select').value;
-            if(!pid) return alert("请选择项目");
             const b = {
                 project_id: pid, id: document.getElementById('s-id').value, hall: document.getElementById('s-hall').value,
-                type: document.getElementById('s-type').value, area: parseFloat(document.getElementById('s-area').value)||9,
-                open_sides: parseInt(document.getElementById('s-open').value)||1, price_unit: document.getElementById('s-unit').value,
-                base_price: parseFloat(document.getElementById('s-price').value)||0
+                type: '标摊', area: parseFloat(document.getElementById('s-area').value),
+                open_sides: parseInt(document.getElementById('s-open').value), price_unit: '个', base_price: 0
             };
-            if(!b.id) return alert("展位号必填");
             await fetch('/api/add-booth', { method: 'POST', body: JSON.stringify(b) });
-            alert("单个新增成功"); loadBooths();
-        }
-
-        async function parseAndImportBooths() {
-            const pid = document.getElementById('global-project-select').value;
-            const text = document.getElementById('booth-import-text').value.trim();
-            if(!text) return;
-            const rows = text.split('\n'); const booths = [];
-            for(let r of rows) {
-                const cols = r.split(/[\t,]/); 
-                if(cols.length >= 6 && cols[0].trim() !== '展位号') { 
-                    booths.push({
-                        id: cols[0].trim(), hall: cols[1].trim(), type: cols[2].trim(),
-                        area: parseFloat(cols[3])||9, open_sides: parseInt(cols[4])||1,
-                        price_unit: cols[5].trim(), base_price: parseFloat(cols[6])||0
-                    });
-                }
-            }
-            if(booths.length === 0) return alert("未解析到数据");
-            await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
-            alert(`成功导入 ${booths.length} 个展位`); 
-            document.getElementById('booth-import-text').value = ''; loadBooths();
+            alert("添加成功");
+            loadBooths(); // 关键：立即刷新列表
         }
 
         async function loadBooths() {
-            const pid = document.getElementById('global-project-select').value; if(!pid) return;
-            const booths = await (await fetch(`/api/booths?projectId=${pid}`)).json();
+            const pid = document.getElementById('global-project-select').value;
+            if(!pid) return;
+            const res = await fetch(`/api/booths?projectId=${pid}`);
+            const booths = await res.json();
             const tbody = document.getElementById('booth-list-tbody'); tbody.innerHTML = '';
-            const statusOpts = ['可售', '已预订', '已锁定', '已成交'];
-            
             booths.forEach(b => {
-                let selectHtml = `<select onchange="updateBoothStatus('${b.id}', this.value)" class="border p-1 text-xs rounded ${b.status==='已成交'?'bg-green-100 text-green-700':'bg-white'}">`;
-                statusOpts.forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${opt}</option>`);
-                selectHtml += `</select>`;
-
-                tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50 border-b">
-                        <td class="p-2 font-bold">${b.id}</td><td class="p-2">${b.hall}</td>
-                        <td class="p-2">${b.type}</td><td class="p-2">${b.area}</td>
-                        <td class="p-2">${b.open_sides}</td><td class="p-2">¥${b.base_price}/${b.price_unit}</td>
-                        <td class="p-2">${selectHtml}</td>
-                    </tr>
-                `;
+                tbody.innerHTML += `<tr class="border-b"><td class="p-2">${b.id}</td><td class="p-2">${b.hall}</td><td class="p-2">${b.type}</td><td class="p-2">${b.area}</td><td class="p-2">${b.status}</td></tr>`;
             });
         }
 
-        async function updateBoothStatus(boothId, newStatus) {
-            const pid = document.getElementById('global-project-select').value;
-            await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothId, status: newStatus}) });
+        function onProjectChange() {
+            if(document.getElementById('sec-booth').classList.contains('active')) loadBooths();
         }
+
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
     </script>
 </body>
 </html>
