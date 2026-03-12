@@ -15,8 +15,8 @@
     <div id="login-view" class="flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
             <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
-            <input type="text" id="login-user" placeholder="姓名 (如: admin)" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
-            <input type="password" id="login-pass" placeholder="密码 (如: 123)" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
+            <input type="text" id="login-user" placeholder="姓名" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
+            <input type="password" id="login-pass" placeholder="密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
             <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">登 录</button>
         </div>
     </div>
@@ -27,6 +27,7 @@
             <div class="p-5 border-b border-slate-700">
                 <h1 class="text-xl font-bold tracking-wider">展位销售系统</h1>
                 <p id="user-info" class="text-sm text-slate-400 mt-2"></p>
+                <button onclick="changeMyPassword()" class="text-xs text-blue-400 mt-1 hover:underline">修改我的密码</button>
             </div>
             <nav id="nav-buttons" class="flex-1 p-4 space-y-2 overflow-y-auto"></nav>
             <div class="p-4 border-t border-slate-700">
@@ -40,96 +41,79 @@
                 <h2 id="current-page-title" class="text-lg font-bold text-gray-700">首页看板</h2>
                 <div class="flex items-center gap-3">
                     <span class="text-sm text-gray-500 font-bold">当前操作项目：</span>
-                    <select id="global-project-select" onchange="onProjectChange()" class="border-2 border-blue-500 text-blue-700 font-bold p-2 rounded bg-blue-50 focus:outline-none min-w-[200px]">
-                        <option value="">正在加载项目...</option>
-                    </select>
+                    <select id="global-project-select" onchange="onProjectChange()" class="border-2 border-blue-500 text-blue-700 font-bold p-2 rounded bg-blue-50 focus:outline-none min-w-[200px]"></select>
                 </div>
             </header>
 
             <div class="flex-1 overflow-y-auto p-6">
                 
                 <section id="sec-home" class="page-section active">
-                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded">
-                        <p class="text-blue-700">欢迎进入系统！请先在左侧菜单点击 <strong>“系统与人员配置”</strong>，创建您的第一个展会项目。</p>
+                    <div class="bg-white p-6 rounded shadow border-l-4 border-blue-500">
+                        <h3 class="text-lg font-bold text-gray-700">欢迎工作！</h3>
+                        <p class="text-gray-500 mt-2">请确保右上角选择了正确的项目。如果您是管理员，请前往【系统配置】设定人员目标，或前往【展位库】导入图纸数据。</p>
                     </div>
                 </section>
 
                 <section id="sec-config" class="page-section">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        
                         <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500">
-                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">📂 展会项目管理</h3>
-                            
+                            <h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3>
                             <div class="bg-gray-50 p-4 rounded border mb-6">
-                                <h4 class="text-sm font-bold text-gray-600 mb-3">新建展会项目</h4>
-                                <div class="grid grid-cols-2 gap-3 mb-3">
-                                    <input type="text" id="new-proj-name" placeholder="项目名称 (例: 2026福州渔博会)" class="col-span-2 border p-2 rounded text-sm">
-                                    <input type="number" id="new-proj-year" placeholder="归属年份 (例: 2026)" class="border p-2 rounded text-sm">
-                                    <div></div>
-                                    <div class="col-span-2 flex items-center gap-2 text-sm text-gray-600">
-                                        开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">
-                                        撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1">
-                                    </div>
+                                <input type="text" id="new-proj-name" placeholder="项目名称 (例: 2026福州渔博会)" class="w-full border p-2 rounded text-sm mb-2">
+                                <input type="number" id="new-proj-year" placeholder="归属年份" class="w-full border p-2 rounded text-sm mb-2">
+                                <div class="flex gap-2 mb-2 text-sm text-gray-600">
+                                    开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">
+                                    撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1">
                                 </div>
-                                <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button>
+                                <button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700">保存新项目</button>
                             </div>
-
-                            <h4 class="text-sm font-bold text-gray-600 mb-2">已有项目列表</h4>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm text-left border">
-                                    <thead class="bg-gray-100 border-b">
-                                        <tr>
-                                            <th class="p-2">项目名称</th>
-                                            <th class="p-2">展期</th>
-                                            <th class="p-2">状态</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="project-list-tbody" class="divide-y">
-                                        <tr><td colspan="3" class="p-2 text-center text-gray-500">加载中...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                            <table class="w-full text-sm text-left border"><tbody id="project-list-tbody" class="divide-y"></tbody></table>
                         </div>
 
                         <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500">
-                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">👥 业务员账号管理</h3>
-                            
-                            <div class="bg-gray-50 p-4 rounded border mb-6">
-                                <h4 class="text-sm font-bold text-gray-600 mb-3">添加新账号</h4>
-                                <div class="grid grid-cols-2 gap-3 mb-3">
-                                    <input type="text" id="new-staff-name" placeholder="员工姓名 (登录账号)" class="col-span-2 border p-2 rounded text-sm">
-                                    <input type="text" id="new-staff-pass" value="123456" placeholder="初始密码" class="border p-2 rounded text-sm">
-                                    <select id="new-staff-role" class="border p-2 rounded text-sm">
-                                        <option value="user">普通业务员</option>
-                                        <option value="admin">管理员</option>
-                                    </select>
-                                </div>
-                                <button onclick="createStaff()" class="w-full bg-emerald-600 text-white p-2 rounded text-sm font-bold hover:bg-emerald-700 transition">添加人员</button>
+                            <h3 class="text-lg font-bold mb-4 flex justify-between items-center">
+                                <span>👥 业务员与目标管理</span>
+                                <span class="text-xs font-normal text-gray-500">目标针对当前右上角选中的项目生效</span>
+                            </h3>
+                            <div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2">
+                                <input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1">
+                                <select id="new-staff-role" class="border p-2 rounded text-sm w-32">
+                                    <option value="user">业务员</option>
+                                    <option value="admin">管理员</option>
+                                </select>
+                                <button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold">添加</button>
                             </div>
-
-                            <h4 class="text-sm font-bold text-gray-600 mb-2">系统账号列表</h4>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm text-left border">
-                                    <thead class="bg-gray-100 border-b">
-                                        <tr>
-                                            <th class="p-2">姓名</th>
-                                            <th class="p-2">角色</th>
-                                            <th class="p-2">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="staff-list-tbody" class="divide-y">
-                                        <tr><td colspan="3" class="p-2 text-center text-gray-500">加载中...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                            <table class="w-full text-sm text-left border">
+                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead>
+                                <tbody id="staff-list-tbody" class="divide-y"></tbody>
+                            </table>
                         </div>
-                        
                     </div>
                 </section>
 
-                <section id="sec-booth" class="page-section">展位库开发中...</section>
-                <section id="sec-order" class="page-section">成交录入开发中...</section>
+                <section id="sec-booth" class="page-section">
+                    <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
+                        <h3 class="text-lg font-bold mb-4">🎪 展位库批量导入</h3>
+                        <div class="bg-orange-50 text-orange-800 p-4 rounded text-sm mb-4 border border-orange-200">
+                            <strong>使用说明：</strong> 从 Excel 复制数据粘贴到下方文本框中。列的顺序必须是：<br>
+                            <code>展位号 | 馆号 | 类型(标摊/光地) | 面积 | 开口数 | 计价单位(个/平米) | 底价</code>
+                        </div>
+                        <textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded mb-4 text-sm font-mono" placeholder="1A01&#9;1号馆&#9;标摊&#9;9&#9;2&#9;个&#9;5800&#10;1A02&#9;1号馆&#9;光地&#9;36&#9;3&#9;平米&#9;600"></textarea>
+                        <button onclick="parseAndImportBooths()" class="bg-orange-600 text-white px-6 py-2 rounded font-bold hover:bg-orange-700">解析并导入展位</button>
+                        
+                        <h4 class="text-md font-bold mt-8 mb-2">当前项目已有展位</h4>
+                        <div class="overflow-y-auto max-h-96 border rounded">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-100 border-b sticky top-0 shadow-sm">
+                                    <tr><th class="p-2">展位号</th><th class="p-2">馆号</th><th class="p-2">类型</th><th class="p-2">面积</th><th class="p-2">开口数</th><th class="p-2">底价</th><th class="p-2">状态</th></tr>
+                                </thead>
+                                <tbody id="booth-list-tbody" class="divide-y"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
 
+                <section id="sec-order" class="page-section">成交录入与财务模块（下个版本加载...）</section>
             </div>
         </main>
     </div>
@@ -145,7 +129,7 @@
             { id: 'order', label: '✍️ 订单与财务录入', roles: ['admin', 'user'] },
         ];
 
-        // --- 核心初始化与导航 ---
+        // 1. 登录与导航
         async function handleLogin() {
             const u = document.getElementById('login-user').value;
             const p = document.getElementById('login-pass').value;
@@ -156,16 +140,11 @@
                 currentUser = (await res.json()).user;
                 document.getElementById('login-view').classList.add('hidden');
                 document.getElementById('main-view').classList.remove('hidden');
-                
-                const roleName = currentUser.role === 'admin' ? '管理员' : '销售代表';
-                document.getElementById('user-info').innerText = `${currentUser.name} (${roleName})`;
+                document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`;
                 
                 renderNav();
-                await loadProjects(); // 登录成功后拉取项目
-                
-            } else {
-                alert('登录失败，请检查账号密码');
-            }
+                await loadProjects(); 
+            } else alert('登录失败，请检查账号密码');
         }
 
         function renderNav() {
@@ -180,111 +159,159 @@
                         document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
                         document.getElementById(`sec-${item.id}`).classList.add('active');
                         document.getElementById('current-page-title').innerText = item.label.substring(3);
-                        // 如果点的是配置页，加载人员列表
+                        
+                        // 路由逻辑
                         if(item.id === 'config') loadStaff();
+                        if(item.id === 'booth') loadBooths();
                     };
                     btnContainer.appendChild(btn);
                 }
             });
         }
 
-        // --- 项目管理功能 ---
+        // 2. 项目下拉联动
         async function loadProjects() {
             const res = await fetch('/api/projects');
             allProjects = await res.json();
-            
-            // 填充顶部下拉框
             const select = document.getElementById('global-project-select');
-            select.innerHTML = '';
-            
-            // 填充配置页的表格
             const tbody = document.getElementById('project-list-tbody');
-            tbody.innerHTML = '';
+            select.innerHTML = ''; tbody.innerHTML = '';
 
             if(allProjects.length === 0) {
-                select.innerHTML = '<option value="">暂无项目，请先创建</option>';
-                tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-500">暂无项目记录</td></tr>';
+                select.innerHTML = '<option value="">请先创建项目</option>';
                 return;
             }
 
             allProjects.forEach(p => {
-                // 下拉框
                 select.innerHTML += `<option value="${p.id}">${p.name} (${p.year})</option>`;
-                // 表格
-                const dateStr = (p.start_date && p.end_date) ? `${p.start_date.substring(5)} 至 ${p.end_date.substring(5)}` : '未设置';
-                tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50">
-                        <td class="p-2 font-medium text-blue-600">${p.name}</td>
-                        <td class="p-2 text-gray-500">${dateStr}</td>
-                        <td class="p-2"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">${p.status}</span></td>
-                    </tr>
-                `;
+                const d = (p.start_date) ? `${p.start_date.substring(5)}至${p.end_date.substring(5)}` : '未设';
+                tbody.innerHTML += `<tr><td class="p-2 font-bold text-blue-600">${p.name}</td><td class="p-2 text-gray-500">${d}</td></tr>`;
             });
+            onProjectChange(); // 触发初始加载
+        }
+
+        function onProjectChange() {
+            // 项目切换时，如果有对应的页面处于激活状态，刷新它的数据
+            if(document.getElementById('sec-config').classList.contains('active')) loadStaff();
+            if(document.getElementById('sec-booth').classList.contains('active')) loadBooths();
         }
 
         async function createProject() {
             const data = {
-                name: document.getElementById('new-proj-name').value,
-                year: document.getElementById('new-proj-year').value,
-                start_date: document.getElementById('new-proj-start').value,
-                end_date: document.getElementById('new-proj-end').value
+                name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value,
+                start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value
             };
-            if(!data.name || !data.year) return alert("项目名称和年份为必填项！");
-
-            const res = await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) });
-            if(res.ok) {
-                alert("项目创建成功！");
-                document.getElementById('new-proj-name').value = '';
-                loadProjects(); // 刷新列表
-            } else {
-                alert("创建失败");
-            }
+            if(!data.name) return alert("项目名必填");
+            await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) });
+            alert("创建成功"); loadProjects();
         }
 
-        // --- 人员管理功能 ---
+        // 3. 员工与目标、密码管理
         async function loadStaff() {
-            const res = await fetch('/api/staff');
+            const pid = document.getElementById('global-project-select').value;
+            if(!pid) return;
+            const res = await fetch(`/api/staff?projectId=${pid}`);
             const staff = await res.json();
             const tbody = document.getElementById('staff-list-tbody');
             tbody.innerHTML = '';
             staff.forEach(s => {
-                const roleBadge = s.role === 'admin' 
-                    ? '<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">管理员</span>' 
-                    : '<span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">业务员</span>';
+                const targetStr = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设置</span>';
                 tbody.innerHTML += `
                     <tr class="hover:bg-gray-50">
                         <td class="p-2 font-medium">${s.name}</td>
-                        <td class="p-2">${roleBadge}</td>
-                        <td class="p-2 text-xs text-blue-500 cursor-pointer hover:underline">重置密码</td>
+                        <td class="p-2 text-xs">${s.role==='admin'?'管理员':'业务员'}</td>
+                        <td class="p-2">${targetStr}</td>
+                        <td class="p-2 space-x-2">
+                            ${s.role==='user' ? `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:underline text-xs">设目标</button>` : ''}
+                            <button onclick="resetPass('${s.name}')" class="text-red-400 hover:underline text-xs">重置密码</button>
+                        </td>
                     </tr>
                 `;
             });
         }
 
         async function createStaff() {
-            const data = {
-                name: document.getElementById('new-staff-name').value,
-                password: document.getElementById('new-staff-pass').value,
-                role: document.getElementById('new-staff-role').value
-            };
-            if(!data.name) return alert("请输入员工姓名！");
+            const data = { name: document.getElementById('new-staff-name').value, role: document.getElementById('new-staff-role').value };
+            if(!data.name) return alert("填名字");
+            await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
+            loadStaff();
+        }
 
-            const res = await fetch('/api/staff', { method: 'POST', body: JSON.stringify(data) });
-            if(res.ok) {
-                alert("人员添加成功！");
-                document.getElementById('new-staff-name').value = '';
-                loadStaff(); // 刷新列表
-            } else {
-                const err = await res.json();
-                alert(err.message || "添加失败");
+        async function setTarget(staffName) {
+            const pid = document.getElementById('global-project-select').value;
+            const t = prompt(`请设置 ${staffName} 在当前项目的招展目标数量:`, "100");
+            if(t && !isNaN(t)) {
+                await fetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: staffName, target: parseFloat(t)}) });
+                loadStaff();
             }
         }
 
-        // 监听全局项目切换
-        function onProjectChange() {
-            const projId = document.getElementById('global-project-select').value;
-            console.log("当前操作已切换到项目 ID:", projId);
-            // 后续：切换项目后，自动刷新展位库和订单表的数据
+        async function resetPass(staffName) {
+            if(confirm(`确定将 ${staffName} 的密码重置为 123 吗？`)) {
+                await fetch('/api/reset-password', { method: 'POST', body: JSON.stringify({staffName}) });
+                alert("密码已重置为 123");
+            }
+        }
+
+        async function changeMyPassword() {
+            const oldPass = prompt("请输入当前密码：");
+            if(!oldPass) return;
+            const newPass = prompt("请输入新密码：");
+            if(!newPass) return;
+            const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass, newPass}) });
+            if(res.ok) alert("密码修改成功！"); else alert("原密码错误！");
+        }
+
+        // 4. 展位批量导入
+        async function parseAndImportBooths() {
+            const pid = document.getElementById('global-project-select').value;
+            if(!pid) return alert("请先在右上角选择展会项目！");
+            
+            const text = document.getElementById('booth-import-text').value.trim();
+            if(!text) return alert("粘贴内容不能为空");
+
+            const rows = text.split('\n');
+            const booths = [];
+            
+            for(let r of rows) {
+                const cols = r.split('\t'); // Excel复制默认是制表符分割
+                if(cols.length >= 6) {
+                    booths.push({
+                        id: cols[0].trim(), hall: cols[1].trim(), type: cols[2].trim(),
+                        area: parseFloat(cols[3]) || 9, open_sides: parseInt(cols[4]) || 1,
+                        price_unit: cols[5].trim(), base_price: parseFloat(cols[6]) || 0
+                    });
+                }
+            }
+
+            if(booths.length === 0) return alert("解析失败，请检查格式是否正确(必须从Excel复制，保证列数对应)");
+            if(!confirm(`解析成功，准备导入 ${booths.length} 个展位到当前项目。是否继续？`)) return;
+
+            const res = await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) });
+            if(res.ok) {
+                alert("导入成功！");
+                document.getElementById('booth-import-text').value = '';
+                loadBooths();
+            } else alert("导入出错，请重试");
+        }
+
+        async function loadBooths() {
+            const pid = document.getElementById('global-project-select').value;
+            if(!pid) return;
+            const res = await fetch(`/api/booths?projectId=${pid}`);
+            const booths = await res.json();
+            const tbody = document.getElementById('booth-list-tbody');
+            tbody.innerHTML = '';
+            booths.forEach(b => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 border-b">
+                        <td class="p-2 font-bold">${b.id}</td><td class="p-2">${b.hall}</td>
+                        <td class="p-2">${b.type}</td><td class="p-2">${b.area}</td>
+                        <td class="p-2">${b.open_sides}</td><td class="p-2">¥${b.base_price}/${b.price_unit}</td>
+                        <td class="p-2"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">${b.status}</span></td>
+                    </tr>
+                `;
+            });
         }
     </script>
 </body>
