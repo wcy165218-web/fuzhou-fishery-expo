@@ -146,7 +146,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ================= 7. 财务大盘模块 =================
+      // ================= 7. 财务大盘与代付模块 =================
       
       if (url.pathname === '/api/orders' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
@@ -168,7 +168,6 @@ export default {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // 收款记录操作
       if (url.pathname === '/api/payments' && request.method === 'GET') {
         const orderId = url.searchParams.get('orderId');
         const { results } = await env.DB.prepare("SELECT * FROM Payments WHERE order_id = ? ORDER BY payment_time DESC, id DESC").bind(orderId).all();
@@ -188,7 +187,6 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 【新增】修改收款记录
       if (url.pathname === '/api/edit-payment' && request.method === 'POST') {
         const p = await request.json();
         const oldPay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(p.payment_id).first();
@@ -208,7 +206,6 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 【新增】删除单条收款记录
       if (url.pathname === '/api/delete-payment' && request.method === 'POST') {
         const { payment_id, order_id, project_id } = await request.json();
         const pay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(payment_id).first();
@@ -224,7 +221,6 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 修改合同费用结构 (支持重算)
       if (url.pathname === '/api/update-order-fees' && request.method === 'POST') {
         const o = await request.json();
         const total = Number(o.actual_fee) + Number(o.other_fee_total);
@@ -244,6 +240,26 @@ export default {
         const { order_id, project_id, booth_id } = await request.json();
         await env.DB.prepare("UPDATE Orders SET status = '已作废' WHERE id = ?").bind(order_id).run();
         await env.DB.prepare("UPDATE Booths SET status = '可售' WHERE id = ? AND project_id = ?").bind(booth_id, project_id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // ==== 支出/代付管理 API ====
+      if (url.pathname === '/api/expenses' && request.method === 'GET') {
+        const orderId = url.searchParams.get('orderId');
+        const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
+        return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+
+      if (url.pathname === '/api/add-expense' && request.method === 'POST') {
+        const e = await request.json();
+        await env.DB.prepare("INSERT INTO Expenses (project_id, order_id, fee_item_name, payee_name, payee_bank, payee_account, amount, applicant) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+          .bind(e.project_id, e.order_id, e.fee_item_name, e.payee_name, e.payee_bank, e.payee_account, e.amount, e.applicant).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
+        const { expense_id } = await request.json();
+        await env.DB.prepare("DELETE FROM Expenses WHERE id = ?").bind(expense_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
