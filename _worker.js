@@ -133,7 +133,35 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ================= 5. 【新增】订单录入模块 =================
+      // ================= 5. 文件上传与下载 (R2) =================
+      if (url.pathname === '/api/upload' && request.method === 'POST') {
+        const formData = await request.formData();
+        const file = formData.get('file');
+        if (!file) return new Response(JSON.stringify({ error: "没有接收到文件" }), { status: 400, headers: corsHeaders });
+        
+        // 确保文件名安全，加入时间戳防止重名覆盖
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const fileName = `contract_${Date.now()}_${safeName}`; 
+        
+        // 将文件推入你绑定的 BUCKET 中
+        await env.BUCKET.put(fileName, file.stream(), { httpMetadata: { contentType: file.type } });
+        
+        return new Response(JSON.stringify({ success: true, fileKey: fileName }), { headers: corsHeaders });
+      }
+
+      // 提供读取文件的接口 (后期在列表里点击看合同用)
+      if (url.pathname.startsWith('/api/file/') && request.method === 'GET') {
+        const key = decodeURIComponent(url.pathname.replace('/api/file/', ''));
+        const object = await env.BUCKET.get(key);
+        if (!object) return new Response('合同文件不存在', { status: 404, headers: corsHeaders });
+        
+        const headers = new Headers(corsHeaders);
+        object.writeHttpMetadata(headers);
+        headers.set('etag', object.httpEtag);
+        return new Response(object.body, { headers });
+      }
+
+      // ================= 6. 订单录入模块 (新数据结构) =================
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
         
@@ -143,20 +171,19 @@ export default {
             if (existCode) return new Response(JSON.stringify({ success: false, error: `社会信用代码 [${o.credit_code}] 已存在，无法重复录入！` }), { status: 400, headers: corsHeaders });
         }
 
-        // 2. 插入订单数据 (将 fascia_count 拼接到 fascia_name 后面暂存)
-        const combinedFascia = o.fascia_name ? `${o.fascia_name} (数量:${o.fascia_count})` : '';
-
+        // 2. 插入带有新字段(合同、杂项租赁)的订单数据
         const stmt = `INSERT INTO Orders (
-          project_id, company_name, credit_code, main_business, is_agent, agent_name, contact_person, phone, region_p,
-          booth_id, area, price_unit, unit_price, discount_reason, total_booth_fee, other_income, total_amount, sales_name, fascia_name
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+          project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region,
+          booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, extra_rentals, total_amount, contract_url, sales_name, fascia_name, fascia_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
         await env.DB.prepare(stmt).bind(
-          o.project_id, o.company_name, o.credit_code, o.main_business, o.is_agent, o.agent_name, o.contact_person, o.phone, o.region,
-          o.booth_id, o.area, o.price_unit, o.unit_price, o.discount_reason, o.total_booth_fee, o.other_income, o.total_amount, o.sales_name, combinedFascia
+          o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.main_business, o.is_agent ? 1 : 0, o.agent_name,
+          o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price, o.total_booth_fee, o.discount_reason,
+          o.other_income, o.extra_rentals, o.total_amount, o.contract_url, o.sales_name, o.fascia_name, o.fascia_count
         ).run();
 
-        // 3. 联动修改展位状态：只要提交了订单，展位马上变“已预订”
+        // 3. 联动修改展位状态：只要提交了订单，展位马上变“已预订” (等待财务审核变已成交)
         await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
