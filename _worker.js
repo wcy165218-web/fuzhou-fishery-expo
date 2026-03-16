@@ -176,38 +176,48 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 重点修复：代付/返佣写入接口 ============
-      if (url.pathname === '/api/expenses' && request.method === 'GET') {
-        const orderId = url.searchParams.get('orderId');
-        const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
-        return new Response(JSON.stringify(results), { headers: corsHeaders });
-      }
+      // ============ 🔥 终极稳定性修复版：代付写入接口 ============
       if (url.pathname === '/api/add-expense' && request.method === 'POST') {
-        const e = await request.json();
-        // 严格匹配数据库 9 个字段，并加入容错
+        let e;
+        try {
+          e = await request.json();
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: "JSON解析失败" }), { status: 400, headers: corsHeaders });
+        }
+
+        // 严格转换数字，处理空值兜底
+        const projectId = parseInt(e.project_id) || 0;
+        const orderId = parseInt(e.order_id) || 0;
+        const amount = parseFloat(e.amount) || 0;
+        const feeItemName = String(e.fee_item_name || '返佣/代付').trim();
+        const payeeName = String(e.payee_name || '').trim();
+        const payeeChannel = String(e.payee_channel || '银行转账').trim();
+        const payeeBank = String(e.payee_bank || '').trim();
+        const payeeAccount = String(e.payee_account || '').trim();
+        const applicant = String(e.applicant || '').trim();
+
         const sql = `INSERT INTO Expenses (
           project_id, order_id, fee_item_name, payee_name, payee_channel, 
           payee_bank, payee_account, amount, applicant
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
-        await env.DB.prepare(sql).bind(
-          e.project_id, 
-          e.order_id, 
-          e.fee_item_name || '返佣/代付', 
-          e.payee_name || '', 
-          e.payee_channel || '银行转账', 
-          e.payee_bank || '', 
-          e.payee_account || '', 
-          Number(e.amount) || 0, 
-          e.applicant || ''
-        ).run();
-        
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-      }
-      if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
-        const { expense_id } = await request.json();
-        await env.DB.prepare("DELETE FROM Expenses WHERE id = ?").bind(expense_id).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        try {
+          await env.DB.prepare(sql).bind(
+            projectId, 
+            orderId, 
+            feeItemName, 
+            payeeName, 
+            payeeChannel, 
+            payeeBank, 
+            payeeAccount, 
+            amount, 
+            applicant
+          ).run();
+          return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        } catch (dbErr) {
+          // 将具体的数据库报错吐给前端，方便排查
+          return new Response(JSON.stringify({ success: false, error: "D1数据库写入失败: " + dbErr.message }), { status: 500, headers: corsHeaders });
+        }
       }
 
       // 文件上传
