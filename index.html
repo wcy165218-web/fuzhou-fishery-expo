@@ -204,6 +204,10 @@
                             </div>
                             
                             <div class="grid grid-cols-2 gap-3 border-t border-purple-200 pt-3">
+                                <div class="col-span-2">
+                                    <label class="block text-gray-700 font-bold mb-1">代付/返佣事由 <span class="text-red-500">*</span></label>
+                                    <input type="text" id="exp-reason" class="w-full border-2 border-purple-300 p-2 rounded bg-white" placeholder="如：展位搭建费结算 / 代理商返佣提成 / 退款等">
+                                </div>
                                 <div>
                                     <label class="block text-gray-700 mb-1">代付/收款渠道 <span class="text-red-500">*</span></label>
                                     <select id="exp-channel" class="w-full border p-2 rounded bg-white font-bold text-purple-700">
@@ -218,13 +222,13 @@
                                 <div><label class="block text-gray-700 mb-1">收款账号 (如适用)</label><input type="text" id="exp-account" class="w-full border p-2 rounded" placeholder="银行卡号/微信号等"></div>
                                 <div class="col-span-2 mt-2">
                                     <label class="block text-gray-800 font-bold mb-1">申请支付金额 (元) <span class="text-red-500">*</span></label>
-                                    <input type="number" id="exp-amount" class="w-full border-2 border-purple-400 p-3 rounded font-bold text-xl text-purple-800 shadow-inner" placeholder="0.00">
+                                    <input type="number" id="exp-amount" class="w-full border-2 border-red-300 p-3 rounded font-bold text-xl text-red-600 shadow-inner" placeholder="0.00">
                                 </div>
                             </div>
-                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2 text-base">提交代付申请并生成单据</button>
+                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2 text-base">提交申请并生成单据</button>
                         </div>
                     </div>
-                    <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🗂️ 本单历史代付记录</h4>
+                    <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🗂️ 本单历史代付/返佣记录</h4>
                     <div id="fm-exp-list" class="space-y-2 text-sm max-h-48 overflow-y-auto"></div>
                 </div>
 
@@ -858,7 +862,7 @@
         }
 
 
-        // --- 财务模态框 (三权分立入口) ---
+        // --- 财务模态框 ---
         async function openFinanceModal(order, initialTab) {
             currentModalOrderId = order.id;
             
@@ -874,12 +878,11 @@
             
             // Tab 1: 收款
             document.getElementById('fm-order-id').value = order.id;
-            document.getElementById('pay-amount').value = '';  // 需求：默认到账金额为空
+            document.getElementById('pay-amount').value = '';  
             document.getElementById('pay-time').value = new Date().toISOString().split('T')[0]; 
             document.getElementById('pay-payer').value = order.company_name; 
             document.getElementById('pay-remark').value = '';
 
-            // 动态装填对公账户下拉
             const accGroup = document.getElementById('optgroup-accounts');
             accGroup.innerHTML = '';
             projectAccounts.forEach(acc => {
@@ -894,12 +897,13 @@
             try { fmDynamicFees = JSON.parse(order.fees_json || '[]'); } catch(e) { fmDynamicFees = []; }
             renderFmDynamicFees();
 
-            // Tab 3: 代付 (取消指定费用来源，直接对标已收总额)
+            // Tab 3: 代付/返佣
             document.getElementById('exp-total-paid-display').innerText = `¥ ${order.paid_amount.toLocaleString()}`;
             document.getElementById('exp-amount').value = '';
             document.getElementById('exp-payee').value = '';
             document.getElementById('exp-bank').value = '';
             document.getElementById('exp-account').value = '';
+            document.getElementById('exp-reason').value = ''; // 清空事由
 
             switchFmTab(initialTab);
             
@@ -922,29 +926,34 @@
         // --- 收款管理流水 ---
         async function loadPaymentHistory(orderId) {
             const listDiv = document.getElementById('fm-pay-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
-            const pays = await (await fetch(`/api/payments?orderId=${orderId}`)).json();
-            if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
-            listDiv.innerHTML = '';
-            pays.forEach(p => {
-                const safePayer = (p.payer_name || '').replace(/'/g, "\\'");
-                const safeBank = (p.bank_name || '').replace(/'/g, "\\'");
-                const safeRem = (p.remarks || '').replace(/'/g, "\\'");
-                listDiv.innerHTML += `
-                    <div class="bg-white border rounded p-3 flex justify-between items-center hover:bg-gray-50 transition">
-                        <div>
-                            <div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}</div>
-                            <div class="text-xs text-gray-600 mt-1">👤 户名: ${p.payer_name}</div>
-                            <div class="text-xs text-gray-500">🏦 途径: ${p.bank_name || '未填'} | 📝 备注: ${p.remarks || '无'}</div>
-                        </div>
-                        <div class="text-right flex flex-col justify-between h-full">
-                            <div class="text-xs font-bold text-gray-700 mb-2">📅 ${p.payment_time}</div>
+            try {
+                const response = await fetch(`/api/payments?orderId=${orderId}`);
+                const pays = await response.json();
+                if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
+                listDiv.innerHTML = '';
+                pays.forEach(p => {
+                    const safePayer = (p.payer_name || '').replace(/'/g, "\\'");
+                    const safeBank = (p.bank_name || '').replace(/'/g, "\\'");
+                    const safeRem = (p.remarks || '').replace(/'/g, "\\'");
+                    listDiv.innerHTML += `
+                        <div class="bg-white border rounded p-3 flex justify-between items-center hover:bg-gray-50 transition">
                             <div>
-                                <button onclick="openEditPaymentModal(${p.id}, ${p.amount}, '${safePayer}', '${safeBank}', '${safeRem}', '${p.payment_time}')" class="text-indigo-500 hover:text-indigo-700 text-xs font-bold mr-2">修改</button>
-                                <button onclick="deletePayment(${p.id})" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button>
+                                <div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}</div>
+                                <div class="text-xs text-gray-600 mt-1">👤 户名: ${p.payer_name}</div>
+                                <div class="text-xs text-gray-500">🏦 途径: ${p.bank_name || '未填'} | 📝 备注: ${p.remarks || '无'}</div>
                             </div>
-                        </div>
-                    </div>`;
-            });
+                            <div class="text-right flex flex-col justify-between h-full">
+                                <div class="text-xs font-bold text-gray-700 mb-2">📅 ${p.payment_time}</div>
+                                <div>
+                                    <button onclick="openEditPaymentModal(${p.id}, ${p.amount}, '${safePayer}', '${safeBank}', '${safeRem}', '${p.payment_time}')" class="text-indigo-500 hover:text-indigo-700 text-xs font-bold mr-2">修改</button>
+                                    <button onclick="deletePayment(${p.id})" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            } catch (e) {
+                listDiv.innerHTML = '<p class="text-red-500">加载失败</p>';
+            }
         }
 
         async function submitPayment() {
@@ -1021,8 +1030,8 @@
             alert("合同金额变更成功！系统已重算尾款状态。"); closeModal('finance-modal'); loadOrderList();
         }
 
-        // --- 代付逻辑 (脱离指定费用来源，直接对标总收入) ---
-            async function loadExpenseHistory(orderId) {
+        // --- 代付逻辑 (完美版：含事由) ---
+        async function loadExpenseHistory(orderId) {
             const listDiv = document.getElementById('fm-exp-list'); 
             listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
             
@@ -1030,21 +1039,16 @@
                 const response = await fetch(`/api/expenses?orderId=${orderId}`);
                 const data = await response.json();
                 
-                // 【核心排查】：如果是后台报错，直接把错误用红字打印出来
                 if (!response.ok || data.error) {
-                    listDiv.innerHTML = `<p class="text-red-500 font-bold">后台查询报错: ${data.error || '状态码 ' + response.status}</p>`;
+                    listDiv.innerHTML = `<p class="text-red-500 font-bold">查询报错: ${data.error || '未知'}</p>`;
                     return;
                 }
 
                 const exps = data;
-                // 确保获取到的是数组
-                if(!Array.isArray(exps)) {
-                    listDiv.innerHTML = `<p class="text-red-500 font-bold">数据格式异常，期望是数组，实际是: ${typeof exps}</p>`;
-                    return;
-                }
+                if(!Array.isArray(exps)) return;
 
                 if(exps.length === 0) { 
-                    listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付记录</p>'; 
+                    listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付/返佣记录</p>'; 
                     return; 
                 }
 
@@ -1054,9 +1058,9 @@
                     listDiv.innerHTML += `
                         <div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50">
                             <div>
-                                <div class="font-bold text-purple-700">支付/返佣金额: ¥${e.amount}</div>
-                                <div class="text-xs text-gray-600 mt-1">收款方: ${e.payee_name} (${e.payee_channel || '转账'})</div>
-                                <div class="text-xs text-gray-400">${e.created_at ? e.created_at.split(' ')[0] : ''} | 申请人: ${e.applicant}</div>
+                                <div class="font-bold text-purple-700">金额: ¥${e.amount} <span class="text-sm font-normal text-gray-500 ml-2">(${e.payee_name})</span></div>
+                                <div class="text-xs text-gray-600 mt-1">📝 事由: <span class="font-bold">${e.reason || '无'}</span></div>
+                                <div class="text-xs text-gray-400 mt-1">${e.created_at ? e.created_at.split(' ')[0] : ''} | 渠道: ${e.payee_channel || '转账'} | 申请人: ${e.applicant}</div>
                             </div>
                             <div class="text-right">
                                 <button onclick='printExpense(${safeE})' class="bg-gray-800 text-white hover:bg-black text-xs font-bold px-3 py-1.5 rounded mr-2">🖨️ 打印单据</button>
@@ -1065,8 +1069,7 @@
                         </div>`;
                 });
             } catch (err) {
-                // 如果是 JSON 解析失败（通常是严重的服务器错误返回了 HTML）
-                listDiv.innerHTML = `<p class="text-red-500 font-bold">前端解析异常: ${err.message}</p>`;
+                listDiv.innerHTML = `<p class="text-red-500 font-bold">解析异常: ${err.message}</p>`;
             }
         }
 
@@ -1077,23 +1080,34 @@
             const bank = document.getElementById('exp-bank').value.trim();
             const acc = document.getElementById('exp-account').value.trim();
             const amt = parseFloat(document.getElementById('exp-amount').value);
+            const reason = document.getElementById('exp-reason').value.trim(); // 获取事由
 
-            if(!payee || !amt || amt <= 0) return alert("收款方全称和支付金额为必填！");
+            if(!payee || !amt || amt <= 0 || !reason) return alert("代付事由、收款方全称和支付金额均为必填！");
 
             const order = allOrders.find(o => o.id === currentModalOrderId);
             if(amt > order.paid_amount) {
-                if(!confirm(`⚠️ 警告：您申请的代付/返佣金额 (¥${amt}) 大于该订单当前的【已收总额】 (¥${order.paid_amount})。\n是否坚持超额支付？`)) return;
+                if(!confirm(`⚠️ 警告：您申请的金额 (¥${amt}) 大于该订单当前的【已收总额】 (¥${order.paid_amount})。\n是否坚持超额支付？`)) return;
             }
 
             try {
-                const data = { project_id: pid, order_id: currentModalOrderId, fee_item_name: '总收款抵扣', payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, amount: amt, applicant: currentUser.name };
+                // 传给后端的 JSON 增加 reason 字段
+                const data = { 
+                    project_id: pid, order_id: currentModalOrderId, fee_item_name: '总收款抵扣', 
+                    payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, 
+                    amount: amt, applicant: currentUser.name, reason: reason 
+                };
+                
                 const res = await fetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) });
-                if(res.ok) {
-                    alert("支出申请已记录！您可以在下方记录中点击打印单据。");
-                    document.getElementById('exp-payee').value = ''; document.getElementById('exp-amount').value = '';
+                const resData = await res.json();
+                
+                if(res.ok && resData.success) {
+                    alert("支出申请已记录！");
+                    document.getElementById('exp-reason').value = '';
+                    document.getElementById('exp-payee').value = ''; 
+                    document.getElementById('exp-amount').value = '';
                     loadExpenseHistory(currentModalOrderId);
                 } else {
-                    throw new Error("后台写入失败，请检查数据库配置");
+                    throw new Error(resData.error || "后台写入失败");
                 }
             } catch(err) {
                 alert("❌ 保存失败: " + err.message);
@@ -1101,7 +1115,7 @@
         }
 
         async function deleteExpense(expId) {
-            if(!confirm("确定撤销该笔代付申请吗？")) return;
+            if(!confirm("确定撤销该笔代付/返佣申请吗？")) return;
             await fetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) });
             loadExpenseHistory(currentModalOrderId);
         }
@@ -1126,10 +1140,12 @@
                         <td class="border border-black p-3 font-bold text-blue-800" colspan="3">${order.company_name} (展位: ${order.booth_id})</td>
                     </tr>
                     <tr>
-                        <th class="border border-black p-3 bg-gray-100">付款事由</th>
-                        <td class="border border-black p-3 font-bold text-purple-800">展会代收代付 / 业务返佣</td>
+                        <th class="border border-black p-3 bg-gray-100">代付/返佣事由</th>
+                        <td class="border border-black p-3 font-bold text-purple-800" colspan="3">${e.reason || '无说明'}</td>
+                    </tr>
+                    <tr>
                         <th class="border border-black p-3 bg-gray-100">申请支付金额</th>
-                        <td class="border border-black p-3 font-bold text-xl text-red-600">¥ ${e.amount.toLocaleString()}</td>
+                        <td class="border border-black p-3 font-bold text-xl text-red-600" colspan="3">¥ ${e.amount.toLocaleString()}</td>
                     </tr>
                     <tr>
                         <th class="border border-black p-3 bg-gray-100">收款单位/个人全称</th>
