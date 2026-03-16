@@ -122,14 +122,49 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 6. 订单明细更新 (详情页编辑)
+      // 6. 客户资料编辑
       if (url.pathname === '/api/update-customer-info' && request.method === 'POST') {
         const d = await request.json();
         await env.DB.prepare("UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ? WHERE id = ? AND project_id = ?").bind(d.contact_person, d.phone, d.region, d.main_business, d.profile, d.is_agent ? 1 : 0, d.agent_name, d.order_id, d.project_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 7. 财务与代付接口
+      // 7. R2 文件服务
+      if (url.pathname === '/api/upload' && request.method === 'POST') {
+        const formData = await request.formData(); const file = formData.get('file');
+        if (!file) return new Response(JSON.stringify({ error: "没有接收到文件" }), { status: 400, headers: corsHeaders });
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_'); const fileName = `contract_${Date.now()}_${safeName}`; 
+        await env.BUCKET.put(fileName, file.stream(), { httpMetadata: { contentType: file.type } });
+        return new Response(JSON.stringify({ success: true, fileKey: fileName }), { headers: corsHeaders });
+      }
+      if (url.pathname.startsWith('/api/file/') && request.method === 'GET') {
+        const key = decodeURIComponent(url.pathname.replace('/api/file/', '')); const object = await env.BUCKET.get(key);
+        if (!object) return new Response('文件不存在', { status: 404, headers: corsHeaders });
+        const headers = new Headers(corsHeaders); object.writeHttpMetadata(headers); headers.set('etag', object.httpEtag);
+        return new Response(object.body, { headers });
+      }
+
+      // 8. 订单录入
+      if (url.pathname === '/api/submit-order' && request.method === 'POST') {
+        const o = await request.json();
+        if (o.credit_code && !o.no_code_checked) {
+            const existCode = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND credit_code = ? AND status = '正常'").bind(o.project_id, o.credit_code).first();
+            if (existCode) return new Response(JSON.stringify({ success: false, error: `社会信用代码 [${o.credit_code}] 已存在，无法重复录入！` }), { status: 400, headers: corsHeaders });
+        }
+        const stmt = `INSERT INTO Orders (
+          project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region,
+          booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常')`;
+        await env.DB.prepare(stmt).bind(
+          o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.main_business, o.is_agent ? 1 : 0, o.agent_name,
+          o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price, o.total_booth_fee, o.discount_reason,
+          o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name
+        ).run();
+        await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 9. 财务大盘与流水
       if (url.pathname === '/api/orders' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const role = url.searchParams.get('role');
@@ -141,32 +176,62 @@ export default {
         const { results } = await env.DB.prepare(query).bind(...params).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
+
       if (url.pathname === '/api/payments' && request.method === 'GET') {
         const orderId = url.searchParams.get('orderId');
-        const { results } = await env.DB.prepare("SELECT * FROM Payments WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
+        const { results } = await env.DB.prepare("SELECT * FROM Payments WHERE order_id = ? ORDER BY payment_time DESC, id DESC").bind(orderId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
+
       if (url.pathname === '/api/add-payment' && request.method === 'POST') {
         const p = await request.json();
         await env.DB.prepare("INSERT INTO Payments (order_id, amount, bank_name, payment_time, payer_name, remarks) VALUES (?, ?, ?, ?, ?, ?)").bind(p.order_id, p.amount, p.bank_name, p.payment_time, p.payer_name, p.remarks).run();
         await env.DB.prepare("UPDATE Orders SET paid_amount = paid_amount + ? WHERE id = ?").bind(p.amount, p.order_id).run();
         const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(p.order_id).first();
-        if (order && order.paid_amount >= order.total_amount) { await env.DB.prepare("UPDATE Booths SET status = '已成交' WHERE id = ? AND project_id = ?").bind(order.booth_id, p.project_id).run(); }
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-      }
-      if (url.pathname === '/api/delete-payment' && request.method === 'POST') {
-        const { payment_id, order_id, project_id } = await request.json();
-        const pay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(payment_id).first();
-        if(pay) {
-          await env.DB.prepare("DELETE FROM Payments WHERE id = ?").bind(payment_id).run();
-          await env.DB.prepare("UPDATE Orders SET paid_amount = paid_amount - ? WHERE id = ?").bind(pay.amount, order_id).run();
+        if (order && order.paid_amount >= order.total_amount) {
+            await env.DB.prepare("UPDATE Booths SET status = '已成交' WHERE id = ? AND project_id = ?").bind(order.booth_id, p.project_id).run();
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
+
+      if (url.pathname === '/api/edit-payment' && request.method === 'POST') {
+        const p = await request.json();
+        const oldPay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(p.payment_id).first();
+        if(!oldPay) return new Response(JSON.stringify({ success: false, error: '流水不存在' }), { status: 400, headers: corsHeaders });
+        const diff = Number(p.amount) - Number(oldPay.amount);
+        await env.DB.prepare("UPDATE Payments SET amount=?, bank_name=?, payment_time=?, payer_name=?, remarks=? WHERE id=?").bind(p.amount, p.bank_name, p.payment_time, p.payer_name, p.remarks, p.payment_id).run();
+        await env.DB.prepare("UPDATE Orders SET paid_amount = paid_amount + ? WHERE id = ?").bind(diff, p.order_id).run();
+        const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(p.order_id).first();
+        if (order) {
+            const newStatus = order.paid_amount >= order.total_amount ? '已成交' : '已预订';
+            await env.DB.prepare("UPDATE Booths SET status = ? WHERE id = ? AND project_id = ?").bind(newStatus, order.booth_id, p.project_id).run();
+        }
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      if (url.pathname === '/api/delete-payment' && request.method === 'POST') {
+        const { payment_id, order_id, project_id } = await request.json();
+        const pay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(payment_id).first();
+        if(!pay) return new Response(JSON.stringify({ success: false }), { headers: corsHeaders });
+        await env.DB.prepare("DELETE FROM Payments WHERE id = ?").bind(payment_id).run();
+        await env.DB.prepare("UPDATE Orders SET paid_amount = paid_amount - ? WHERE id = ?").bind(pay.amount, order_id).run();
+        const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(order_id).first();
+        if(order && order.paid_amount < order.total_amount) {
+            await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(order.booth_id, project_id).run();
+        }
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 10. 费用变更与退单
       if (url.pathname === '/api/update-order-fees' && request.method === 'POST') {
         const o = await request.json();
         const total = Number(o.actual_fee) + Number(o.other_fee_total);
         await env.DB.prepare("UPDATE Orders SET total_booth_fee = ?, other_income = ?, total_amount = ?, discount_reason = ?, fees_json = ? WHERE id = ?").bind(o.actual_fee, o.other_fee_total, total, o.reason, o.fees_json, o.order_id).run();
+        const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(o.order_id).first();
+        if (order) {
+            const newStatus = order.paid_amount >= order.total_amount ? '已成交' : '已预订';
+            await env.DB.prepare("UPDATE Booths SET status = ? WHERE id = ? AND project_id = ?").bind(newStatus, order.booth_id, o.project_id).run();
+        }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/cancel-order' && request.method === 'POST') {
@@ -176,12 +241,23 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-// ============ 🔥 最终补丁版：代付写入接口 ============
+      // ============ 🔥 重点修复：代付/返佣接口 ============
+      if (url.pathname === '/api/expenses' && request.method === 'GET') {
+        try {
+            // 强制类型转换，防止类型错乱引发 500 错误
+            const orderId = Number(url.searchParams.get('orderId')) || 0;
+            const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
+            return new Response(JSON.stringify(results || []), { headers: corsHeaders });
+        } catch (err) {
+            return new Response(JSON.stringify({ error: "数据库读取失败: " + err.message }), { status: 500, headers: corsHeaders });
+        }
+      }
+
       if (url.pathname === '/api/add-expense' && request.method === 'POST') {
         try {
           const e = await request.json();
           
-          // 统一处理参数，确保全部有值
+          // 统一处理参数，强制类型转换并提供默认值兜底
           const params = [
             Number(e.project_id) || 0,
             Number(e.order_id) || 0,
@@ -207,18 +283,9 @@ export default {
         }
       }
 
-      // 文件上传
-      if (url.pathname === '/api/upload' && request.method === 'POST') {
-        const formData = await request.formData(); const file = formData.get('file');
-        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_'); const fileName = `contract_${Date.now()}_${safeName}`; 
-        await env.BUCKET.put(fileName, file.stream(), { httpMetadata: { contentType: file.type } });
-        return new Response(JSON.stringify({ success: true, fileKey: fileName }), { headers: corsHeaders });
-      }
-      if (url.pathname === '/api/submit-order' && request.method === 'POST') {
-        const o = await request.json();
-        const stmt = `INSERT INTO Orders (project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region, booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常')`;
-        await env.DB.prepare(stmt).bind(o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.main_business, o.is_agent ? 1 : 0, o.agent_name, o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price, o.total_booth_fee, o.discount_reason, o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name).run();
-        await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
+      if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
+        const { expense_id } = await request.json();
+        await env.DB.prepare("DELETE FROM Expenses WHERE id = ?").bind(expense_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
