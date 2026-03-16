@@ -130,26 +130,40 @@
                     <div class="bg-red-50 p-3 rounded border border-red-100"><div class="text-xs text-red-500 mb-1">剩余待收</div><div class="text-xl font-bold text-red-600" id="fm-unpaid">¥0</div></div>
                 </div>
 
+                <div class="border-b border-gray-200 hidden">
+                    <nav class="-mb-px flex space-x-6 overflow-x-auto">
+                        <button onclick="switchFmTab('pay')" id="tab-pay">录入与管理流水</button>
+                        <button onclick="switchFmTab('adj')" id="tab-adjust">变更费用信息</button>
+                        <button onclick="switchFmTab('exp')" id="tab-expense">代付/返佣申请</button>
+                    </nav>
+                </div>
+
                 <div id="fm-tab-pay" class="hidden">
                     <div class="bg-blue-50 p-4 rounded border border-blue-200 mb-4">
                         <h4 class="font-bold text-blue-800 text-sm mb-3">➕ 录入新收款记录</h4>
                         <input type="hidden" id="fm-order-id">
-                        <div class="grid grid-cols-2 gap-3 text-sm">
-                            <div><label class="block text-gray-700 mb-1">本次到账金额 <span class="text-red-500">*</span></label><input type="number" id="pay-amount" class="w-full border-2 border-blue-300 p-2 rounded font-bold text-green-600" placeholder="如: 5000"></div>
-                            <div><label class="block text-gray-700 mb-1">到账时间 <span class="text-red-500">*</span></label><input type="date" id="pay-time" class="w-full border p-2 rounded"></div>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><label class="block text-gray-700 font-bold mb-1">本次到账金额 <span class="text-red-500">*</span></label><input type="number" id="pay-amount" class="w-full border-2 border-blue-300 p-2 rounded font-bold text-green-600 text-lg shadow-inner" placeholder="0.00"></div>
+                            <div><label class="block text-gray-700 mb-1">到账时间 <span class="text-red-500">*</span></label><input type="date" id="pay-time" class="w-full border p-2 rounded mt-1"></div>
                             <div class="col-span-2"><label class="block text-gray-700 mb-1 font-bold">实际付款户名 / 支付人 <span class="text-red-500">*</span></label><input type="text" id="pay-payer" class="w-full border-2 border-blue-200 p-2 rounded bg-white" placeholder="请务必填写准确户名用于财务对账"></div>
                             
                             <div class="col-span-2">
-                                <label class="block text-gray-700 mb-1">存入我方收款账户 (可选)</label>
-                                <select id="pay-account-select" onchange="autoFillBankRemark()" class="w-full border p-2 rounded bg-white">
-                                    <option value="">-- 手动输入或其他 --</option>
-                                    </select>
+                                <label class="block text-gray-700 font-bold mb-1">收款银行/途径 <span class="text-red-500">*</span></label>
+                                <select id="pay-account-select" class="w-full border-2 border-blue-300 p-2 rounded bg-white text-gray-800 shadow-sm cursor-pointer">
+                                    <option value="">-- 请选择收款方式 --</option>
+                                    <optgroup label="🏢 系统配置对公账户" id="optgroup-accounts"></optgroup>
+                                    <optgroup label="📱 其他常规方式">
+                                        <option value="微信">💬 微信</option>
+                                        <option value="支付宝">🔵 支付宝</option>
+                                        <option value="现金">💵 现金</option>
+                                        <option value="其他">其他</option>
+                                    </optgroup>
+                                </select>
                             </div>
                             
-                            <div><label class="block text-gray-700 mb-1">收款途径/开户行</label><input type="text" id="pay-bank" class="w-full border p-2 rounded" placeholder="如: 建行尾号1234"></div>
-                            <div><label class="block text-gray-700 mb-1">备注说明</label><input type="text" id="pay-remark" class="w-full border p-2 rounded" placeholder="如: 第一笔定金"></div>
+                            <div class="col-span-2"><label class="block text-gray-700 mb-1">备注说明</label><input type="text" id="pay-remark" class="w-full border p-2 rounded" placeholder="如: 尾款/押金等"></div>
                         </div>
-                        <button onclick="submitPayment()" class="mt-4 w-full bg-blue-600 text-white font-bold py-2.5 rounded hover:bg-blue-700 shadow-sm">💾 确认入账并保存</button>
+                        <button onclick="submitPayment()" class="mt-4 w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700 shadow-md text-base">💾 确认入账并保存</button>
                     </div>
                     <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🧾 历史收款流水</h4>
                     <div id="fm-pay-list" class="space-y-2 text-sm max-h-48 overflow-y-auto"></div>
@@ -184,14 +198,15 @@
                     <div class="bg-purple-50 p-4 rounded border border-purple-200 text-sm mb-4">
                         <h4 class="font-bold text-purple-800 mb-3 flex items-center gap-1">💸 发起新的代付/返佣申请</h4>
                         <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 mb-1 font-bold">支出款项来源 (侵蚀哪项收入) <span class="text-red-500">*</span></label>
-                                <select id="exp-fee-item" class="w-full border-2 border-purple-300 p-2 rounded bg-white font-bold text-purple-700 cursor-pointer"></select>
+                            <div class="bg-white p-3 rounded border border-purple-100 mb-2">
+                                <p class="text-xs text-gray-500 mb-1">订单已收总金额：</p>
+                                <p class="text-lg font-bold text-green-600" id="exp-total-paid-display">¥ 0.00</p>
                             </div>
+                            
                             <div class="grid grid-cols-2 gap-3 border-t border-purple-200 pt-3">
                                 <div>
-                                    <label class="block text-gray-700 mb-1">代付渠道 <span class="text-red-500">*</span></label>
-                                    <select id="exp-channel" class="w-full border p-2 rounded bg-white">
+                                    <label class="block text-gray-700 mb-1">代付/收款渠道 <span class="text-red-500">*</span></label>
+                                    <select id="exp-channel" class="w-full border p-2 rounded bg-white font-bold text-purple-700">
                                         <option value="银行转账">🏦 银行转账</option><option value="微信">💬 微信</option><option value="支付宝">🔵 支付宝</option><option value="现金">💵 现金</option><option value="其他">其他</option>
                                     </select>
                                 </div>
@@ -206,7 +221,7 @@
                                     <input type="number" id="exp-amount" class="w-full border-2 border-purple-400 p-3 rounded font-bold text-xl text-purple-800 shadow-inner" placeholder="0.00">
                                 </div>
                             </div>
-                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2">提交代付申请并生成单据</button>
+                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2 text-base">提交代付申请并生成单据</button>
                         </div>
                     </div>
                     <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🗂️ 本单历史代付记录</h4>
@@ -415,7 +430,7 @@
         let currentModalOrderId = null; 
         let fmDynamicFees = [];
         let currentViewOrder = null; 
-        let projectAccounts = []; // 【新增】存储项目收款账户
+        let projectAccounts = []; 
 
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
@@ -481,7 +496,7 @@
         function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
         async function submitPasswordChange() { const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; if(!op || !np) return; const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); if(res.ok) { alert("修改成功，请重新登录"); closeModal('password-modal'); handleLogout(); } else alert("原密码错误"); }
 
-        // --- 【新增】收款账户配置 ---
+        // --- 收款账户配置 ---
         async function loadAccounts() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
             const res = await fetch(`/api/accounts?projectId=${pid}`);
@@ -733,7 +748,6 @@
                             <button onclick='openFinanceModal(${safeOrderObj}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
                             <button onclick='openFinanceModal(${safeOrderObj}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
                             <button onclick='openFinanceModal(${safeOrderObj}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
-                            
                             ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">作废</button>` : ''}
                         </td>
                     </tr>
@@ -741,7 +755,6 @@
             });
         }
 
-        // --- 导出大盘 Excel ---
         function exportToExcel() {
             if(allOrders.length === 0) return alert("当前无数据可导出");
             let csvContent = "\uFEFF"; 
@@ -845,11 +858,10 @@
         }
 
 
-        // --- 财务模态框 (3个独立入口进入同一容器的不同切片) ---
+        // --- 财务模态框 (三权分立入口) ---
         async function openFinanceModal(order, initialTab) {
             currentModalOrderId = order.id;
             
-            // 根据入口动态修改大标题
             const mainTitle = document.getElementById('fm-main-title');
             if(initialTab === 'pay') mainTitle.innerText = "💰 收款流水管理";
             if(initialTab === 'adj') mainTitle.innerText = "🛠️ 变更费用信息";
@@ -860,34 +872,34 @@
             document.getElementById('fm-paid').innerText = `¥${order.paid_amount}`;
             document.getElementById('fm-unpaid').innerText = `¥${order.total_amount - order.paid_amount}`;
             
-            // Tab 1 充填
+            // Tab 1: 收款
             document.getElementById('fm-order-id').value = order.id;
-            document.getElementById('pay-amount').value = order.total_amount - order.paid_amount > 0 ? order.total_amount - order.paid_amount : '';
+            document.getElementById('pay-amount').value = '';  // 需求：默认到账金额为空
             document.getElementById('pay-time').value = new Date().toISOString().split('T')[0]; 
             document.getElementById('pay-payer').value = order.company_name; 
-            document.getElementById('pay-bank').value = ''; document.getElementById('pay-remark').value = '';
+            document.getElementById('pay-remark').value = '';
 
-            // 动态充填收款账户下拉列表
-            const accSelect = document.getElementById('pay-account-select');
-            accSelect.innerHTML = '<option value="">-- 自定义收款渠道/手动填写 --</option>';
+            // 动态装填对公账户下拉
+            const accGroup = document.getElementById('optgroup-accounts');
+            accGroup.innerHTML = '';
             projectAccounts.forEach(acc => {
                 const textStr = `${acc.account_name} - ${acc.bank_name || ''} ${acc.account_no ? '('+acc.account_no+')' : ''}`;
-                accSelect.innerHTML += `<option value="${textStr}">🏦 ${textStr}</option>`;
+                accGroup.innerHTML += `<option value="${textStr}">🏦 ${textStr}</option>`;
             });
+            document.getElementById('pay-account-select').value = '';
 
-            // Tab 2 充填
+            // Tab 2: 变更
             document.getElementById('adj-actual-fee').value = order.total_booth_fee;
             document.getElementById('adj-reason').value = '';
             try { fmDynamicFees = JSON.parse(order.fees_json || '[]'); } catch(e) { fmDynamicFees = []; }
             renderFmDynamicFees();
 
-            // Tab 3 充填 (代付下拉框加入展位费)
-            const expSel = document.getElementById('exp-fee-item');
-            expSel.innerHTML = '<option value="">-- 请选择要支出的款项/来源 --</option>';
-            expSel.innerHTML += `<option value="展位费">📦 展位费 (实收上限: ¥${order.total_booth_fee})</option>`;
-            fmDynamicFees.forEach(f => {
-                expSel.innerHTML += `<option value="${f.name}">📦 ${f.name} (实收: ¥${f.amount})</option>`;
-            });
+            // Tab 3: 代付 (取消指定费用来源，直接对标已收总额)
+            document.getElementById('exp-total-paid-display').innerText = `¥ ${order.paid_amount.toLocaleString()}`;
+            document.getElementById('exp-amount').value = '';
+            document.getElementById('exp-payee').value = '';
+            document.getElementById('exp-bank').value = '';
+            document.getElementById('exp-account').value = '';
 
             switchFmTab(initialTab);
             
@@ -905,13 +917,6 @@
             if(tab === 'pay') document.getElementById('fm-tab-pay').classList.remove('hidden'); 
             else if(tab === 'adj') document.getElementById('fm-tab-adj').classList.remove('hidden'); 
             else document.getElementById('fm-tab-exp').classList.remove('hidden'); 
-        }
-
-        function autoFillBankRemark() {
-            const sel = document.getElementById('pay-account-select').value;
-            if(sel) {
-                document.getElementById('pay-bank').value = sel;
-            }
         }
 
         // --- 收款管理流水 ---
@@ -947,12 +952,14 @@
             const amt = parseFloat(document.getElementById('pay-amount').value);
             const time = document.getElementById('pay-time').value;
             const payer = document.getElementById('pay-payer').value.trim();
+            const bank = document.getElementById('pay-account-select').value;
             const orderId = document.getElementById('fm-order-id').value;
             
             if(!amt || amt <= 0) return alert("请输入正确的收款金额");
             if(!time || !payer) return alert("时间和打款户名为必填项！");
+            if(!bank) return alert("请选择收款银行/途径！");
 
-            await fetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: document.getElementById('pay-bank').value, remarks: document.getElementById('pay-remark').value }) });
+            await fetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) });
             alert("收款入账成功！"); closeModal('finance-modal'); loadOrderList(); 
         }
 
@@ -1014,7 +1021,7 @@
             alert("合同金额变更成功！系统已重算尾款状态。"); closeModal('finance-modal'); loadOrderList();
         }
 
-        // --- 支出/代付逻辑 ---
+        // --- 代付逻辑 (脱离指定费用来源，直接对标总收入) ---
         async function loadExpenseHistory(orderId) {
             const listDiv = document.getElementById('fm-exp-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
             try {
@@ -1026,8 +1033,8 @@
                     listDiv.innerHTML += `
                         <div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50">
                             <div>
-                                <div class="font-bold text-purple-700">支付 [${e.fee_item_name}] ¥${e.amount}</div>
-                                <div class="text-xs text-gray-600 mt-1">收款方: ${e.payee_name} (${e.payee_channel || '银行'})</div>
+                                <div class="font-bold text-purple-700">支付/返佣金额: ¥${e.amount}</div>
+                                <div class="text-xs text-gray-600 mt-1">收款方: ${e.payee_name} (${e.payee_channel || '转账'})</div>
                                 <div class="text-xs text-gray-400">${e.created_at ? e.created_at.split(' ')[0] : ''} | 申请人: ${e.applicant}</div>
                             </div>
                             <div class="text-right">
@@ -1037,37 +1044,27 @@
                         </div>`;
                 });
             } catch (err) {
-                listDiv.innerHTML = `<p class="text-red-500">记录加载失败，数据库可能尚未建立支出表。请通知管理员执行建表指令。</p>`;
+                listDiv.innerHTML = `<p class="text-red-500">记录加载失败，数据库配置异常。</p>`;
             }
         }
 
         async function submitExpense() {
             const pid = document.getElementById('global-project-select').value;
-            const feeName = document.getElementById('exp-fee-item').value;
             const channel = document.getElementById('exp-channel').value;
             const payee = document.getElementById('exp-payee').value.trim();
             const bank = document.getElementById('exp-bank').value.trim();
             const acc = document.getElementById('exp-account').value.trim();
             const amt = parseFloat(document.getElementById('exp-amount').value);
 
-            if(!feeName) return alert("请选择要支出的款项来源");
             if(!payee || !amt || amt <= 0) return alert("收款方全称和支付金额为必填！");
 
-            let maxAmt = 0;
             const order = allOrders.find(o => o.id === currentModalOrderId);
-            if(feeName === '展位费') {
-                maxAmt = order.total_booth_fee;
-            } else {
-                const selectedFee = fmDynamicFees.find(f => f.name === feeName);
-                if(selectedFee) maxAmt = selectedFee.amount;
-            }
-
-            if(amt > maxAmt) {
-                if(!confirm(`⚠️ 警告：您申请的支付金额 (¥${amt}) 已经大于该项实收总额 (¥${maxAmt})。\n是否坚持超额支付？`)) return;
+            if(amt > order.paid_amount) {
+                if(!confirm(`⚠️ 警告：您申请的代付/返佣金额 (¥${amt}) 大于该订单当前的【已收总额】 (¥${order.paid_amount})。\n是否坚持超额支付？`)) return;
             }
 
             try {
-                const data = { project_id: pid, order_id: currentModalOrderId, fee_item_name: feeName, payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, amount: amt, applicant: currentUser.name };
+                const data = { project_id: pid, order_id: currentModalOrderId, fee_item_name: '总收款抵扣', payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, amount: amt, applicant: currentUser.name };
                 const res = await fetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) });
                 if(res.ok) {
                     alert("支出申请已记录！您可以在下方记录中点击打印单据。");
@@ -1107,8 +1104,8 @@
                         <td class="border border-black p-3 font-bold text-blue-800" colspan="3">${order.company_name} (展位: ${order.booth_id})</td>
                     </tr>
                     <tr>
-                        <th class="border border-black p-3 bg-gray-100">款项来源核算</th>
-                        <td class="border border-black p-3 font-bold text-purple-800">${e.fee_item_name}</td>
+                        <th class="border border-black p-3 bg-gray-100">付款事由</th>
+                        <td class="border border-black p-3 font-bold text-purple-800">展会代收代付 / 业务返佣</td>
                         <th class="border border-black p-3 bg-gray-100">申请支付金额</th>
                         <td class="border border-black p-3 font-bold text-xl text-red-600">¥ ${e.amount.toLocaleString()}</td>
                     </tr>
@@ -1132,6 +1129,14 @@
             `;
             document.getElementById('print-content').innerHTML = content;
             document.getElementById('print-modal').classList.remove('hidden');
+        }
+
+        // --- 退单逻辑 ---
+        async function cancelOrder(orderId, boothId) {
+            const pid = document.getElementById('global-project-select').value;
+            if(!confirm(`🚨 危险操作：确定要作废订单吗？\n作废后，展位 [${boothId}] 将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
+            await fetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
+            alert("退单成功！展位已释放。"); loadOrderList();
         }
 
     </script>
