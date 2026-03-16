@@ -12,8 +12,6 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .spinner { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid #fff; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px;}
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        /* 打印专属样式 */
         @media print {
             body * { visibility: hidden; }
             #print-modal, #print-modal * { visibility: visible; }
@@ -25,27 +23,60 @@
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4">修改密码</h3><input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm"><input type="password" id="modal-new-pass" placeholder="新密码" class="w-full border p-2 rounded mb-5 text-sm"><div class="flex justify-end gap-2"><button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold">确认</button></div></div></div>
-    
     <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3><input type="hidden" id="edit-p-id"><div class="space-y-3"><input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm"><input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm"><div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div><div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存</button></div></div></div>
-    
     <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-3">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-booth-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button onclick="submitEditBooth()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存修改</button></div></div></div>
 
-    <div id="order-detail-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+    <div id="order-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
             <div class="p-4 border-b bg-blue-50 flex justify-between items-center rounded-t-lg">
-                <h3 class="text-lg font-bold text-blue-800">📄 客户资料名片</h3>
+                <h3 class="text-lg font-bold text-blue-800 flex items-center gap-2">📄 订单全景档案</h3>
                 <button onclick="closeModal('order-detail-modal')" class="text-gray-400 hover:text-gray-800 text-2xl font-bold">&times;</button>
             </div>
+            
             <div class="p-6 overflow-y-auto space-y-4 text-sm flex-1">
-                <div class="grid grid-cols-2 gap-y-4 gap-x-6">
-                    <div class="col-span-2 border-b pb-2"><span class="text-gray-500 block mb-1">参展企业全称</span><span class="font-bold text-xl text-gray-800" id="dt-company"></span></div>
-                    <div><span class="text-gray-500 block mb-1">社会信用代码 / 代号</span><span class="font-bold text-gray-800" id="dt-code"></span></div>
-                    <div><span class="text-gray-500 block mb-1">所在地区</span><span class="font-bold text-gray-800" id="dt-region"></span></div>
+                <div class="flex justify-between items-start border-b border-gray-200 pb-4 mb-4 bg-gray-50 p-4 rounded">
+                    <div>
+                        <div class="text-xs text-gray-500 mb-1">参展企业全称 (不可修改)</div>
+                        <div class="font-bold text-xl text-gray-800" id="dt-company"></div>
+                        <div class="text-xs text-gray-500 mt-2">信用代码/代号: <span class="font-bold text-gray-700" id="dt-code"></span></div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-500 mb-1">展馆与展位 (不可修改)</div>
+                        <div class="font-bold text-xl text-blue-700" id="dt-booth"></div>
+                        <div class="text-xs text-gray-500 mt-2">录入员: <span class="font-bold text-gray-700" id="dt-sales"></span> | 时间: <span class="font-bold text-gray-700" id="dt-time"></span></div>
+                    </div>
+                </div>
+
+                <div id="dt-view-mode" class="grid grid-cols-2 gap-y-4 gap-x-6">
                     <div><span class="text-gray-500 block mb-1">联系人</span><span class="font-bold text-gray-800" id="dt-contact"></span></div>
                     <div><span class="text-gray-500 block mb-1">联系电话</span><span class="font-bold text-gray-800" id="dt-phone"></span></div>
+                    <div class="col-span-2"><span class="text-gray-500 block mb-1">所在地区</span><span class="font-bold text-gray-800" id="dt-region"></span></div>
                     <div class="col-span-2"><span class="text-gray-500 block mb-1">主营业务/展品</span><span class="font-bold text-gray-800" id="dt-business"></span></div>
                     <div class="col-span-2"><span class="text-gray-500 block mb-1">企业简介</span><div class="bg-gray-50 p-3 rounded border text-gray-700 leading-relaxed whitespace-pre-wrap" id="dt-profile"></div></div>
                     <div class="col-span-2 border-t pt-3"><span class="text-gray-500 block mb-1">代理商情况</span><span class="font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded" id="dt-agent"></span></div>
+                </div>
+
+                <div id="dt-edit-mode" class="hidden grid grid-cols-2 gap-y-4 gap-x-6 bg-blue-50/50 p-4 rounded border border-blue-100">
+                    <div class="col-span-2 mb-2 text-blue-800 font-bold text-xs">✍️ 当前处于编辑模式，修改后请点击右下角保存</div>
+                    <div><label class="block text-gray-700 font-bold mb-1">联系人</label><input type="text" id="edit-dt-contact" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-gray-700 font-bold mb-1">联系电话</label><input type="text" id="edit-dt-phone" class="w-full border p-2 rounded"></div>
+                    <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">所在地区 (可手动输入覆盖)</label><input type="text" id="edit-dt-region" class="w-full border p-2 rounded"></div>
+                    <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">主营业务/展品</label><input type="text" id="edit-dt-business" class="w-full border p-2 rounded"></div>
+                    <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">企业简介</label><textarea id="edit-dt-profile" rows="3" class="w-full border p-2 rounded"></textarea></div>
+                    <div class="col-span-2 border-t pt-3 flex items-center gap-3">
+                        <label class="inline-flex items-center font-bold text-gray-700"><input type="checkbox" id="edit-dt-is-agent" onchange="toggleDtAgent()" class="mr-2"> 本单由代理商代招</label>
+                        <input type="text" id="edit-dt-agent-name" class="border p-2 rounded flex-1 hidden" placeholder="代理商名称">
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t bg-gray-50 rounded-b-lg flex justify-between items-center">
+                <div id="dt-action-view">
+                    <button onclick="toggleDetailEditMode(true)" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded font-bold hover:bg-gray-100 shadow-sm flex items-center gap-2">✏️ 进入编辑模式</button>
+                </div>
+                <div id="dt-action-edit" class="hidden flex gap-2">
+                    <button onclick="toggleDetailEditMode(false)" class="px-4 py-2 bg-gray-300 text-gray-800 rounded font-bold hover:bg-gray-400">取消修改</button>
+                    <button onclick="saveDetailEdit()" class="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 shadow">💾 保存修改</button>
                 </div>
             </div>
         </div>
@@ -86,7 +117,7 @@
         <div class="bg-white w-full md:w-[650px] h-full shadow-2xl flex flex-col transform transition-transform duration-300">
             <div class="p-6 border-b bg-gray-50 flex justify-between items-center">
                 <div>
-                    <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">💰 订单财务综合管理</h3>
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2" id="fm-main-title">💰 财务管理</h3>
                     <p class="text-sm text-gray-500 mt-1" id="fm-order-title"></p>
                 </div>
                 <button onclick="closeModal('finance-modal')" class="text-gray-400 hover:text-gray-800 text-2xl font-bold">&times;</button>
@@ -99,7 +130,7 @@
                     <div class="bg-red-50 p-3 rounded border border-red-100"><div class="text-xs text-red-500 mb-1">剩余待收</div><div class="text-xl font-bold text-red-600" id="fm-unpaid">¥0</div></div>
                 </div>
 
-                <div class="border-b border-gray-200">
+                <div class="border-b border-gray-200 hidden">
                     <nav class="-mb-px flex space-x-6 overflow-x-auto">
                         <button onclick="switchFmTab('pay')" id="tab-pay" class="whitespace-nowrap pb-3 px-1 border-b-2 font-bold text-sm border-blue-500 text-blue-600">✍️ 录入与管理流水</button>
                         <button onclick="switchFmTab('adj')" id="tab-adjust" class="whitespace-nowrap pb-3 px-1 border-b-2 font-bold text-sm border-transparent text-gray-500 hover:text-gray-700">🛠️ 变更合同与杂费</button>
@@ -114,11 +145,11 @@
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             <div><label class="block text-gray-600 mb-1">本次到账金额 <span class="text-red-500">*</span></label><input type="number" id="pay-amount" class="w-full border p-2 rounded font-bold text-green-600" placeholder="如: 5000"></div>
                             <div><label class="block text-gray-600 mb-1">到账时间 <span class="text-red-500">*</span></label><input type="date" id="pay-time" class="w-full border p-2 rounded"></div>
-                            <div class="col-span-2"><label class="block text-gray-600 mb-1 font-bold text-blue-700">实际付款户名 / 支付人 <span class="text-red-500">*</span></label><input type="text" id="pay-payer" class="w-full border-2 border-blue-200 p-2 rounded bg-white" placeholder="如是代付，请务必填写准确户名"></div>
+                            <div class="col-span-2"><label class="block text-gray-600 mb-1 font-bold text-blue-700">实际付款户名 / 支付人 <span class="text-red-500">*</span></label><input type="text" id="pay-payer" class="w-full border-2 border-blue-200 p-2 rounded bg-white" placeholder="请务必填写准确户名用于财务对账"></div>
                             <div><label class="block text-gray-600 mb-1">收款银行/途径</label><input type="text" id="pay-bank" list="bank-list" class="w-full border p-2 rounded" placeholder="如: 建行"><datalist id="bank-list"><option value="对公建行"><option value="对公农行"><option value="微信收款"><option value="支付宝"><option value="现金"></datalist></div>
                             <div><label class="block text-gray-600 mb-1">备注说明</label><input type="text" id="pay-remark" class="w-full border p-2 rounded" placeholder="如: 第一笔定金"></div>
                         </div>
-                        <button onclick="submitPayment()" class="mt-4 w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700">保存收款记录</button>
+                        <button onclick="submitPayment()" class="mt-4 w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 shadow-sm">保存并确认入账</button>
                     </div>
                     <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🧾 历史收款流水 (支持修改/删除)</h4>
                     <div id="fm-pay-list" class="space-y-2 text-sm max-h-48 overflow-y-auto"></div>
@@ -126,7 +157,7 @@
 
                 <div id="fm-tab-adj" class="hidden">
                     <div class="bg-orange-50 p-4 rounded border border-orange-200 text-sm space-y-4">
-                        <p class="text-orange-800 font-bold mb-2">⚠️ 修改金额将自动重算全款状态</p>
+                        <p class="text-orange-800 font-bold mb-2">⚠️ 重新调整成交价与杂费明细</p>
                         <div>
                             <label class="block text-gray-700 font-bold mb-1">修改成交展位费 (元)</label>
                             <input type="number" id="adj-actual-fee" oninput="calculateFmAdjustTotal()" class="w-full border-2 border-red-300 p-2 rounded font-bold text-red-600 text-lg">
@@ -139,13 +170,13 @@
                             <div id="fm-dynamic-fees-container" class="space-y-2"></div>
                         </div>
                         <div>
-                            <label class="block text-red-600 font-bold mb-1">修改金额的原因/备注 <span class="text-red-500">*</span></label>
-                            <input type="text" id="adj-reason" class="w-full border-2 border-red-300 p-2 rounded bg-white" placeholder="如：特批降价 / 增租电视">
+                            <label class="block text-red-600 font-bold mb-1">修改金额的原因/审批备注 <span class="text-red-500">*</span></label>
+                            <input type="text" id="adj-reason" class="w-full border-2 border-red-300 p-2 rounded bg-white" placeholder="如：老客户特批降价 / 增租电视一台">
                         </div>
                         <div class="bg-white p-3 rounded border text-right">
                             <span class="text-gray-500">变更后本单总应收：</span><span class="text-2xl font-bold text-orange-600" id="fm-adjust-calc-total">¥ 0</span>
                         </div>
-                        <button onclick="submitAdjustment()" class="w-full bg-orange-500 text-white font-bold py-3 rounded hover:bg-orange-600 shadow-md text-lg">确认覆盖原合同金额</button>
+                        <button onclick="submitAdjustment()" class="w-full bg-orange-500 text-white font-bold py-3 rounded hover:bg-orange-600 shadow-md text-lg">确认覆盖原合同总金额</button>
                     </div>
                 </div>
 
@@ -162,14 +193,14 @@
                                     <label class="block text-gray-700 mb-1">收款单位全称 / 供应商 <span class="text-red-500">*</span></label>
                                     <input type="text" id="exp-payee" class="w-full border p-2 rounded" placeholder="请填写营业执照上的全称">
                                 </div>
-                                <div><label class="block text-gray-700 mb-1">开户银行</label><input type="text" id="exp-bank" class="w-full border p-2 rounded" placeholder="如：建设银行某某支行"></div>
+                                <div><label class="block text-gray-700 mb-1">开户银行</label><input type="text" id="exp-bank" class="w-full border p-2 rounded" placeholder="如：建设银行某支行"></div>
                                 <div><label class="block text-gray-700 mb-1">银行账号</label><input type="text" id="exp-account" class="w-full border p-2 rounded"></div>
                                 <div class="col-span-2 mt-2">
                                     <label class="block text-gray-800 font-bold mb-1">申请支付金额 (元) <span class="text-red-500">*</span></label>
                                     <input type="number" id="exp-amount" class="w-full border-2 border-purple-400 p-3 rounded font-bold text-xl text-purple-800 shadow-inner" placeholder="0.00">
                                 </div>
                             </div>
-                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2">提交支出申请</button>
+                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2">提交支出申请并记录</button>
                         </div>
                     </div>
                     <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🗂️ 本单历史代付记录</h4>
@@ -318,7 +349,12 @@
                                     <option value="全款">🟢 已付全款</option>
                                 </select>
                             </div>
-                            <div class="text-sm text-gray-500 font-bold" id="order-total-stats">共 0 笔订单</div>
+                            <div class="flex items-center gap-3">
+                                <div class="text-sm text-gray-500 font-bold" id="order-total-stats">共 0 笔订单</div>
+                                <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow transition flex items-center gap-1">
+                                    ⬇️ 导出大盘数据
+                                </button>
+                            </div>
                         </div>
 
                         <div class="overflow-x-auto border rounded bg-white relative">
@@ -331,11 +367,11 @@
                                         <th class="p-3">客户名称</th>
                                         <th class="p-3">展位面积</th>
                                         <th class="p-3">类型</th>
-                                        <th class="p-3 text-right">总应收(元)</th>
+                                        <th class="p-3">业务员</th> <th class="p-3 text-right">总应收(元)</th>
                                         <th class="p-3 text-right text-green-600">已收(元)</th>
                                         <th class="p-3 text-center">状态</th>
                                         <th class="p-3 text-center">合同情况</th>
-                                        <th class="p-3 text-center">操作与财务</th>
+                                        <th class="p-3 text-center">操作与财务办理</th>
                                     </tr>
                                 </thead>
                                 <tbody id="order-list-tbody" class="divide-y"></tbody>
@@ -359,6 +395,7 @@
         let allOrders = []; 
         let currentModalOrderId = null; 
         let fmDynamicFees = [];
+        let currentViewOrder = null; // 【新增】保存当前查看的订单详情
 
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
@@ -409,7 +446,7 @@
         function onProjectChange() { if(document.getElementById('sec-config').classList.contains('active')) loadStaff(); if(document.getElementById('sec-booth').classList.contains('active')) { loadPrices(); loadBooths(); } if(document.getElementById('sec-order-entry').classList.contains('active')) initOrderForm(); if(document.getElementById('sec-order-list').classList.contains('active')) loadOrderList(); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        // ================= 配置模块 =================
+        // ================= 配置与展位 =================
         async function createProject() { const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value, start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value }; if(!data.name) return; await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }); document.getElementById('new-proj-name').value = ''; loadProjects(); }
         function openEditProjectModal(p) { document.getElementById('edit-p-id').value = p.id; document.getElementById('edit-p-name').value = p.name; document.getElementById('edit-p-year').value = p.year; document.getElementById('edit-p-start').value = p.start_date; document.getElementById('edit-p-end').value = p.end_date; document.getElementById('edit-project-modal').classList.remove('hidden'); }
         async function submitEditProject() { const data = { id: document.getElementById('edit-p-id').value, name: document.getElementById('edit-p-name').value, year: document.getElementById('edit-p-year').value, start_date: document.getElementById('edit-p-start').value, end_date: document.getElementById('edit-p-end').value }; await fetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) }); closeModal('edit-project-modal'); loadProjects(); }
@@ -421,7 +458,6 @@
         function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
         async function submitPasswordChange() { const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; if(!op || !np) return; const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); if(res.ok) { alert("修改成功，请重新登录"); closeModal('password-modal'); handleLogout(); } else alert("原密码错误"); }
 
-        // ================= 展位管理模块 (包含防御性升级) =================
         async function loadPrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const res = await fetch(`/api/prices?projectId=${pid}`); const data = await res.json(); globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 }; document.getElementById('price-bt').value = globalPrices['标摊']; document.getElementById('price-hb').value = globalPrices['豪标']; document.getElementById('price-gd').value = globalPrices['光地']; }
         async function savePrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; await fetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); alert("保存成功！"); loadPrices(); loadBooths(); }
         function toggleEntrySection() { const sec = document.getElementById('entry-section'); const arr = document.getElementById('entry-arrow'); if(sec.classList.contains('hidden')) { sec.classList.remove('hidden'); arr.innerText = '▲'; } else { sec.classList.add('hidden'); arr.innerText = '▼'; } }
@@ -454,7 +490,6 @@
                 const pStr = isC ? `<span class="bg-red-100 text-red-700 px-1 rounded text-xs">定制价</span> ¥${p}/${unit}` : `<span class="text-gray-500 text-xs">随局</span> ¥${p}/${unit}`; 
                 const bCount = Number((b.area / 9).toFixed(2)).toString(); 
                 
-                // 【核心升级】：订单状态锁定拦截
                 const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
                 
                 let selectHtml = '';
@@ -475,57 +510,14 @@
 
         function toggleAllChecks(source) { document.querySelectorAll('.booth-check:not(:disabled)').forEach(cb => cb.checked = source.checked); } 
         function getCheckedIds() { return Array.from(document.querySelectorAll('.booth-check:checked')).map(cb => cb.value); }
-        
-        async function updateSingleBoothStatus(bid, st) { 
-            if(!confirm(`您确定要将展位 [${bid}] 的状态修改为【${st}】吗？\n操作后立即生效。`)) {
-                loadBooths(); // 用户取消则重新渲染恢复原状
-                return;
-            }
-            const pid = document.getElementById('global-project-select').value; 
-            await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); 
-            loadBooths(); 
-        }
-        
-        async function batchUpdateStatus() { 
-            const ids = getCheckedIds(); 
-            if(ids.length === 0) return alert("请先勾选要操作的展位"); 
-            const st = document.getElementById('batch-status-select').value; 
-            if(!confirm(`您确定要将选中的 ${ids.length} 个展位批量修改为【${st}】吗？`)) return;
-            const pid = document.getElementById('global-project-select').value; 
-            await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); 
-            alert("批量修改状态成功！");
-            loadBooths(); 
-        }
-        
-        async function deleteSingleBooth(id) { 
-            if(!confirm(`🚨 危险操作：您确定要永久删除展位 [${id}] 吗？\n此操作不可逆！`)) return; 
-            const pid = document.getElementById('global-project-select').value; 
-            await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); 
-            alert("删除成功！");
-            loadBooths(); 
-        }
-        
-        async function batchDelete() { 
-            const ids = getCheckedIds(); 
-            if(ids.length === 0) return alert("请先勾选要操作的展位"); 
-            if(!confirm(`🚨 危险操作：您确定要批量永久删除选中的 ${ids.length} 个展位吗？\n此操作不可逆！`)) return; 
-            const pid = document.getElementById('global-project-select').value; 
-            await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); 
-            alert("批量删除成功！");
-            loadBooths(); 
-        }
-        
+        async function updateSingleBoothStatus(bid, st) { if(!confirm(`确定将展位 [${bid}] 修改为【${st}】吗？`)) { loadBooths(); return; } const pid = document.getElementById('global-project-select').value; await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); loadBooths(); }
+        async function batchUpdateStatus() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); const st = document.getElementById('batch-status-select').value; if(!confirm(`确定批量修改选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); alert("成功！"); loadBooths(); }
+        async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); alert("删除成功！"); loadBooths(); }
+        async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); if(!confirm(`🚨 危险操作：永久删除选中的 ${ids.length} 个展位？`)) return; const pid = document.getElementById('global-project-select').value; await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); alert("成功！"); loadBooths(); }
         function openEditBooth(id, type, area, bp) { document.getElementById('eb-id').innerText = id; document.getElementById('eb-type').value = type; document.getElementById('eb-area').value = area; document.getElementById('eb-custom-price').value = bp > 0 ? bp : ''; document.getElementById('edit-booth-modal').classList.remove('hidden'); }
-        async function submitEditBooth() { 
-            if(!confirm(`您确定要保存对此展位信息的修改吗？\n注意：面积和类型的改变会影响后续该展位的订单计价。`)) return;
-            const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; 
-            await fetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); 
-            closeModal('edit-booth-modal'); 
-            alert("修改展位成功！");
-            loadBooths(); 
-        }
+        async function submitEditBooth() { if(!confirm(`确定保存展位信息的修改吗？`)) return; const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; await fetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); closeModal('edit-booth-modal'); alert("成功！"); loadBooths(); }
 
-        // ================= 订单录入 逻辑 =================
+        // ================= 订单录入逻辑 =================
         async function initOrderForm() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
             const pRes = await fetch(`/api/prices?projectId=${pid}`); const data = await pRes.json();
@@ -672,42 +664,148 @@
                 const contractBtn = o.contract_url ? `<a href="/api/file/${o.contract_url}" target="_blank" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已签合同</a>` : `<span class="text-gray-400 text-xs">未传</span>`;
                 
                 const safeCompany = o.company_name.replace(/'/g, "&#39;");
+                const safeOrderObj = JSON.stringify(o).replace(/'/g, "&#39;");
+
                 tbody.innerHTML += `
                     <tr class="border-b hover:bg-blue-50 transition">
                         <td class="p-3 font-bold text-gray-600">${o.hall}</td>
                         <td class="p-3 font-bold text-blue-700 text-lg">${o.booth_id}</td>
                         <td class="p-3 text-xs text-gray-500 truncate max-w-[120px]" title="${o.region || '未填'}">${o.region || '未填'}</td>
-                        <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[180px] truncate" onclick='showOrderDetail(${JSON.stringify(o).replace(/'/g, "&#39;")})' title="点击查看名片">${safeCompany}</td>
+                        <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[180px] truncate" onclick='showOrderDetail(${safeOrderObj})' title="点击查看详情与编辑">${safeCompany}</td>
                         <td class="p-3">${o.area} ㎡</td>
                         <td class="p-3 text-xs text-gray-500">${o.booth_type}</td>
-                        <td class="p-3 text-right font-bold text-gray-800">¥${o.total_amount}</td>
+                        <td class="p-3 text-xs text-gray-600 font-bold">${o.sales_name}</td> <td class="p-3 text-right font-bold text-gray-800">¥${o.total_amount}</td>
                         <td class="p-3 text-right font-bold text-green-600">¥${o.paid_amount}</td>
                         <td class="p-3 text-center align-middle">${payBadge}</td>
                         <td class="p-3 text-center align-middle">${contractBtn}</td>
                         <td class="p-3 text-center whitespace-nowrap align-middle">
-                            <button onclick='openFinanceModal(${JSON.stringify(o).replace(/'/g, "&#39;")})' class="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 mr-2 shadow-sm">💰 财务</button>
-                            ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1 rounded bg-white font-bold shadow-sm">作废</button>` : ''}
+                            <button onclick='openFinanceModal(${safeOrderObj}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
+                            <button onclick='openFinanceModal(${safeOrderObj}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
+                            <button onclick='openFinanceModal(${safeOrderObj}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
+                            
+                            ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">作废</button>` : ''}
                         </td>
                     </tr>
                 `;
             });
         }
 
-        // --- 客户名片 ---
+        // --- 导出大盘 Excel ---
+        function exportToExcel() {
+            if(allOrders.length === 0) return alert("当前无数据可导出");
+            let csvContent = "\uFEFF"; 
+            csvContent += "内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,主营业务,业务员,总应收(元),已收(元),录入时间,合同云端链接\n";
+            
+            allOrders.forEach(o => {
+                let status = o.paid_amount >= o.total_amount ? '已付全款' : (o.paid_amount > 0 ? '已付定金' : '未付款');
+                if(o.status === '已作废') status = '已作废';
+                let contractLink = o.contract_url ? `${window.location.origin}/api/file/${o.contract_url}` : '未上传';
+                
+                // 处理可能包含逗号的文本字段
+                const safeWrap = (val) => `"${(val || '').toString().replace(/"/g, '""')}"`;
+                
+                let row = [
+                    status, o.hall, o.booth_id, o.area, o.booth_type,
+                    safeWrap(o.company_name), safeWrap(o.credit_code), safeWrap(o.region), safeWrap(o.contact_person), safeWrap(o.phone), safeWrap(o.main_business),
+                    o.sales_name, o.total_amount, o.paid_amount, o.created_at, safeWrap(contractLink)
+                ].join(',');
+                csvContent += row + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `展位订单大盘导出_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+            link.click();
+        }
+
+
+        // --- 客户全景档案与编辑 ---
         function showOrderDetail(o) {
+            currentViewOrder = o; // 缓存当前查看的订单
+            
+            // 填充只读头部
             document.getElementById('dt-company').innerText = o.company_name;
             document.getElementById('dt-code').innerText = o.no_code_checked ? `无代码 (代号: ${o.credit_code})` : o.credit_code;
+            document.getElementById('dt-booth').innerText = `${o.hall} - ${o.booth_id}`;
+            document.getElementById('dt-sales').innerText = o.sales_name;
+            document.getElementById('dt-time').innerText = o.created_at || '未知';
+
+            // 填充只读视图
             document.getElementById('dt-region').innerText = o.region || '未填';
             document.getElementById('dt-contact').innerText = o.contact_person;
             document.getElementById('dt-phone').innerText = o.phone;
             document.getElementById('dt-business').innerText = o.main_business || '未填';
             document.getElementById('dt-profile').innerText = o.profile || '暂无简介';
             document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直客入驻';
+            
+            // 填充编辑输入框 (初始为视图模式)
+            document.getElementById('edit-dt-contact').value = o.contact_person;
+            document.getElementById('edit-dt-phone').value = o.phone;
+            document.getElementById('edit-dt-region').value = o.region || '';
+            document.getElementById('edit-dt-business').value = o.main_business || '';
+            document.getElementById('edit-dt-profile').value = o.profile || '';
+            document.getElementById('edit-dt-is-agent').checked = o.is_agent === 1;
+            document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
+            toggleDtAgent();
+
+            toggleDetailEditMode(false); // 默认显示只读模式
             document.getElementById('order-detail-modal').classList.remove('hidden');
         }
 
-        // --- 财务模态框 (含收款、改价、代付申请) ---
-        async function openFinanceModal(order) {
+        function toggleDtAgent() {
+            if(document.getElementById('edit-dt-is-agent').checked) { document.getElementById('edit-dt-agent-name').classList.remove('hidden'); } 
+            else { document.getElementById('edit-dt-agent-name').classList.add('hidden'); }
+        }
+
+        function toggleDetailEditMode(isEditing) {
+            if(isEditing) {
+                document.getElementById('dt-view-mode').classList.add('hidden');
+                document.getElementById('dt-action-view').classList.add('hidden');
+                document.getElementById('dt-edit-mode').classList.remove('hidden');
+                document.getElementById('dt-action-edit').classList.remove('hidden');
+            } else {
+                document.getElementById('dt-edit-mode').classList.add('hidden');
+                document.getElementById('dt-action-edit').classList.add('hidden');
+                document.getElementById('dt-view-mode').classList.remove('hidden');
+                document.getElementById('dt-action-view').classList.remove('hidden');
+            }
+        }
+
+        async function saveDetailEdit() {
+            const pid = document.getElementById('global-project-select').value;
+            const updatedData = {
+                project_id: pid,
+                order_id: currentViewOrder.id,
+                contact_person: document.getElementById('edit-dt-contact').value.trim(),
+                phone: document.getElementById('edit-dt-phone').value.trim(),
+                region: document.getElementById('edit-dt-region').value.trim(),
+                main_business: document.getElementById('edit-dt-business').value.trim(),
+                profile: document.getElementById('edit-dt-profile').value.trim(),
+                is_agent: document.getElementById('edit-dt-is-agent').checked,
+                agent_name: document.getElementById('edit-dt-agent-name').value.trim()
+            };
+
+            if(!updatedData.contact_person || !updatedData.phone) return alert("联系人和电话不能为空！");
+
+            try {
+                const res = await fetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
+                if(res.ok) {
+                    alert("资料修改成功！");
+                    // 本地更新缓存并重新显示
+                    Object.assign(currentViewOrder, updatedData);
+                    currentViewOrder.is_agent = updatedData.is_agent ? 1 : 0;
+                    showOrderDetail(currentViewOrder);
+                    loadOrderList(); // 后台刷新大盘
+                } else {
+                    alert("修改失败，请重试。");
+                }
+            } catch (e) { alert("错误：" + e.message); }
+        }
+
+
+        // --- 财务模态框 (包含直接进入指定 Tab 逻辑) ---
+        async function openFinanceModal(order, initialTab) {
             currentModalOrderId = order.id;
             document.getElementById('fm-order-title').innerText = `管理：${order.company_name} (${order.booth_id})`;
             document.getElementById('fm-total').innerText = `¥${order.total_amount}`;
@@ -731,12 +829,16 @@
             const expSel = document.getElementById('exp-fee-item');
             expSel.innerHTML = '<option value="">-- 请选择要支出的款项 --</option>';
             fmDynamicFees.forEach(f => {
-                expSel.innerHTML += `<option value="${f.name}">📦 ${f.name} (客户实交上限: ¥${f.amount})</option>`;
+                expSel.innerHTML += `<option value="${f.name}">📦 ${f.name} (实收: ¥${f.amount})</option>`;
             });
 
-            switchFmTab('pay');
+            // 切换到外部指定的 Tab
+            switchFmTab(initialTab);
+            
+            // 异步加载历史流水
             await loadPaymentHistory(order.id);
             await loadExpenseHistory(order.id); 
+            
             document.getElementById('finance-modal').classList.remove('hidden');
         }
 
@@ -798,6 +900,7 @@
             const time = document.getElementById('pay-time').value;
             const payer = document.getElementById('pay-payer').value.trim();
             const orderId = document.getElementById('fm-order-id').value;
+            
             if(!amt || amt <= 0) return alert("请输入正确的收款金额");
             if(!time || !payer) return alert("时间和打款户名为必填项！");
 
@@ -813,6 +916,7 @@
             const pid = document.getElementById('global-project-select').value;
             const data = { project_id: pid, order_id: currentModalOrderId, payment_id: document.getElementById('ep-id').value, amount: parseFloat(document.getElementById('ep-amount').value), payer_name: document.getElementById('ep-payer').value.trim(), bank_name: document.getElementById('ep-bank').value, payment_time: document.getElementById('ep-time').value, remarks: document.getElementById('ep-remark').value };
             if(!data.amount || !data.payer_name) return alert("金额和户名必填");
+            
             await fetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) });
             closeModal('edit-payment-modal'); loadPaymentHistory(currentModalOrderId); loadOrderList();
         }
