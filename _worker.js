@@ -241,10 +241,9 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 重点修复：代付/返佣接口 ============
+      // ============ 🔥 新增：代付/返佣接口 (含 reason) ============
       if (url.pathname === '/api/expenses' && request.method === 'GET') {
         try {
-            // 强制类型转换，防止类型错乱引发 500 错误
             const orderId = Number(url.searchParams.get('orderId')) || 0;
             const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
             return new Response(JSON.stringify(results || []), { headers: corsHeaders });
@@ -257,7 +256,7 @@ export default {
         try {
           const e = await request.json();
           
-          // 统一处理参数，强制类型转换并提供默认值兜底
+          // 增加 e.reason 的绑定
           const params = [
             Number(e.project_id) || 0,
             Number(e.order_id) || 0,
@@ -267,14 +266,15 @@ export default {
             String(e.payee_bank || ''),
             String(e.payee_account || ''),
             Number(e.amount) || 0,
-            String(e.applicant || '')
+            String(e.applicant || ''),
+            String(e.reason || '') // 这里是新增的事由字段
           ];
 
           await env.DB.prepare(`
             INSERT INTO Expenses (
               project_id, order_id, fee_item_name, payee_name, 
-              payee_channel, payee_bank, payee_account, amount, applicant
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              payee_channel, payee_bank, payee_account, amount, applicant, reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(...params).run();
 
           return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
