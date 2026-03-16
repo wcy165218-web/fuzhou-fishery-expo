@@ -176,47 +176,34 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 终极稳定性修复版：代付写入接口 ============
+// ============ 🔥 最终补丁版：代付写入接口 ============
       if (url.pathname === '/api/add-expense' && request.method === 'POST') {
-        let e;
         try {
-          e = await request.json();
-        } catch (err) {
-          return new Response(JSON.stringify({ success: false, error: "JSON解析失败" }), { status: 400, headers: corsHeaders });
-        }
+          const e = await request.json();
+          
+          // 统一处理参数，确保全部有值
+          const params = [
+            Number(e.project_id) || 0,
+            Number(e.order_id) || 0,
+            String(e.fee_item_name || '总收款抵扣'),
+            String(e.payee_name || ''),
+            String(e.payee_channel || '银行转账'),
+            String(e.payee_bank || ''),
+            String(e.payee_account || ''),
+            Number(e.amount) || 0,
+            String(e.applicant || '')
+          ];
 
-        // 严格转换数字，处理空值兜底
-        const projectId = parseInt(e.project_id) || 0;
-        const orderId = parseInt(e.order_id) || 0;
-        const amount = parseFloat(e.amount) || 0;
-        const feeItemName = String(e.fee_item_name || '返佣/代付').trim();
-        const payeeName = String(e.payee_name || '').trim();
-        const payeeChannel = String(e.payee_channel || '银行转账').trim();
-        const payeeBank = String(e.payee_bank || '').trim();
-        const payeeAccount = String(e.payee_account || '').trim();
-        const applicant = String(e.applicant || '').trim();
+          await env.DB.prepare(`
+            INSERT INTO Expenses (
+              project_id, order_id, fee_item_name, payee_name, 
+              payee_channel, payee_bank, payee_account, amount, applicant
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(...params).run();
 
-        const sql = `INSERT INTO Expenses (
-          project_id, order_id, fee_item_name, payee_name, payee_channel, 
-          payee_bank, payee_account, amount, applicant
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-        
-        try {
-          await env.DB.prepare(sql).bind(
-            projectId, 
-            orderId, 
-            feeItemName, 
-            payeeName, 
-            payeeChannel, 
-            payeeBank, 
-            payeeAccount, 
-            amount, 
-            applicant
-          ).run();
           return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-        } catch (dbErr) {
-          // 将具体的数据库报错吐给前端，方便排查
-          return new Response(JSON.stringify({ success: false, error: "D1数据库写入失败: " + dbErr.message }), { status: 500, headers: corsHeaders });
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: "写入失败: " + err.message }), { status: 500, headers: corsHeaders });
         }
       }
 
