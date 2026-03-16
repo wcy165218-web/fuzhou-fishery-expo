@@ -32,7 +32,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 2. 人员与密码
+      // 2. 人员管理
       if (url.pathname === '/api/staff' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare(`SELECT s.name, s.role, IFNULL(m.target_value, 0) as target FROM Staff s LEFT JOIN Project_Staff_Map m ON s.name = m.staff_name AND m.project_id = ?`).bind(projectId).all();
@@ -63,7 +63,7 @@ export default {
         await env.DB.prepare("UPDATE Staff SET password = ? WHERE name = ?").bind(newPass, staffName).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 3. 全局价格设置
+      // 3. 价格与展位
       if (url.pathname === '/api/prices' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId'); const { results } = await env.DB.prepare("SELECT type, price FROM Project_Prices WHERE project_id = ?").bind(projectId).all();
         let prices = {}; results.forEach(r => prices[r.type] = r.price); return new Response(JSON.stringify(prices), { headers: corsHeaders });
@@ -73,8 +73,6 @@ export default {
         const batch = Object.keys(prices).map(type => stmt.bind(projectId, type, prices[type])); if(batch.length > 0) await env.DB.batch(batch);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
-      // 4. 展位管理 (加入订单状态防修改死锁)
       if (url.pathname === '/api/booths' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare("SELECT * FROM Booths WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
@@ -95,25 +93,22 @@ export default {
       if (url.pathname === '/api/update-booth-status' && request.method === 'POST') {
         const { projectId, boothIds, status } = await request.json(); if (!boothIds || boothIds.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         const placeholders = boothIds.map(() => '?').join(','); 
-        // 【关键防御】后端拦截：绝不允许手动修改已经预订或成交的展位状态
         await env.DB.prepare(`UPDATE Booths SET status = ? WHERE project_id = ? AND id IN (${placeholders}) AND status NOT IN ('已预订', '已成交')`).bind(status, projectId, ...boothIds).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/edit-booth' && request.method === 'POST') {
         const { projectId, id, type, area, base_price } = await request.json();
-        // 【关键防御】防止修改带有订单的展位面积/价格/类型，否则财务会对不上账
         await env.DB.prepare("UPDATE Booths SET type = ?, area = ?, base_price = ? WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')").bind(type, area, base_price, id, projectId).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/delete-booths' && request.method === 'POST') {
         const { projectId, boothIds } = await request.json(); if (!boothIds || boothIds.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         const placeholders = boothIds.map(() => '?').join(','); 
-        // 【关键防御】只允许删除空闲展位
         await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND status NOT IN ('已预订', '已成交') AND id IN (${placeholders})`).bind(projectId, ...boothIds).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 5. R2 文件服务
+      // 4. R2 文件服务
       if (url.pathname === '/api/upload' && request.method === 'POST') {
         const formData = await request.formData(); const file = formData.get('file');
         if (!file) return new Response(JSON.stringify({ error: "没有接收到文件" }), { status: 400, headers: corsHeaders });
@@ -128,30 +123,37 @@ export default {
         return new Response(object.body, { headers });
       }
 
-      // 6. 订单录入 
+      // 5. 订单录入
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
         if (o.credit_code && !o.no_code_checked) {
             const existCode = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND credit_code = ? AND status = '正常'").bind(o.project_id, o.credit_code).first();
             if (existCode) return new Response(JSON.stringify({ success: false, error: `社会信用代码 [${o.credit_code}] 已存在，无法重复录入！` }), { status: 400, headers: corsHeaders });
         }
-        
         const stmt = `INSERT INTO Orders (
           project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region,
           booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常')`;
-        
         await env.DB.prepare(stmt).bind(
           o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.main_business, o.is_agent ? 1 : 0, o.agent_name,
           o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price, o.total_booth_fee, o.discount_reason,
           o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name
         ).run();
-        
         await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 7. 财务大盘与代付模块
+      // 6. 【新增】订单信息全览与资料编辑
+      if (url.pathname === '/api/update-customer-info' && request.method === 'POST') {
+        const data = await request.json();
+        await env.DB.prepare(`
+            UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ?
+            WHERE id = ? AND project_id = ?
+        `).bind(data.contact_person, data.phone, data.region, data.main_business, data.profile, data.is_agent ? 1 : 0, data.agent_name, data.order_id, data.project_id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 7. 财务大盘数据
       if (url.pathname === '/api/orders' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const role = url.searchParams.get('role');
@@ -159,12 +161,10 @@ export default {
         
         let query = `
           SELECT o.*, b.hall, b.type as booth_type 
-          FROM Orders o 
-          LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id 
+          FROM Orders o LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id 
           WHERE o.project_id = ? AND o.status = '正常'
         `;
         let params = [projectId];
-        
         if (role === 'user') { query += " AND o.sales_name = ?"; params.push(salesName); }
         query += " ORDER BY o.id DESC";
 
@@ -172,16 +172,15 @@ export default {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
+      // 8. 财务流水接口
       if (url.pathname === '/api/payments' && request.method === 'GET') {
         const orderId = url.searchParams.get('orderId');
         const { results } = await env.DB.prepare("SELECT * FROM Payments WHERE order_id = ? ORDER BY payment_time DESC, id DESC").bind(orderId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/add-payment' && request.method === 'POST') {
         const p = await request.json();
-        await env.DB.prepare("INSERT INTO Payments (order_id, amount, bank_name, payment_time, payer_name, remarks) VALUES (?, ?, ?, ?, ?, ?)")
-          .bind(p.order_id, p.amount, p.bank_name, p.payment_time, p.payer_name, p.remarks).run();
+        await env.DB.prepare("INSERT INTO Payments (order_id, amount, bank_name, payment_time, payer_name, remarks) VALUES (?, ?, ?, ?, ?, ?)").bind(p.order_id, p.amount, p.bank_name, p.payment_time, p.payer_name, p.remarks).run();
         await env.DB.prepare("UPDATE Orders SET paid_amount = paid_amount + ? WHERE id = ?").bind(p.amount, p.order_id).run();
         
         const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(p.order_id).first();
@@ -190,16 +189,13 @@ export default {
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/edit-payment' && request.method === 'POST') {
         const p = await request.json();
         const oldPay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(p.payment_id).first();
         if(!oldPay) return new Response(JSON.stringify({ success: false, error: '流水不存在' }), { status: 400, headers: corsHeaders });
         
         const diff = Number(p.amount) - Number(oldPay.amount);
-        await env.DB.prepare("UPDATE Payments SET amount=?, bank_name=?, payment_time=?, payer_name=?, remarks=? WHERE id=?")
-          .bind(p.amount, p.bank_name, p.payment_time, p.payer_name, p.remarks, p.payment_id).run();
-        
+        await env.DB.prepare("UPDATE Payments SET amount=?, bank_name=?, payment_time=?, payer_name=?, remarks=? WHERE id=?").bind(p.amount, p.bank_name, p.payment_time, p.payer_name, p.remarks, p.payment_id).run();
         await env.DB.prepare("UPDATE Orders SET paid_amount = paid_amount + ? WHERE id = ?").bind(diff, p.order_id).run();
         
         const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(p.order_id).first();
@@ -209,7 +205,6 @@ export default {
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/delete-payment' && request.method === 'POST') {
         const { payment_id, order_id, project_id } = await request.json();
         const pay = await env.DB.prepare("SELECT amount FROM Payments WHERE id = ?").bind(payment_id).first();
@@ -225,12 +220,11 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
+      // 9. 费用变更与退单
       if (url.pathname === '/api/update-order-fees' && request.method === 'POST') {
         const o = await request.json();
         const total = Number(o.actual_fee) + Number(o.other_fee_total);
-        
-        await env.DB.prepare("UPDATE Orders SET total_booth_fee = ?, other_income = ?, total_amount = ?, discount_reason = ?, fees_json = ? WHERE id = ?")
-          .bind(o.actual_fee, o.other_fee_total, total, o.reason, o.fees_json, o.order_id).run();
+        await env.DB.prepare("UPDATE Orders SET total_booth_fee = ?, other_income = ?, total_amount = ?, discount_reason = ?, fees_json = ? WHERE id = ?").bind(o.actual_fee, o.other_fee_total, total, o.reason, o.fees_json, o.order_id).run();
         
         const order = await env.DB.prepare("SELECT paid_amount, total_amount, booth_id FROM Orders WHERE id = ?").bind(o.order_id).first();
         if (order) {
@@ -239,7 +233,6 @@ export default {
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/cancel-order' && request.method === 'POST') {
         const { order_id, project_id, booth_id } = await request.json();
         await env.DB.prepare("UPDATE Orders SET status = '已作废' WHERE id = ?").bind(order_id).run();
@@ -247,7 +240,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 支出/代付管理 API
+      // 10. 代付申请接口
       if (url.pathname === '/api/expenses' && request.method === 'GET') {
         const orderId = url.searchParams.get('orderId');
         const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
