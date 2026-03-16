@@ -123,7 +123,7 @@ export default {
         return new Response(object.body, { headers });
       }
 
-      // 【新增】5. 项目收款账户管理 API
+      // 5. 项目收款账户管理 API
       if (url.pathname === '/api/accounts' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare("SELECT * FROM Project_Accounts WHERE project_id = ? ORDER BY id DESC").bind(projectId).all();
@@ -245,7 +245,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 11. 代付申请接口 (支持 payee_channel)
+      // 11. 代付申请接口 (修复空值写入 Bug，取消特定资金池限制)
       if (url.pathname === '/api/expenses' && request.method === 'GET') {
         const orderId = url.searchParams.get('orderId');
         const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
@@ -253,8 +253,9 @@ export default {
       }
       if (url.pathname === '/api/add-expense' && request.method === 'POST') {
         const e = await request.json();
+        // 加入 || '' 兜底，防止前端传 undefined 导致数据库报错
         await env.DB.prepare("INSERT INTO Expenses (project_id, order_id, fee_item_name, payee_name, payee_channel, payee_bank, payee_account, amount, applicant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .bind(e.project_id, e.order_id, e.fee_item_name, e.payee_name, e.payee_channel, e.payee_bank, e.payee_account, e.amount, e.applicant).run();
+          .bind(e.project_id, e.order_id, e.fee_item_name || '总收款抵扣', e.payee_name || '', e.payee_channel || '转账', e.payee_bank || '', e.payee_account || '', e.amount || 0, e.applicant || '').run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
