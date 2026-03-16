@@ -1022,11 +1022,32 @@
         }
 
         // --- 代付逻辑 (脱离指定费用来源，直接对标总收入) ---
-        async function loadExpenseHistory(orderId) {
-            const listDiv = document.getElementById('fm-exp-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
+            async function loadExpenseHistory(orderId) {
+            const listDiv = document.getElementById('fm-exp-list'); 
+            listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
+            
             try {
-                const exps = await (await fetch(`/api/expenses?orderId=${orderId}`)).json();
-                if(exps.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付记录</p>'; return; }
+                const response = await fetch(`/api/expenses?orderId=${orderId}`);
+                const data = await response.json();
+                
+                // 【核心排查】：如果是后台报错，直接把错误用红字打印出来
+                if (!response.ok || data.error) {
+                    listDiv.innerHTML = `<p class="text-red-500 font-bold">后台查询报错: ${data.error || '状态码 ' + response.status}</p>`;
+                    return;
+                }
+
+                const exps = data;
+                // 确保获取到的是数组
+                if(!Array.isArray(exps)) {
+                    listDiv.innerHTML = `<p class="text-red-500 font-bold">数据格式异常，期望是数组，实际是: ${typeof exps}</p>`;
+                    return;
+                }
+
+                if(exps.length === 0) { 
+                    listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付记录</p>'; 
+                    return; 
+                }
+
                 listDiv.innerHTML = '';
                 exps.forEach(e => {
                     const safeE = JSON.stringify(e).replace(/'/g, "&#39;");
@@ -1044,7 +1065,8 @@
                         </div>`;
                 });
             } catch (err) {
-                listDiv.innerHTML = `<p class="text-red-500">记录加载失败，数据库配置异常。</p>`;
+                // 如果是 JSON 解析失败（通常是严重的服务器错误返回了 HTML）
+                listDiv.innerHTML = `<p class="text-red-500 font-bold">前端解析异常: ${err.message}</p>`;
             }
         }
 
