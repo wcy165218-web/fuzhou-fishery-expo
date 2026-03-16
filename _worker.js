@@ -74,7 +74,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 4. 展位管理
+      // 4. 展位管理 (加入订单状态防修改死锁)
       if (url.pathname === '/api/booths' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare("SELECT * FROM Booths WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
@@ -94,17 +94,22 @@ export default {
       }
       if (url.pathname === '/api/update-booth-status' && request.method === 'POST') {
         const { projectId, boothIds, status } = await request.json(); if (!boothIds || boothIds.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-        const placeholders = boothIds.map(() => '?').join(','); await env.DB.prepare(`UPDATE Booths SET status = ? WHERE project_id = ? AND id IN (${placeholders})`).bind(status, projectId, ...boothIds).run();
+        const placeholders = boothIds.map(() => '?').join(','); 
+        // 【关键防御】后端拦截：绝不允许手动修改已经预订或成交的展位状态
+        await env.DB.prepare(`UPDATE Booths SET status = ? WHERE project_id = ? AND id IN (${placeholders}) AND status NOT IN ('已预订', '已成交')`).bind(status, projectId, ...boothIds).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/edit-booth' && request.method === 'POST') {
         const { projectId, id, type, area, base_price } = await request.json();
-        await env.DB.prepare("UPDATE Booths SET type = ?, area = ?, base_price = ? WHERE id = ? AND project_id = ? AND status != '已成交'").bind(type, area, base_price, id, projectId).run();
+        // 【关键防御】防止修改带有订单的展位面积/价格/类型，否则财务会对不上账
+        await env.DB.prepare("UPDATE Booths SET type = ?, area = ?, base_price = ? WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')").bind(type, area, base_price, id, projectId).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/delete-booths' && request.method === 'POST') {
         const { projectId, boothIds } = await request.json(); if (!boothIds || boothIds.length === 0) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-        const placeholders = boothIds.map(() => '?').join(','); await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND status != '已成交' AND id IN (${placeholders})`).bind(projectId, ...boothIds).run();
+        const placeholders = boothIds.map(() => '?').join(','); 
+        // 【关键防御】只允许删除空闲展位
+        await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND status NOT IN ('已预订', '已成交') AND id IN (${placeholders})`).bind(projectId, ...boothIds).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -123,7 +128,7 @@ export default {
         return new Response(object.body, { headers });
       }
 
-      // 6. 订单录入
+      // 6. 订单录入 
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
         if (o.credit_code && !o.no_code_checked) {
@@ -146,8 +151,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ================= 7. 财务大盘与代付模块 =================
-      
+      // 7. 财务大盘与代付模块
       if (url.pathname === '/api/orders' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const role = url.searchParams.get('role');
@@ -243,20 +247,18 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ==== 支出/代付管理 API ====
+      // 支出/代付管理 API
       if (url.pathname === '/api/expenses' && request.method === 'GET') {
         const orderId = url.searchParams.get('orderId');
         const { results } = await env.DB.prepare("SELECT * FROM Expenses WHERE order_id = ? ORDER BY id DESC").bind(orderId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/add-expense' && request.method === 'POST') {
         const e = await request.json();
         await env.DB.prepare("INSERT INTO Expenses (project_id, order_id, fee_item_name, payee_name, payee_bank, payee_account, amount, applicant) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
           .bind(e.project_id, e.order_id, e.fee_item_name, e.payee_name, e.payee_bank, e.payee_account, e.amount, e.applicant).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
         const { expense_id } = await request.json();
         await env.DB.prepare("DELETE FROM Expenses WHERE id = ?").bind(expense_id).run();
