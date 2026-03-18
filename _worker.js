@@ -1,20 +1,50 @@
+// 辅助函数：SHA-256 密码加密
+async function hashPassword(password) {
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // 【安全升级】允许前端发送 Authorization 鉴权头
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization', 
     };
 
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
     try {
-      // 1. 登录
+      // ============ 🔥 全局接口鉴权拦截器 ============
+      // 排除不需要 token 的路由：登录和查看下载文件
+      let currentUser = null;
+      if (url.pathname !== '/api/login' && !url.pathname.startsWith('/api/file/')) {
+          const authHeader = request.headers.get('Authorization');
+          if (!authHeader || !authHeader.startsWith('Bearer ')) {
+              return new Response(JSON.stringify({ error: "非法请求：缺少身份凭证" }), { status: 401, headers: corsHeaders });
+          }
+          const token = authHeader.split(' ')[1];
+          currentUser = await env.DB.prepare("SELECT name, role FROM Staff WHERE token = ?").bind(token).first();
+          if (!currentUser) {
+              return new Response(JSON.stringify({ error: "身份已过期或无效，请重新登录" }), { status: 401, headers: corsHeaders });
+          }
+      }
+
+      // 1. 登录 (签发 Token 并验证哈希密码)
       if (url.pathname === '/api/login' && request.method === 'POST') {
         const { username, password } = await request.json();
-        const user = await env.DB.prepare("SELECT name, role FROM Staff WHERE name = ? AND password = ?").bind(username, password).first();
-        if (user) return new Response(JSON.stringify({ success: true, user }), { headers: corsHeaders });
+        const hashedPassword = await hashPassword(password); // 加密比对
+        const user = await env.DB.prepare("SELECT name, role FROM Staff WHERE name = ? AND password = ?").bind(username, hashedPassword).first();
+        if (user) {
+            const token = crypto.randomUUID(); // 签发安全令牌
+            await env.DB.prepare("UPDATE Staff SET token = ? WHERE name = ?").bind(token, username).run();
+            user.token = token;
+            return new Response(JSON.stringify({ success: true, user }), { headers: corsHeaders });
+        }
         return new Response(JSON.stringify({ success: false, message: "账号或密码错误" }), { status: 401, headers: corsHeaders });
       }
 
@@ -34,15 +64,17 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 3. 人员管理
+      // 3. 人员管理与密码修改 (加密存储)
       if (url.pathname === '/api/staff' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare(`SELECT s.name, s.role, IFNULL(m.target_value, 0) as target FROM Staff s LEFT JOIN Project_Staff_Map m ON s.name = m.staff_name AND m.project_id = ?`).bind(projectId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
       if (url.pathname === '/api/staff' && request.method === 'POST') {
+        if (currentUser.role !== 'admin') return new Response('Forbidden', {status: 403});
         const s = await request.json();
-        try { await env.DB.prepare("INSERT INTO Staff (name, password, role) VALUES (?, ?, ?)").bind(s.name, s.password || '123456', s.role).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        const hashedPassword = await hashPassword(s.password || '123456');
+        try { await env.DB.prepare("INSERT INTO Staff (name, password, role) VALUES (?, ?, ?)").bind(s.name, hashedPassword, s.role).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         } catch (err) { return new Response(JSON.stringify({ success: false, message: "该姓名已存在" }), { status: 400, headers: corsHeaders }); }
       }
       if (url.pathname === '/api/set-target' && request.method === 'POST') {
@@ -51,18 +83,24 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/update-staff-role' && request.method === 'POST') {
+        if (currentUser.role !== 'admin') return new Response('Forbidden', {status: 403});
         const { staffName, role } = await request.json(); if (staffName === 'admin') return new Response(JSON.stringify({ success: false }), { status: 400, headers: corsHeaders });
         await env.DB.prepare("UPDATE Staff SET role = ? WHERE name = ?").bind(role, staffName).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/delete-staff' && request.method === 'POST') {
+        if (currentUser.role !== 'admin') return new Response('Forbidden', {status: 403});
         const { staffName } = await request.json(); if (staffName === 'admin') return new Response(JSON.stringify({ success: false }), { status: 400, headers: corsHeaders });
         await env.DB.prepare("DELETE FROM Staff WHERE name = ?").bind(staffName).run(); await env.DB.prepare("DELETE FROM Project_Staff_Map WHERE staff_name = ?").bind(staffName).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/change-password' && request.method === 'POST') {
         const { staffName, oldPass, newPass } = await request.json();
-        const user = await env.DB.prepare("SELECT * FROM Staff WHERE name = ? AND password = ?").bind(staffName, oldPass).first();
+        if (currentUser.name !== staffName) return new Response('Forbidden', {status: 403});
+        const hashedOld = await hashPassword(oldPass);
+        const user = await env.DB.prepare("SELECT * FROM Staff WHERE name = ? AND password = ?").bind(staffName, hashedOld).first();
         if(!user) return new Response(JSON.stringify({ success: false, message: "原密码错误" }), { status: 400, headers: corsHeaders });
-        await env.DB.prepare("UPDATE Staff SET password = ? WHERE name = ?").bind(newPass, staffName).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        const hashedNew = await hashPassword(newPass);
+        await env.DB.prepare("UPDATE Staff SET password = ?, token = NULL WHERE name = ?").bind(hashedNew, staffName).run(); // 改密后清空token强制下线
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
       // 4. 收款账户管理
@@ -99,7 +137,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 6. 展位管理
+      // 6. 展位管理与批量导入
       if (url.pathname === '/api/prices' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId'); const { results } = await env.DB.prepare("SELECT type, price FROM Project_Prices WHERE project_id = ?").bind(projectId).all();
         let prices = {}; results.forEach(r => prices[r.type] = r.price); return new Response(JSON.stringify(prices), { headers: corsHeaders });
@@ -122,6 +160,16 @@ export default {
         await env.DB.prepare("INSERT INTO Booths (id, project_id, hall, type, area, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, '可售')").bind(b.id, b.project_id, b.hall, b.type, Number(b.area)||0, b.price_unit, Number(b.base_price)||0).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
+      
+      // 【事务优化】批量导入展位接口
+      if (url.pathname === '/api/import-booths' && request.method === 'POST') {
+        const { projectId, booths } = await request.json();
+        const stmt = env.DB.prepare("INSERT OR IGNORE INTO Booths (id, project_id, hall, type, area, price_unit, base_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, '可售')");
+        const batch = booths.map(b => stmt.bind(b.id, projectId, b.hall, b.type, Number(b.area)||0, b.price_unit, 0));
+        if (batch.length > 0) await env.DB.batch(batch);
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
       if (url.pathname === '/api/update-booth-status' && request.method === 'POST') {
         const { projectId, boothIds, status } = await request.json();
         const placeholders = boothIds.map(() => '?').join(',');
@@ -140,7 +188,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 更新：客户资料编辑 (包含 category) ============
+      // 6. 客户资料编辑
       if (url.pathname === '/api/update-customer-info' && request.method === 'POST') {
         const d = await request.json();
         await env.DB.prepare(`
@@ -150,10 +198,15 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 8. R2 文件服务
+      // ============ 🔥 安全升级：R2 文件上传严格验证 ============
       if (url.pathname === '/api/upload' && request.method === 'POST') {
         const formData = await request.formData(); const file = formData.get('file');
         if (!file) return new Response(JSON.stringify({ error: "没有接收到文件" }), { status: 400, headers: corsHeaders });
+        
+        // 防火墙：拦截超大文件和非 PDF 文件
+        if (file.size > 10 * 1024 * 1024) return new Response(JSON.stringify({ error: "出于安全限制，附件大小不能超过10MB" }), { status: 400, headers: corsHeaders });
+        if (file.type !== 'application/pdf') return new Response(JSON.stringify({ error: "非法文件类型！系统仅允许上传 PDF 格式的合同" }), { status: 400, headers: corsHeaders });
+
         const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_'); const fileName = `contract_${Date.now()}_${safeName}`; 
         await env.BUCKET.put(fileName, file.stream(), { httpMetadata: { contentType: file.type } });
         return new Response(JSON.stringify({ success: true, fileKey: fileName }), { headers: corsHeaders });
@@ -165,24 +218,34 @@ export default {
         return new Response(object.body, { headers });
       }
 
-      // ============ 🔥 更新：订单录入 (包含 category) ============
+      // ============ 🔥 事务升级：订单录入原子性保障 ============
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
         if (o.credit_code && !o.no_code_checked) {
             const existCode = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND credit_code = ? AND status = '正常'").bind(o.project_id, o.credit_code).first();
             if (existCode) return new Response(JSON.stringify({ success: false, error: `社会信用代码 [${o.credit_code}] 已存在，无法重复录入！` }), { status: 400, headers: corsHeaders });
         }
-        const stmt = `INSERT INTO Orders (
-          project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region,
-          booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status, category
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常', ?)`;
-        await env.DB.prepare(stmt).bind(
+        
+        const stmtInsertOrder = env.DB.prepare(`
+          INSERT INTO Orders (
+            project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region,
+            booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status, category
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常', ?)
+        `).bind(
           o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.main_business, o.is_agent ? 1 : 0, o.agent_name,
           o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price, o.total_booth_fee, o.discount_reason,
           o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name, o.category
-        ).run();
-        await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        );
+
+        const stmtUpdateBooth = env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id);
+
+        try {
+            // 使用 batch 确保两条 SQL 语句同生共死（如果状态更新失败，订单也不会被创建）
+            await env.DB.batch([stmtInsertOrder, stmtUpdateBooth]);
+            return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        } catch (dbErr) {
+            return new Response(JSON.stringify({ success: false, error: "系统事务异常：" + dbErr.message }), { status: 500, headers: corsHeaders });
+        }
       }
 
       // 9. 财务大盘与流水
@@ -256,6 +319,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/cancel-order' && request.method === 'POST') {
+        if (currentUser.role !== 'admin') return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
         const { order_id, project_id, booth_id } = await request.json();
         await env.DB.prepare("UPDATE Orders SET status = '已作废' WHERE id = ?").bind(order_id).run();
         await env.DB.prepare("UPDATE Booths SET status = '可售' WHERE id = ? AND project_id = ?").bind(booth_id, project_id).run();
