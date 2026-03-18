@@ -82,7 +82,24 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 5. 重点优化：展位管理 (动态关联订单实际成交金额) ============
+      // ============ 🔥 新增：行业分类配置 ============
+      if (url.pathname === '/api/industries' && request.method === 'GET') {
+        const projectId = url.searchParams.get('projectId');
+        const { results } = await env.DB.prepare("SELECT * FROM Project_Industries WHERE project_id = ? ORDER BY id DESC").bind(projectId).all();
+        return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+      if (url.pathname === '/api/add-industry' && request.method === 'POST') {
+        const i = await request.json();
+        await env.DB.prepare("INSERT INTO Project_Industries (project_id, industry_name) VALUES (?, ?)").bind(i.project_id, i.industry_name).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+      if (url.pathname === '/api/delete-industry' && request.method === 'POST') {
+        const { industry_id } = await request.json();
+        await env.DB.prepare("DELETE FROM Project_Industries WHERE id = ?").bind(industry_id).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 5. 展位管理
       if (url.pathname === '/api/prices' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId'); const { results } = await env.DB.prepare("SELECT type, price FROM Project_Prices WHERE project_id = ?").bind(projectId).all();
         let prices = {}; results.forEach(r => prices[r.type] = r.price); return new Response(JSON.stringify(prices), { headers: corsHeaders });
@@ -92,21 +109,12 @@ export default {
         const batch = Object.keys(prices).map(type => stmt.bind(projectId, type, prices[type])); if(batch.length > 0) await env.DB.batch(batch);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-      
       if (url.pathname === '/api/booths' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
-        // 【核心修改】：通过 LEFT JOIN 直接带出该展位对应订单的应收展位费 (total_booth_fee)
-        const query = `
-          SELECT b.*, o.total_booth_fee 
-          FROM Booths b 
-          LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status = '正常'
-          WHERE b.project_id = ? 
-          ORDER BY b.id ASC
-        `;
+        const query = `SELECT b.*, o.total_booth_fee FROM Booths b LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status = '正常' WHERE b.project_id = ? ORDER BY b.id ASC`;
         const { results } = await env.DB.prepare(query).bind(projectId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
-
       if (url.pathname === '/api/add-booth' && request.method === 'POST') {
         const b = await request.json();
         const exists = await env.DB.prepare("SELECT id FROM Booths WHERE id = ? AND project_id = ?").bind(b.id, b.project_id).first();
