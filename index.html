@@ -901,15 +901,40 @@
         async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); showToast("展位删除成功"); loadBooths(); }
         async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return showToast("请勾选展位", 'error'); if(!confirm(`🚨 危险操作：确定永久删除选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); showToast(`成功删除了 ${ids.length} 个展位！`); loadBooths(); }
         function openEditBooth(id, type, area, bp) { document.getElementById('eb-id').innerText = id; document.getElementById('eb-type').value = type; document.getElementById('eb-area').value = area; document.getElementById('eb-custom-price').value = bp > 0 ? bp : ''; document.getElementById('edit-booth-modal').classList.remove('hidden'); }
-        async function submitEditBooth() { 
-            const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; 
+        async function submitEditBooth() {
+            const pid = document.getElementById('global-project-select').value;
+            const id = document.getElementById('eb-id').innerText;
+            const type = document.getElementById('eb-type').value;
+            const area = parseFloat(document.getElementById('eb-area').value);
+            // 【核心修正点】：确保抓取的是 id 为 eb-custom-price 的输入值
+            const cp = parseFloat(document.getElementById('eb-custom-price').value);
+            // 如果填的是 0 或者 NaN，则视为 0（随全局）
+            const finalCustomPrice = isNaN(cp) ? 0 : cp;
+            if (isNaN(area) || area <= 0) return showToast("面积必须大于0", "error");
+            if(!confirm(`确定保存展位 [${id}] 的修改吗？`)) return;
             toggleBtnLoading('btn-save-booth', true);
-            await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); 
-            closeModal('edit-booth-modal'); 
-            showToast("展位信息修改成功"); 
-            await loadBooths(); 
-            toggleBtnLoading('btn-save-booth', false);
-        }
+            try {
+                const res = await apiFetch('/api/edit-booth', { 
+                    method: 'POST', 
+                    body: JSON.stringify({
+                        projectId: pid, 
+                        id: id, 
+                        type: type, 
+                        area: area, 
+                        base_price: finalCustomPrice // 将修正后的变量传给后端
+                    }) 
+                }); 
+                if(res.ok) {
+                    closeModal('edit-booth-modal'); 
+                    showToast("展位信息修改成功"); 
+                    await loadBooths(); 
+                } else {
+                    showToast("数据库更新失败", "error");
+                }
+            } catch (e) {
+                showToast("网络错误", "error");
+            } finally {
+                toggleBtnLoading('btn-save-booth', false);
 
         // ================= 订单录入逻辑 =================
         async function initOrderForm() {
