@@ -82,7 +82,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 新增：行业分类配置 ============
+      // 5. 行业分类配置
       if (url.pathname === '/api/industries' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
         const { results } = await env.DB.prepare("SELECT * FROM Project_Industries WHERE project_id = ? ORDER BY id DESC").bind(projectId).all();
@@ -99,7 +99,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 5. 展位管理
+      // 6. 展位管理
       if (url.pathname === '/api/prices' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId'); const { results } = await env.DB.prepare("SELECT type, price FROM Project_Prices WHERE project_id = ?").bind(projectId).all();
         let prices = {}; results.forEach(r => prices[r.type] = r.price); return new Response(JSON.stringify(prices), { headers: corsHeaders });
@@ -140,14 +140,17 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 6. 客户资料编辑
+      // ============ 🔥 更新：客户资料编辑 (包含 category) ============
       if (url.pathname === '/api/update-customer-info' && request.method === 'POST') {
         const d = await request.json();
-        await env.DB.prepare("UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ? WHERE id = ? AND project_id = ?").bind(d.contact_person, d.phone, d.region, d.main_business, d.profile, d.is_agent ? 1 : 0, d.agent_name, d.order_id, d.project_id).run();
+        await env.DB.prepare(`
+            UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ?, category = ? 
+            WHERE id = ? AND project_id = ?
+        `).bind(d.contact_person, d.phone, d.region, d.main_business, d.profile, d.is_agent ? 1 : 0, d.agent_name, d.category, d.order_id, d.project_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 7. R2 文件服务
+      // 8. R2 文件服务
       if (url.pathname === '/api/upload' && request.method === 'POST') {
         const formData = await request.formData(); const file = formData.get('file');
         if (!file) return new Response(JSON.stringify({ error: "没有接收到文件" }), { status: 400, headers: corsHeaders });
@@ -162,7 +165,7 @@ export default {
         return new Response(object.body, { headers });
       }
 
-      // 8. 订单录入
+      // ============ 🔥 更新：订单录入 (包含 category) ============
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
         if (o.credit_code && !o.no_code_checked) {
@@ -171,12 +174,12 @@ export default {
         }
         const stmt = `INSERT INTO Orders (
           project_id, company_name, credit_code, no_code_checked, main_business, is_agent, agent_name, contact_person, phone, region,
-          booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常')`;
+          booth_id, area, price_unit, unit_price, total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, contract_url, sales_name, status, category
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '正常', ?)`;
         await env.DB.prepare(stmt).bind(
           o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.main_business, o.is_agent ? 1 : 0, o.agent_name,
           o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price, o.total_booth_fee, o.discount_reason,
-          o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name
+          o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name, o.category
         ).run();
         await env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
