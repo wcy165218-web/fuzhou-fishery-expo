@@ -918,7 +918,17 @@
 
             toggleBtnLoading('btn-save-booth', true);
             try {
-                const res = await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: finalCustomPrice}) }); 
+                // 【致命Bug修复】：将 projectId 改为 project_id，与后端保持一致
+                const res = await apiFetch('/api/edit-booth', { 
+                    method: 'POST', 
+                    body: JSON.stringify({
+                        project_id: pid, 
+                        id: id, 
+                        type: type, 
+                        area: area, 
+                        base_price: finalCustomPrice
+                    }) 
+                }); 
                 if(res.ok) {
                     closeModal('edit-booth-modal'); 
                     showToast("展位信息修改成功"); 
