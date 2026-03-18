@@ -82,7 +82,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 5. 展位管理
+      // ============ 🔥 5. 重点优化：展位管理 (动态关联订单实际成交金额) ============
       if (url.pathname === '/api/prices' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId'); const { results } = await env.DB.prepare("SELECT type, price FROM Project_Prices WHERE project_id = ?").bind(projectId).all();
         let prices = {}; results.forEach(r => prices[r.type] = r.price); return new Response(JSON.stringify(prices), { headers: corsHeaders });
@@ -92,11 +92,21 @@ export default {
         const batch = Object.keys(prices).map(type => stmt.bind(projectId, type, prices[type])); if(batch.length > 0) await env.DB.batch(batch);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
+      
       if (url.pathname === '/api/booths' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
-        const { results } = await env.DB.prepare("SELECT * FROM Booths WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
+        // 【核心修改】：通过 LEFT JOIN 直接带出该展位对应订单的应收展位费 (total_booth_fee)
+        const query = `
+          SELECT b.*, o.total_booth_fee 
+          FROM Booths b 
+          LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status = '正常'
+          WHERE b.project_id = ? 
+          ORDER BY b.id ASC
+        `;
+        const { results } = await env.DB.prepare(query).bind(projectId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
+
       if (url.pathname === '/api/add-booth' && request.method === 'POST') {
         const b = await request.json();
         const exists = await env.DB.prepare("SELECT id FROM Booths WHERE id = ? AND project_id = ?").bind(b.id, b.project_id).first();
@@ -241,7 +251,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ============ 🔥 新增：代付/返佣接口 (含 reason) ============
+      // 11. 代付/返佣接口
       if (url.pathname === '/api/expenses' && request.method === 'GET') {
         try {
             const orderId = Number(url.searchParams.get('orderId')) || 0;
@@ -255,8 +265,6 @@ export default {
       if (url.pathname === '/api/add-expense' && request.method === 'POST') {
         try {
           const e = await request.json();
-          
-          // 增加 e.reason 的绑定
           const params = [
             Number(e.project_id) || 0,
             Number(e.order_id) || 0,
@@ -267,7 +275,7 @@ export default {
             String(e.payee_account || ''),
             Number(e.amount) || 0,
             String(e.applicant || ''),
-            String(e.reason || '') // 这里是新增的事由字段
+            String(e.reason || '') 
           ];
 
           await env.DB.prepare(`
