@@ -18,13 +18,20 @@
             #print-modal { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; background: white; box-shadow: none; }
             .no-print { display: none !important; }
         }
+        /* Toast 动画过渡 */
+        .toast-enter { transform: translateY(-100%); opacity: 0; }
+        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .toast-leave { transform: translateY(0); opacity: 1; }
+        .toast-leave-active { transform: translateY(-100%); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
-    <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4">修改密码</h3><input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm"><input type="password" id="modal-new-pass" placeholder="新密码" class="w-full border p-2 rounded mb-5 text-sm"><div class="flex justify-end gap-2"><button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold">确认</button></div></div></div>
-    <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3><input type="hidden" id="edit-p-id"><div class="space-y-3"><input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm"><input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm"><div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div><div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存</button></div></div></div>
-    <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-3">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-booth-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button onclick="submitEditBooth()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存修改</button></div></div></div>
+    <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none"></div>
+
+    <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4">修改密码</h3><input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm"><input type="password" id="modal-new-pass" placeholder="新密码" class="w-full border p-2 rounded mb-5 text-sm"><div class="flex justify-end gap-2"><button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button id="btn-change-pass" onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold">确认</button></div></div></div>
+    <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3><input type="hidden" id="edit-p-id"><div class="space-y-3"><input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm"><input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm"><div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div><div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button id="btn-save-project" onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存</button></div></div></div>
+    <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-3">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-booth-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button id="btn-save-booth" onclick="submitEditBooth()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存修改</button></div></div></div>
 
     <div id="order-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
@@ -83,7 +90,7 @@
                 </div>
                 <div id="dt-action-edit" class="hidden flex gap-2">
                     <button onclick="toggleDetailEditMode(false)" class="px-4 py-2 bg-gray-300 text-gray-800 rounded font-bold hover:bg-gray-400">取消修改</button>
-                    <button onclick="saveDetailEdit()" class="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 shadow">💾 保存修改</button>
+                    <button id="btn-save-detail" onclick="saveDetailEdit()" class="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 shadow">💾 保存修改</button>
                 </div>
             </div>
         </div>
@@ -102,7 +109,7 @@
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="closeModal('edit-payment-modal')" class="px-4 py-2 bg-gray-200 rounded font-bold">取消</button>
-                <button onclick="submitEditPayment()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">保存修改</button>
+                <button id="btn-save-payment" onclick="submitEditPayment()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">保存修改</button>
             </div>
         </div>
     </div>
@@ -170,7 +177,7 @@
                             
                             <div class="col-span-2"><label class="block text-gray-700 mb-1">备注说明</label><input type="text" id="pay-remark" class="w-full border p-2 rounded" placeholder="如: 尾款/押金等"></div>
                         </div>
-                        <button onclick="submitPayment()" class="mt-4 w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700 shadow-md text-base">💾 确认入账并保存</button>
+                        <button id="btn-submit-payment" onclick="submitPayment()" class="mt-4 w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700 shadow-md text-base transition-colors">💾 确认入账并保存</button>
                     </div>
                     <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🧾 历史收款流水</h4>
                     <div id="fm-pay-list" class="space-y-2 text-sm max-h-48 overflow-y-auto"></div>
@@ -197,7 +204,7 @@
                         <div class="bg-white p-3 rounded border text-right">
                             <span class="text-gray-500">变更后本单总应收：</span><span class="text-2xl font-bold text-orange-600" id="fm-adjust-calc-total">¥ 0</span>
                         </div>
-                        <button onclick="submitAdjustment()" class="w-full bg-orange-500 text-white font-bold py-3 rounded hover:bg-orange-600 shadow-md text-lg">确认覆盖原合同总金额</button>
+                        <button id="btn-submit-adj" onclick="submitAdjustment()" class="w-full bg-orange-500 text-white font-bold py-3 rounded hover:bg-orange-600 shadow-md text-lg transition-colors">确认覆盖原合同总金额</button>
                     </div>
                 </div>
 
@@ -232,7 +239,7 @@
                                     <input type="number" id="exp-amount" class="w-full border-2 border-red-300 p-3 rounded font-bold text-xl text-red-600 shadow-inner" placeholder="0.00">
                                 </div>
                             </div>
-                            <button onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2 text-base">提交申请并生成单据</button>
+                            <button id="btn-submit-exp" onclick="submitExpense()" class="w-full bg-purple-600 text-white font-bold py-3 rounded hover:bg-purple-700 shadow mt-2 text-base transition-colors">提交申请并生成单据</button>
                         </div>
                     </div>
                     <h4 class="font-bold text-gray-700 text-sm mb-2 border-b pb-1">🗂️ 本单历史代付/返佣记录</h4>
@@ -249,8 +256,8 @@
         <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
             <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
             <input type="text" id="login-user" placeholder="姓名" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
-            <input type="password" id="login-pass" placeholder="密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500">
-            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700">登 录</button>
+            <input type="password" id="login-pass" placeholder="密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500" onkeypress="if(event.key==='Enter') handleLogin()">
+            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700 transition-colors">登 录</button>
         </div>
     </div>
 
@@ -285,9 +292,9 @@
                 
                 <section id="sec-config" class="page-section">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500"><h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3><div class="bg-gray-50 p-4 rounded border mb-6"><input type="text" id="new-proj-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm mb-2"><input type="number" id="new-proj-year" placeholder="归属年份" class="w-full border p-2 rounded text-sm mb-2"><div class="flex gap-2 mb-3 text-sm text-gray-600">开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1"></div><button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th><th class="p-2 text-right">操作</th></tr></thead><tbody id="project-list-tbody" class="divide-y"></tbody></table></div>
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500"><h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3><div class="bg-gray-50 p-4 rounded border mb-6"><input type="text" id="new-proj-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm mb-2"><input type="number" id="new-proj-year" placeholder="归属年份" class="w-full border p-2 rounded text-sm mb-2"><div class="flex gap-2 mb-3 text-sm text-gray-600">开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1"></div><button id="btn-create-proj" onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th><th class="p-2 text-right">操作</th></tr></thead><tbody id="project-list-tbody" class="divide-y"></tbody></table></div>
                         
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500"><h3 class="text-lg font-bold mb-4 flex justify-between items-center"><span>👥 业务员与目标管理</span></h3><div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2"><input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1"><select id="new-staff-role" class="border p-2 rounded text-sm w-28"><option value="user">业务员</option><option value="admin">管理员</option></select><button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700 transition">添加</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead><tbody id="staff-list-tbody" class="divide-y"></tbody></table></div>
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500"><h3 class="text-lg font-bold mb-4 flex justify-between items-center"><span>👥 业务员与目标管理</span></h3><div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2"><input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1"><select id="new-staff-role" class="border p-2 rounded text-sm w-28"><option value="user">业务员</option><option value="admin">管理员</option></select><button id="btn-add-staff" onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700 transition">添加</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead><tbody id="staff-list-tbody" class="divide-y"></tbody></table></div>
                         
                         <div class="bg-white p-6 rounded shadow border-t-4 border-blue-500">
                             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">💳 项目专属收款账户配置</h3>
@@ -296,7 +303,7 @@
                                 <div class="flex-1 min-w-[120px]"><label class="block text-xs font-bold text-gray-600 mb-1">户名 / 渠道名</label><input type="text" id="new-acc-name" placeholder="如：XX科技有限公司" class="w-full border p-2 rounded text-sm"></div>
                                 <div class="flex-1 min-w-[100px]"><label class="block text-xs font-bold text-gray-600 mb-1">开户行 / 类型</label><input type="text" id="new-acc-bank" placeholder="如：建设银行" class="w-full border p-2 rounded text-sm"></div>
                                 <div class="flex-1 min-w-[120px]"><label class="block text-xs font-bold text-gray-600 mb-1">银行账号</label><input type="text" id="new-acc-no" placeholder="输入卡号" class="w-full border p-2 rounded text-sm"></div>
-                                <button onclick="createAccount()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700 transition h-[38px]">新增</button>
+                                <button id="btn-add-acc" onclick="createAccount()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700 transition h-[38px]">新增</button>
                             </div>
                             <table class="w-full text-sm text-left border">
                                 <thead class="bg-gray-100 border-b"><tr><th class="p-2">户名/渠道</th><th class="p-2">开户行</th><th class="p-2">账号</th><th class="p-2 text-right">操作</th></tr></thead>
@@ -309,7 +316,7 @@
                             <p class="text-xs text-gray-500 mb-4">配置后，业务员录入订单时可在“产品分类”下拉框统一选择（业务员仍可手动输入新分类）。</p>
                             <div class="flex gap-2 mb-4">
                                 <input type="text" id="new-industry-name" placeholder="如：水产海鲜 / 智能制造" class="w-full border p-2 rounded text-sm">
-                                <button onclick="createIndustry()" class="bg-purple-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-purple-700 transition whitespace-nowrap">新增分类</button>
+                                <button id="btn-add-ind" onclick="createIndustry()" class="bg-purple-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-purple-700 transition whitespace-nowrap">新增分类</button>
                             </div>
                             <div class="max-h-48 overflow-y-auto border rounded">
                                 <table class="w-full text-sm text-left">
@@ -322,7 +329,7 @@
                 </section>
                 
                 <section id="sec-booth" class="page-section">
-                    <div class="bg-white p-4 rounded shadow border-l-4 border-red-500 mb-4 flex flex-wrap items-center justify-between gap-4"><div class="flex items-center gap-2"><span class="font-bold text-gray-700">💰 全局单价策略:</span></div><div class="flex gap-4 text-sm items-center"><div class="flex items-center bg-gray-50 p-1 rounded border">标摊 <input type="number" id="price-bt" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">豪标 <input type="number" id="price-hb" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">光地 <input type="number" id="price-gd" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/㎡</div><button onclick="savePrices()" class="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-1.5 rounded font-bold border border-red-300 transition">保存策略</button></div></div>
+                    <div class="bg-white p-4 rounded shadow border-l-4 border-red-500 mb-4 flex flex-wrap items-center justify-between gap-4"><div class="flex items-center gap-2"><span class="font-bold text-gray-700">💰 全局单价策略:</span></div><div class="flex gap-4 text-sm items-center"><div class="flex items-center bg-gray-50 p-1 rounded border">标摊 <input type="number" id="price-bt" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">豪标 <input type="number" id="price-hb" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">光地 <input type="number" id="price-gd" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/㎡</div><button id="btn-save-prices" onclick="savePrices()" class="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-1.5 rounded font-bold border border-red-300 transition">保存策略</button></div></div>
                     
                     <div class="bg-white p-4 rounded shadow border-t-4 border-blue-500 mb-4 relative overflow-hidden">
                         <div class="flex justify-between items-center mb-3">
@@ -332,7 +339,7 @@
                     </div>
 
                     <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
-                        <div class="mb-6 border rounded border-orange-200"><button onclick="toggleEntrySection()" class="w-full bg-orange-50 text-orange-800 p-3 font-bold text-left flex justify-between items-center rounded-t hover:bg-orange-100"><span>➕ 展开【单条新增】与【Excel批量导入】面板</span><span id="entry-arrow">▼</span></button><div id="entry-section" class="hidden p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white rounded-b"><div class="col-span-1 border-r pr-6 space-y-3"><h4 class="font-bold text-gray-700 mb-2 border-b pb-1">手动新增单条</h4><input type="text" id="s-id" placeholder="展位号 (如 1A01)" class="w-full border p-2 rounded text-sm font-bold"><div class="flex items-center"><input type="number" id="s-hall-num" placeholder="展馆数字 (如 1)" class="w-full border p-2 rounded-l text-sm"><span class="bg-gray-200 border border-l-0 p-2 rounded-r text-sm text-gray-700 shrink-0 whitespace-nowrap">号馆</span></div><select id="s-type" class="w-full border p-2 rounded text-sm font-bold text-blue-700"><option>标摊</option><option>豪标</option><option>光地</option></select><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 shrink-0 whitespace-nowrap">总面积(㎡)</span><input type="number" id="s-area" placeholder="录入实际面积" class="w-full border p-2 rounded-r text-sm"></div><button onclick="addSingleBooth()" class="w-full bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black mt-2">存入库中</button></div><div class="col-span-2 relative pl-2"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-700">Excel批量导入</h4><button onclick="downloadTemplate()" class="text-blue-600 hover:underline text-xs">下载模板</button></div><textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded text-sm font-mono bg-orange-50/30" placeholder="复制Excel包含4列：展位号 | 馆号(数字) | 类型 | 总面积(㎡)"></textarea><button onclick="parseAndImportBooths()" class="absolute bottom-2 right-2 bg-orange-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-orange-700 shadow-md">解析导入</button></div></div></div>
+                        <div class="mb-6 border rounded border-orange-200"><button onclick="toggleEntrySection()" class="w-full bg-orange-50 text-orange-800 p-3 font-bold text-left flex justify-between items-center rounded-t hover:bg-orange-100"><span>➕ 展开【单条新增】与【Excel批量导入】面板</span><span id="entry-arrow">▼</span></button><div id="entry-section" class="hidden p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white rounded-b"><div class="col-span-1 border-r pr-6 space-y-3"><h4 class="font-bold text-gray-700 mb-2 border-b pb-1">手动新增单条</h4><input type="text" id="s-id" placeholder="展位号 (如 1A01)" class="w-full border p-2 rounded text-sm font-bold"><div class="flex items-center"><input type="number" id="s-hall-num" placeholder="展馆数字 (如 1)" class="w-full border p-2 rounded-l text-sm"><span class="bg-gray-200 border border-l-0 p-2 rounded-r text-sm text-gray-700 shrink-0 whitespace-nowrap">号馆</span></div><select id="s-type" class="w-full border p-2 rounded text-sm font-bold text-blue-700"><option>标摊</option><option>豪标</option><option>光地</option></select><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 shrink-0 whitespace-nowrap">总面积(㎡)</span><input type="number" id="s-area" placeholder="录入实际面积" class="w-full border p-2 rounded-r text-sm"></div><button id="btn-add-booth" onclick="addSingleBooth()" class="w-full bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black mt-2">存入库中</button></div><div class="col-span-2 relative pl-2"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-700">Excel批量导入</h4><button onclick="downloadTemplate()" class="text-blue-600 hover:underline text-xs">下载模板</button></div><textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded text-sm font-mono bg-orange-50/30" placeholder="复制Excel包含4列：展位号 | 馆号(数字) | 类型 | 总面积(㎡)"></textarea><button id="btn-import-booth" onclick="parseAndImportBooths()" class="absolute bottom-2 right-2 bg-orange-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-orange-700 shadow-md transition-colors">解析导入</button></div></div></div>
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
                             <div class="flex items-center gap-2 bg-gray-50 p-1.5 rounded border">
                                 <input type="text" id="filter-search" placeholder="🔍 搜展位号..." class="border p-1.5 rounded text-sm w-32" onkeyup="renderBooths()">
@@ -548,6 +555,9 @@
         let projectAccounts = []; 
         let projectIndustries = []; 
 
+        // 全局 Tab 记忆变量
+        let lastFmTab = 'pay';
+
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
             { id: 'order-entry', label: '✍️ 订单信息录入', roles: ['admin', 'user'] }, 
@@ -556,8 +566,32 @@
             { id: 'config', label: '⚙️ 系统与人员配置', roles: ['admin'] }
         ];
 
-        // ============ 🔥 终极核心：全局 API 拦截器 ============
-        // 自动携带 Token，处理 401 身份过期
+        // ============ 🔥 体验升级：全局 Toast 提示系统 ============
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
+            const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
+            
+            toast.className = `toast-enter text-white px-6 py-3 rounded shadow-lg flex items-center gap-2 ${bgColor}`;
+            toast.innerHTML = `<span>${icon}</span><span class="font-bold">${message}</span>`;
+            container.appendChild(toast);
+
+            // 触发进入动画
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-enter-active');
+            });
+
+            // 3秒后触发离开动画并移除
+            setTimeout(() => {
+                toast.classList.remove('toast-enter-active');
+                toast.classList.add('toast-leave-active');
+                setTimeout(() => toast.remove(), 300); // 等待动画结束
+            }, 3000);
+        }
+
+        // ============ 🔥 全局 API 拦截器 ============
         async function apiFetch(url, options = {}) {
             const headers = options.headers || {};
             if (currentUser && currentUser.token) {
@@ -570,12 +604,28 @@
 
             const res = await fetch(url, options);
             if (res.status === 401) {
-                alert("登录状态已过期或被管理员修改，请重新登录！");
+                showToast("登录状态已过期或被管理员修改，请重新登录！", 'error');
                 localStorage.removeItem('exhibition_user');
-                location.reload();
+                setTimeout(() => location.reload(), 1500);
                 throw new Error("Unauthorized");
             }
             return res;
+        }
+
+        // 按钮 Loading 状态切换辅助函数
+        function toggleBtnLoading(btnId, isLoading, originalText = '') {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            if (isLoading) {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = `<span class="spinner"></span> 处理中...`;
+                btn.classList.add('opacity-70', 'cursor-not-allowed');
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = originalText || btn.dataset.originalText;
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
         }
 
         const savedUser = localStorage.getItem('exhibition_user'); 
@@ -585,13 +635,26 @@
         async function handleLogin() { 
             const u = document.getElementById('login-user').value; 
             const p = document.getElementById('login-pass').value; 
-            const res = await fetch('/api/login', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({username: u, password: p}) 
-            }); 
-            if (res.ok) { currentUser = (await res.json()).user; localStorage.setItem('exhibition_user', JSON.stringify(currentUser)); enterMainView(); } 
-            else { alert('登录失败，账号或密码错误'); } 
+            if(!u || !p) return showToast('请输入账号和密码', 'error');
+
+            toggleBtnLoading('login-btn', true);
+            try {
+                const res = await fetch('/api/login', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({username: u, password: p}) 
+                }); 
+                if (res.ok) { 
+                    currentUser = (await res.json()).user; 
+                    localStorage.setItem('exhibition_user', JSON.stringify(currentUser)); 
+                    showToast('登录成功！');
+                    enterMainView(); 
+                } else { 
+                    showToast('登录失败，账号或密码错误', 'error'); 
+                } 
+            } finally {
+                toggleBtnLoading('login-btn', false);
+            }
         }
         function handleLogout() { localStorage.removeItem('exhibition_user'); location.reload(); }
         
@@ -618,8 +681,6 @@
             });
         }
 
-        // --- 以下所有数据交互均已替换为 apiFetch ---
-
         async function loadProjects() {
             allProjects = await (await apiFetch('/api/projects')).json(); const sel = document.getElementById('global-project-select'); sel.innerHTML = ''; const tbody = document.getElementById('project-list-tbody'); if(tbody) tbody.innerHTML = '';
             allProjects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${p.name}</option>`; if(tbody) { const d = (p.start_date) ? `${p.start_date} 至 ${p.end_date}` : '未设'; tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-blue-600">${p.name}</td><td class="p-2 text-gray-500">${d}</td><td class="p-2 text-right"><button onclick='openEditProjectModal(${JSON.stringify(p)})' class="text-indigo-600 hover:underline text-xs">编辑</button></td></tr>`; }});
@@ -628,17 +689,50 @@
         function onProjectChange() { if(document.getElementById('sec-config').classList.contains('active')) { loadStaff(); loadAccounts(); loadIndustries(); } if(document.getElementById('sec-booth').classList.contains('active')) { loadPrices(); loadBooths(); } if(document.getElementById('sec-order-entry').classList.contains('active')) initOrderForm(); if(document.getElementById('sec-order-list').classList.contains('active')) loadOrderList(); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        async function createProject() { const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value, start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value }; if(!data.name) return; await apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }); document.getElementById('new-proj-name').value = ''; loadProjects(); }
+        async function createProject() { 
+            const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value, start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value }; 
+            if(!data.name) return showToast("请输入项目名称", 'error'); 
+            toggleBtnLoading('btn-create-proj', true);
+            await apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }); 
+            document.getElementById('new-proj-name').value = ''; 
+            showToast("项目创建成功");
+            loadProjects(); 
+            toggleBtnLoading('btn-create-proj', false);
+        }
         function openEditProjectModal(p) { document.getElementById('edit-p-id').value = p.id; document.getElementById('edit-p-name').value = p.name; document.getElementById('edit-p-year').value = p.year; document.getElementById('edit-p-start').value = p.start_date; document.getElementById('edit-p-end').value = p.end_date; document.getElementById('edit-project-modal').classList.remove('hidden'); }
-        async function submitEditProject() { const data = { id: document.getElementById('edit-p-id').value, name: document.getElementById('edit-p-name').value, year: document.getElementById('edit-p-year').value, start_date: document.getElementById('edit-p-start').value, end_date: document.getElementById('edit-p-end').value }; await apiFetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) }); closeModal('edit-project-modal'); loadProjects(); }
+        async function submitEditProject() { 
+            const data = { id: document.getElementById('edit-p-id').value, name: document.getElementById('edit-p-name').value, year: document.getElementById('edit-p-year').value, start_date: document.getElementById('edit-p-start').value, end_date: document.getElementById('edit-p-end').value }; 
+            toggleBtnLoading('btn-save-project', true);
+            await apiFetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) }); 
+            closeModal('edit-project-modal'); 
+            showToast("项目更新成功");
+            loadProjects(); 
+            toggleBtnLoading('btn-save-project', false);
+        }
         
         async function loadStaff() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const staff = await (await apiFetch(`/api/staff?projectId=${pid}`)).json(); const tbody = document.getElementById('staff-list-tbody'); tbody.innerHTML = ''; staff.forEach(s => { const isSA = s.name === 'admin'; const ts = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设</span>'; let rh = isSA ? '<span class="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">超级管理员</span>' : `<select onchange="updateStaffRole('${s.name}', this.value)" class="border border-gray-300 p-1 text-xs rounded bg-white text-gray-700"><option value="user" ${s.role==='user'?'selected':''}>业务员</option><option value="admin" ${s.role==='admin'?'selected':''}>管理员</option></select>`; let ah = isSA ? '<span class="text-gray-300 text-xs">系统保护</span>' : `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:text-indigo-800 text-xs mr-2">设目标</button><button onclick="deleteStaff('${s.name}')" class="text-red-500 hover:text-red-700 text-xs">删除</button>`; tbody.innerHTML += `<tr class="hover:bg-gray-50 border-b transition"><td class="p-2 font-bold text-gray-700">${s.name}</td><td class="p-2">${rh}</td><td class="p-2">${ts}</td><td class="p-2">${ah}</td></tr>`; }); }
-        async function createStaff() { const d = { name: document.getElementById('new-staff-name').value.trim(), role: document.getElementById('new-staff-role').value }; if(!d.name) return; const res = await apiFetch('/api/staff', { method: 'POST', body: JSON.stringify(d) }); if(res.ok) { document.getElementById('new-staff-name').value = ''; loadStaff(); } else { const err = await res.json(); alert(err.message || "添加失败"); } }
-        async function setTarget(n) { const pid = document.getElementById('global-project-select').value; const t = prompt(`设置目标:`, "100"); if(t && !isNaN(t)) { await apiFetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: n, target: parseFloat(t)}) }); loadStaff(); } }
-        async function updateStaffRole(n, r) { await apiFetch('/api/update-staff-role', { method: 'POST', body: JSON.stringify({staffName: n, role: r}) }); loadStaff(); }
-        async function deleteStaff(n) { if(confirm(`删除？`)) { await apiFetch('/api/delete-staff', { method: 'POST', body: JSON.stringify({staffName: n}) }); loadStaff(); } }
+        async function createStaff() { 
+            const d = { name: document.getElementById('new-staff-name').value.trim(), role: document.getElementById('new-staff-role').value }; 
+            if(!d.name) return showToast("请输入姓名", 'error'); 
+            toggleBtnLoading('btn-add-staff', true);
+            const res = await apiFetch('/api/staff', { method: 'POST', body: JSON.stringify(d) }); 
+            if(res.ok) { document.getElementById('new-staff-name').value = ''; showToast("添加员工成功"); loadStaff(); } 
+            else { const err = await res.json(); showToast(err.message || "添加失败", 'error'); } 
+            toggleBtnLoading('btn-add-staff', false);
+        }
+        async function setTarget(n) { const pid = document.getElementById('global-project-select').value; const t = prompt(`设置目标:`, "100"); if(t && !isNaN(t)) { await apiFetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: n, target: parseFloat(t)}) }); showToast("目标设置成功"); loadStaff(); } }
+        async function updateStaffRole(n, r) { await apiFetch('/api/update-staff-role', { method: 'POST', body: JSON.stringify({staffName: n, role: r}) }); showToast("权限修改成功"); loadStaff(); }
+        async function deleteStaff(n) { if(confirm(`确定删除该员工吗？`)) { await apiFetch('/api/delete-staff', { method: 'POST', body: JSON.stringify({staffName: n}) }); showToast("员工已删除"); loadStaff(); } }
         function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
-        async function submitPasswordChange() { const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; if(!op || !np) return; const res = await apiFetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); if(res.ok) { alert("修改成功，请重新登录"); closeModal('password-modal'); handleLogout(); } else { const err = await res.json(); alert(err.message || "原密码错误"); } }
+        async function submitPasswordChange() { 
+            const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; 
+            if(!op || !np) return showToast("请填写完整", 'error'); 
+            toggleBtnLoading('btn-change-pass', true);
+            const res = await apiFetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); 
+            if(res.ok) { showToast("修改成功，请重新登录"); closeModal('password-modal'); setTimeout(() => handleLogout(), 1500); } 
+            else { const err = await res.json(); showToast(err.message || "原密码错误", 'error'); } 
+            toggleBtnLoading('btn-change-pass', false);
+        }
 
         // --- 行业分类管理 ---
         async function loadIndustries() {
@@ -657,14 +751,18 @@
         async function createIndustry() {
             const pid = document.getElementById('global-project-select').value;
             const name = document.getElementById('new-industry-name').value.trim();
-            if(!name) return alert("请填写分类名称！");
+            if(!name) return showToast("请填写分类名称！", 'error');
+            toggleBtnLoading('btn-add-ind', true);
             await apiFetch('/api/add-industry', { method: 'POST', body: JSON.stringify({ project_id: pid, industry_name: name }) });
             document.getElementById('new-industry-name').value = '';
+            showToast("行业分类添加成功");
             loadIndustries();
+            toggleBtnLoading('btn-add-ind', false);
         }
         async function deleteIndustry(id) {
             if(!confirm("确定删除该分类吗？（不影响已录入的订单）")) return;
             await apiFetch('/api/delete-industry', { method: 'POST', body: JSON.stringify({ industry_id: id }) });
+            showToast("删除成功");
             loadIndustries();
         }
 
@@ -683,39 +781,60 @@
             const name = document.getElementById('new-acc-name').value.trim();
             const bank = document.getElementById('new-acc-bank').value.trim();
             const no = document.getElementById('new-acc-no').value.trim();
-            if(!name || !bank) return alert("户名和开户行(或渠道类型)为必填！");
+            if(!name || !bank) return showToast("户名和开户行(或渠道)为必填！", 'error');
+            toggleBtnLoading('btn-add-acc', true);
             await apiFetch('/api/add-account', { method: 'POST', body: JSON.stringify({ project_id: pid, account_name: name, bank_name: bank, account_no: no }) });
             document.getElementById('new-acc-name').value = ''; document.getElementById('new-acc-bank').value = ''; document.getElementById('new-acc-no').value = '';
+            showToast("账户配置成功");
             loadAccounts();
+            toggleBtnLoading('btn-add-acc', false);
         }
         async function deleteAccount(id) {
             if(!confirm("确定删除这个收款配置吗？")) return;
             await apiFetch('/api/delete-account', { method: 'POST', body: JSON.stringify({ account_id: id }) });
+            showToast("删除成功");
             loadAccounts();
         }
 
         // ================= 展位管理与动态大盘 =================
         async function loadPrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const res = await apiFetch(`/api/prices?projectId=${pid}`); const data = await res.json(); globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 }; document.getElementById('price-bt').value = globalPrices['标摊']; document.getElementById('price-hb').value = globalPrices['豪标']; document.getElementById('price-gd').value = globalPrices['光地']; }
-        async function savePrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; await apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); alert("保存成功！"); loadPrices(); loadBooths(); }
+        async function savePrices() { 
+            const pid = document.getElementById('global-project-select').value; if(!pid) return; 
+            const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; 
+            toggleBtnLoading('btn-save-prices', true);
+            await apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); 
+            showToast("全局策略保存成功！"); 
+            loadPrices(); loadBooths(); 
+            toggleBtnLoading('btn-save-prices', false);
+        }
         function toggleEntrySection() { const sec = document.getElementById('entry-section'); const arr = document.getElementById('entry-arrow'); if(sec.classList.contains('hidden')) { sec.classList.remove('hidden'); arr.innerText = '▲'; } else { sec.classList.add('hidden'); arr.innerText = '▼'; } }
-        async function addSingleBooth() { const pid = document.getElementById('global-project-select').value; const idVal = document.getElementById('s-id').value.trim(); const hallNum = document.getElementById('s-hall-num').value.trim(); if(!idVal || !hallNum) return; const type = document.getElementById('s-type').value; const area = parseFloat(document.getElementById('s-area').value); if(isNaN(area) || area <= 0) return; await apiFetch('/api/add-booth', { method: 'POST', body: JSON.stringify({ project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 }) }); document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; loadBooths(); }
+        async function addSingleBooth() { 
+            const pid = document.getElementById('global-project-select').value; const idVal = document.getElementById('s-id').value.trim(); const hallNum = document.getElementById('s-hall-num').value.trim(); 
+            if(!idVal || !hallNum) return showToast("请输入完整展位号和展馆", 'error'); 
+            const type = document.getElementById('s-type').value; const area = parseFloat(document.getElementById('s-area').value); if(isNaN(area) || area <= 0) return showToast("请输入正确面积", 'error'); 
+            toggleBtnLoading('btn-add-booth', true);
+            const res = await apiFetch('/api/add-booth', { method: 'POST', body: JSON.stringify({ project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 }) }); 
+            if (res.ok) { document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; showToast("展位添加成功"); loadBooths(); }
+            else { const err = await res.json(); showToast(err.error, 'error'); }
+            toggleBtnLoading('btn-add-booth', false);
+        }
         function downloadTemplate() { const blob = new Blob(["\uFEFF展位号,展馆数字(如1),类型(标摊/光地/豪标),面积(㎡)\nA01,1,标摊,18\nA02,1,光地,36\n"], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "展位导入模板.csv"; link.click(); }
         
         async function parseAndImportBooths() { 
-            const pid = document.getElementById('global-project-select').value; const text = document.getElementById('booth-import-text').value.trim(); if(!text) return; 
+            const pid = document.getElementById('global-project-select').value; const text = document.getElementById('booth-import-text').value.trim(); if(!text) return showToast('请输入数据', 'error'); 
             const rows = text.split('\n'); const booths = []; 
             for(let r of rows) { if(!r.trim()) continue; const cols = r.split(/[\s,]+/).filter(c => c.trim() !== ""); if(cols.length >= 4 && cols[0] !== '展位号') booths.push({ id: cols[0], hall: cols[1].replace(/馆|号/g, '') + '号馆', type: cols[2], area: parseFloat(cols[3]) || 0, price_unit: cols[2]==='光地'?'平米':'个' }); } 
-            if(booths.length === 0) return; 
-            const btn = document.querySelector('button[onclick="parseAndImportBooths()"]');
-            btn.innerHTML = "导入中..."; btn.disabled = true;
+            if(booths.length === 0) return showToast('未解析到有效数据', 'error'); 
+            
+            toggleBtnLoading('btn-import-booth', true);
             try {
                 await apiFetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) }); 
                 document.getElementById('booth-import-text').value = ''; loadBooths(); 
-                alert("批量导入成功！");
+                showToast(`批量导入成功，共解析 ${booths.length} 条数据`);
             } catch (e) {
-                alert("导入失败");
+                showToast("导入失败，请检查数据格式", 'error');
             } finally {
-                btn.innerHTML = "解析导入"; btn.disabled = false;
+                toggleBtnLoading('btn-import-booth', false);
             }
         }
         
@@ -777,12 +896,18 @@
 
         function toggleAllChecks(source) { document.querySelectorAll('.booth-check:not(:disabled)').forEach(cb => cb.checked = source.checked); } 
         function getCheckedIds() { return Array.from(document.querySelectorAll('.booth-check:checked')).map(cb => cb.value); }
-        async function updateSingleBoothStatus(bid, st) { if(!confirm(`确定将展位 [${bid}] 修改为【${st}】吗？`)) { loadBooths(); return; } const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); loadBooths(); }
-        async function batchUpdateStatus() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); const st = document.getElementById('batch-status-select').value; if(!confirm(`确定批量修改选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); alert(`成功更新了 ${ids.length} 个展位状态！`); loadBooths(); }
-        async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); alert("删除成功！"); loadBooths(); }
-        async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); if(!confirm(`🚨 危险操作：永久删除选中的 ${ids.length} 个展位？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); alert(`成功删除了 ${ids.length} 个展位！`); loadBooths(); }
+        async function updateSingleBoothStatus(bid, st) { if(!confirm(`确定将展位 [${bid}] 修改为【${st}】吗？`)) { loadBooths(); return; } const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); loadBooths(); showToast(`已更新为 ${st}`);}
+        async function batchUpdateStatus() { const ids = getCheckedIds(); if(ids.length === 0) return showToast("请勾选要操作的展位", 'error'); const st = document.getElementById('batch-status-select').value; if(!confirm(`确定批量修改选中的 ${ids.length} 个展位状态为【${st}】吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); showToast(`成功更新了 ${ids.length} 个展位状态！`); loadBooths(); }
+        async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); showToast("展位删除成功"); loadBooths(); }
+        async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return showToast("请勾选展位", 'error'); if(!confirm(`🚨 危险操作：确定永久删除选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); showToast(`成功删除了 ${ids.length} 个展位！`); loadBooths(); }
         function openEditBooth(id, type, area, bp) { document.getElementById('eb-id').innerText = id; document.getElementById('eb-type').value = type; document.getElementById('eb-area').value = area; document.getElementById('eb-custom-price').value = bp > 0 ? bp : ''; document.getElementById('edit-booth-modal').classList.remove('hidden'); }
-        async function submitEditBooth() { if(!confirm(`确定保存展位信息的修改吗？`)) return; const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); closeModal('edit-booth-modal'); alert("修改成功！"); loadBooths(); }
+        async function submitEditBooth() { 
+            const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; 
+            toggleBtnLoading('btn-save-booth', true);
+            await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); 
+            closeModal('edit-booth-modal'); showToast("展位信息修改成功"); loadBooths(); 
+            toggleBtnLoading('btn-save-booth', false);
+        }
 
         // ================= 订单录入逻辑 =================
         async function initOrderForm() {
@@ -811,14 +936,15 @@
         function onCityChange() { const prov = document.getElementById('reg-prov').value; const city = document.getElementById('reg-city-sel').value; const distSel = document.getElementById('reg-dist'); if (prov === '福建' && city === '福州') { distSel.classList.remove('hidden'); distSel.value = ''; } else { distSel.classList.add('hidden'); } }
 
         function searchAndSelectBooth() {
-            const inp = document.getElementById('booth-search-inp').value.trim().toUpperCase(); if(!inp) return alert("请先输入展位号！");
-            const booth = allBooths.find(b => b.id.toUpperCase() === inp); if(!booth) return alert(`❌ 未找到展位：${inp}`);
-            if(booth.status === '已锁定') { document.getElementById('booth-search-inp').value = ''; return alert(`🔒 展位被锁定！`); }
+            const inp = document.getElementById('booth-search-inp').value.trim().toUpperCase(); if(!inp) return showToast("请先输入展位号！", 'error');
+            const booth = allBooths.find(b => b.id.toUpperCase() === inp); if(!booth) return showToast(`未找到展位：${inp}`, 'error');
+            if(booth.status === '已锁定') { document.getElementById('booth-search-inp').value = ''; return showToast(`展位 [${inp}] 已被锁定！`, 'error'); }
             if(booth.status === '已预订' || booth.status === '已成交') {
                 if(!confirm(`⚠️ 展位状态为“${booth.status}”。是否为【联合参展】？`)) { document.getElementById('booth-search-inp').value = ''; return; }
                 isJointExhibition = true;
             } else { isJointExhibition = false; }
             document.getElementById('selected-booth-id').value = booth.id; document.getElementById('calc-booth').innerText = `${booth.hall} - ${booth.id}`; autoFillBoothData(booth);
+            showToast(`已成功锁定展位：${booth.id}`);
         }
 
         function addFeeRow() { dynamicFees.push({ name: '', amount: '' }); renderDynamicFees(); }
@@ -865,21 +991,21 @@
             
             const isAgent = document.querySelector('input[name="is_agent"]:checked').value === '1';
             const agentName = document.getElementById('order-agent-name').value.trim();
-            if(isAgent && !agentName) return alert("请准确填写代理商公司名称！");
+            if(isAgent && !agentName) return showToast("请填写代理商公司名称！", 'error');
 
             let finalRegion = ''; const prov = document.getElementById('reg-prov').value;
-            if(!prov) return alert("请选择所在地区！");
+            if(!prov) return showToast("请选择所在地区！", 'error');
             if(prov === '国际') { 
                 const intl = document.getElementById('reg-intl').value.trim(); 
-                if(!intl) return alert("【国际】地区必须输入具体的国家/地区名称！"); 
+                if(!intl) return showToast("【国际】地区必须输入具体的国家/地区名称！", 'error'); 
                 finalRegion = `国际 - ${intl}`; 
             } 
-            else if (prov === '福建') { const city = document.getElementById('reg-city-sel').value; if(!city) return alert("请选择福建城市！"); finalRegion = `${prov}省 - ${city}市`; if(city === '福州') { const dist = document.getElementById('reg-dist').value; if(!dist) return alert("请选择区县！"); finalRegion += ` - ${dist}`; } } 
+            else if (prov === '福建') { const city = document.getElementById('reg-city-sel').value; if(!city) return showToast("请选择福建城市！", 'error'); finalRegion = `${prov}省 - ${city}市`; if(city === '福州') { const dist = document.getElementById('reg-dist').value; if(!dist) return showToast("请选择区县！", 'error'); finalRegion += ` - ${dist}`; } } 
             else { const cityInp = document.getElementById('reg-city-inp').value.trim(); finalRegion = `${prov} - ${cityInp || '未知市'}`; }
 
-            if(!company) return alert("请填写企业名称"); if(!code) return alert("请填写信用代码"); if(!contact || !phone) return alert("请填写电话"); if(!boothId) return alert("请锁定展位"); 
-            const actualBoothFee = parseFloat(document.getElementById('order-actual-fee').value); if(isNaN(actualBoothFee)) return alert("金额错误");
-            const reason = document.getElementById('order-discount-reason').value.trim(); if(actualBoothFee < currentStandardFee && !reason) return alert("填优惠理由！");
+            if(!company) return showToast("请填写企业名称", 'error'); if(!code) return showToast("请填写信用代码", 'error'); if(!contact || !phone) return showToast("请填写电话", 'error'); if(!boothId) return showToast("请锁定展位", 'error'); 
+            const actualBoothFee = parseFloat(document.getElementById('order-actual-fee').value); if(isNaN(actualBoothFee)) return showToast("金额填写错误", 'error');
+            const reason = document.getElementById('order-discount-reason').value.trim(); if(actualBoothFee < currentStandardFee && !reason) return showToast("低于系统原价，请填写优惠理由！", 'error');
 
             let otherFeeTotal = 0; let validFees = [];
             dynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { otherFeeTotal += parseFloat(f.amount); validFees.push(f); } });
@@ -890,8 +1016,7 @@
             const profile = document.getElementById('order-profile').value.trim(); 
             const booth = allBooths.find(b => b.id === boothId);
             
-            const submitBtn = document.getElementById('submit-btn'); const submitText = document.getElementById('submit-text');
-            submitBtn.disabled = true; submitBtn.classList.replace('bg-blue-600', 'bg-blue-400'); submitText.innerHTML = '<span class="spinner"></span> 正在上传...';
+            toggleBtnLoading('submit-btn', true, '✅ 确认无误，生成订单并锁定展位');
 
             let uploadedFileKey = '';
             try {
@@ -911,8 +1036,18 @@
                     total_booth_fee: actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: actualBoothFee + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name
                 };
                 const res = await apiFetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) });
-                if(res.ok) { alert("🎉 订单录入成功！"); initOrderForm(); } else { const err = await res.json(); throw new Error(err.error); }
-            } catch (error) { alert("❌ 中止：" + error.message); } finally { submitBtn.disabled = false; submitBtn.classList.replace('bg-blue-400', 'bg-blue-600'); submitText.innerHTML = '✅ 确认无误，生成订单并锁定展位'; }
+                if(res.ok) { 
+                    showToast("🎉 订单录入成功，展位已锁定！"); 
+                    initOrderForm(); 
+                } else { 
+                    const err = await res.json(); 
+                    throw new Error(err.error); 
+                }
+            } catch (error) { 
+                showToast(error.message, 'error'); 
+            } finally { 
+                toggleBtnLoading('submit-btn', false);
+            }
         }
 
 
@@ -968,10 +1103,8 @@
                         <td class="p-3 text-center align-middle">${payBadge}</td>
                         <td class="p-3 text-center align-middle">${contractBtn}</td>
                         <td class="p-3 text-center whitespace-nowrap align-middle">
-                            <button onclick='openFinanceModal(${safeOrderObj}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
-                            <button onclick='openFinanceModal(${safeOrderObj}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
-                            <button onclick='openFinanceModal(${safeOrderObj}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
-                            ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">作废</button>` : ''}
+                            <button onclick='openFinanceModal(${safeOrderObj})' class="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm transition-transform hover:scale-105">💰 办理财务</button>
+                            ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm ml-2">作废</button>` : ''}
                         </td>
                     </tr>
                 `;
@@ -979,7 +1112,7 @@
         }
 
         function exportToExcel() {
-            if(allOrders.length === 0) return alert("当前无数据可导出");
+            if(allOrders.length === 0) return showToast("当前无数据可导出", 'error');
             let csvContent = "\uFEFF"; 
             csvContent += "内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,产品分类,主营业务/展品,业务员,总应收(元),已收(元),录入时间,合同云端链接\n";
             
@@ -1001,6 +1134,7 @@
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
             link.download = `展位订单大盘导出_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
             link.click();
+            showToast("数据大盘导出成功！");
         }
 
         // --- 客户全景档案与编辑 ---
@@ -1065,42 +1199,41 @@
                 agent_name: document.getElementById('edit-dt-agent-name').value.trim()
             };
 
-            if(!updatedData.contact_person || !updatedData.phone) return alert("联系人和电话不能为空！");
-            if(isAgent && !updatedData.agent_name) return alert("请填写代理商名称！");
+            if(!updatedData.contact_person || !updatedData.phone) return showToast("联系人和电话不能为空！", 'error');
+            if(isAgent && !updatedData.agent_name) return showToast("请填写代理商名称！", 'error');
 
+            toggleBtnLoading('btn-save-detail', true);
             try {
                 const res = await apiFetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
                 if(res.ok) {
-                    alert("资料修改成功！");
+                    showToast("客户资料更新成功！");
                     Object.assign(currentViewOrder, updatedData);
                     currentViewOrder.is_agent = updatedData.is_agent ? 1 : 0;
                     showOrderDetail(currentViewOrder);
                     loadOrderList(); 
-                } else { alert("修改失败，请重试。"); }
-            } catch (e) { alert("错误：" + e.message); }
+                } else { showToast("修改失败，请重试。", 'error'); }
+            } catch (e) { showToast(e.message, 'error'); }
+            finally { toggleBtnLoading('btn-save-detail', false); }
         }
 
-        // --- 财务模态框 ---
-        async function openFinanceModal(order, initialTab) {
+        // --- 财务模态框 (包含记忆功能) ---
+        async function openFinanceModal(order, forcedTab = null) {
             currentModalOrderId = order.id;
             
-            const mainTitle = document.getElementById('fm-main-title');
-            if(initialTab === 'pay') mainTitle.innerText = "💰 收款流水管理";
-            if(initialTab === 'adj') mainTitle.innerText = "🛠️ 变更费用信息";
-            if(initialTab === 'exp') mainTitle.innerText = "📤 代付与返佣申请";
+            // 【UI增强】：自动记忆上次打开的财务页面（如果有强制跳转则用跳转的）
+            const targetTab = forcedTab || lastFmTab || 'pay';
 
             document.getElementById('fm-order-title').innerText = `当前客户：${order.company_name} (展位: ${order.booth_id})`;
             document.getElementById('fm-total').innerText = `¥${order.total_amount}`;
             document.getElementById('fm-paid').innerText = `¥${order.paid_amount}`;
             document.getElementById('fm-unpaid').innerText = `¥${order.total_amount - order.paid_amount}`;
             
-            // Tab 1: 收款
+            // 初始化 Tab 1: 收款
             document.getElementById('fm-order-id').value = order.id;
             document.getElementById('pay-amount').value = '';  
             document.getElementById('pay-time').value = new Date().toISOString().split('T')[0]; 
             document.getElementById('pay-payer').value = order.company_name; 
             document.getElementById('pay-remark').value = '';
-
             const accGroup = document.getElementById('optgroup-accounts');
             accGroup.innerHTML = '';
             projectAccounts.forEach(acc => {
@@ -1109,13 +1242,13 @@
             });
             document.getElementById('pay-account-select').value = '';
 
-            // Tab 2: 变更
+            // 初始化 Tab 2: 变更
             document.getElementById('adj-actual-fee').value = order.total_booth_fee;
             document.getElementById('adj-reason').value = '';
             try { fmDynamicFees = JSON.parse(order.fees_json || '[]'); } catch(e) { fmDynamicFees = []; }
             renderFmDynamicFees();
 
-            // Tab 3: 代付/返佣
+            // 初始化 Tab 3: 代付/返佣
             document.getElementById('exp-total-paid-display').innerText = `¥ ${order.paid_amount.toLocaleString()}`;
             document.getElementById('exp-amount').value = '';
             document.getElementById('exp-payee').value = '';
@@ -1123,7 +1256,7 @@
             document.getElementById('exp-account').value = '';
             document.getElementById('exp-reason').value = ''; 
 
-            switchFmTab(initialTab);
+            switchFmTab(targetTab);
             
             await loadPaymentHistory(order.id);
             await loadExpenseHistory(order.id); 
@@ -1132,13 +1265,35 @@
         }
 
         function switchFmTab(tab) {
+            lastFmTab = tab; // 【记忆Tab】
+            const mainTitle = document.getElementById('fm-main-title');
+            if(tab === 'pay') mainTitle.innerText = "💰 收款流水管理";
+            if(tab === 'adj') mainTitle.innerText = "🛠️ 变更费用信息";
+            if(tab === 'exp') mainTitle.innerText = "📤 代付与返佣申请";
+
             document.getElementById('fm-tab-pay').classList.add('hidden'); 
             document.getElementById('fm-tab-adj').classList.add('hidden');
             document.getElementById('fm-tab-exp').classList.add('hidden');
             
-            if(tab === 'pay') document.getElementById('fm-tab-pay').classList.remove('hidden'); 
-            else if(tab === 'adj') document.getElementById('fm-tab-adj').classList.remove('hidden'); 
-            else document.getElementById('fm-tab-exp').classList.remove('hidden'); 
+            document.getElementById('tab-pay').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+            document.getElementById('tab-adjust').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+            document.getElementById('tab-expense').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+
+            if(tab === 'pay') {
+                document.getElementById('fm-tab-pay').classList.remove('hidden'); 
+                document.getElementById('tab-pay').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600';
+            }
+            else if(tab === 'adj') {
+                document.getElementById('fm-tab-adj').classList.remove('hidden'); 
+                document.getElementById('tab-adjust').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-orange-500 text-orange-600';
+            }
+            else {
+                document.getElementById('fm-tab-exp').classList.remove('hidden'); 
+                document.getElementById('tab-expense').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-purple-500 text-purple-600';
+            }
+
+            // 显示导航区
+            document.querySelector('.border-b.border-gray-200.hidden')?.classList.remove('hidden');
         }
 
         // --- 收款管理流水 ---
@@ -1182,12 +1337,19 @@
             const bank = document.getElementById('pay-account-select').value;
             const orderId = document.getElementById('fm-order-id').value;
             
-            if(!amt || amt <= 0) return alert("请输入正确的收款金额");
-            if(!time || !payer) return alert("时间和打款户名为必填项！");
-            if(!bank) return alert("请选择收款银行/途径！");
+            if(!amt || amt <= 0) return showToast("请输入正确的收款金额", 'error');
+            if(!time || !payer) return showToast("时间和打款户名为必填项！", 'error');
+            if(!bank) return showToast("请选择收款银行/途径！", 'error');
 
-            await apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) });
-            alert("收款入账成功！"); closeModal('finance-modal'); loadOrderList(); 
+            toggleBtnLoading('btn-submit-payment', true);
+            try {
+                await apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) });
+                showToast("收款入账成功！"); 
+                closeModal('finance-modal'); 
+                loadOrderList(); 
+            } finally {
+                toggleBtnLoading('btn-submit-payment', false);
+            }
         }
 
         function openEditPaymentModal(id, amt, payer, bank, remark, time) {
@@ -1197,16 +1359,20 @@
         async function submitEditPayment() {
             const pid = document.getElementById('global-project-select').value;
             const data = { project_id: pid, order_id: currentModalOrderId, payment_id: document.getElementById('ep-id').value, amount: parseFloat(document.getElementById('ep-amount').value), payer_name: document.getElementById('ep-payer').value.trim(), bank_name: document.getElementById('ep-bank').value, payment_time: document.getElementById('ep-time').value, remarks: document.getElementById('ep-remark').value };
-            if(!data.amount || !data.payer_name) return alert("金额和户名必填");
+            if(!data.amount || !data.payer_name) return showToast("金额和户名必填", 'error');
             
+            toggleBtnLoading('btn-save-payment', true);
             await apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) });
-            closeModal('edit-payment-modal'); loadPaymentHistory(currentModalOrderId); loadOrderList();
+            closeModal('edit-payment-modal'); 
+            showToast("收款记录修改成功！");
+            loadPaymentHistory(currentModalOrderId); loadOrderList();
+            toggleBtnLoading('btn-save-payment', false);
         }
 
         async function deletePayment(payId) {
-            const pid = document.getElementById('global-project-select').value;
             if(!confirm("确定要删除这条收款记录吗？相关的已收金额会自动扣减！")) return;
-            await apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, payment_id: payId }) });
+            await apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: currentModalOrderId, payment_id: payId }) });
+            showToast("删除成功，流水已回退");
             loadPaymentHistory(currentModalOrderId); loadOrderList();
         }
 
@@ -1238,14 +1404,18 @@
             const pid = document.getElementById('global-project-select').value;
             const af = parseFloat(document.getElementById('adj-actual-fee').value);
             const r = document.getElementById('adj-reason').value.trim();
-            if(isNaN(af)) return alert("金额格式错误");
-            if(!r) return alert("修改账目必须填写原因！");
+            if(isNaN(af)) return showToast("金额格式错误", 'error');
+            if(!r) return showToast("修改账目必须填写原因！", 'error');
 
             let ot = 0; let validFees = [];
             fmDynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { ot += parseFloat(f.amount); validFees.push(f); } });
             
+            toggleBtnLoading('btn-submit-adj', true);
             await apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) });
-            alert("合同金额变更成功！系统已重算尾款状态。"); closeModal('finance-modal'); loadOrderList();
+            showToast("合同金额变更成功！系统已重算尾款状态。"); 
+            closeModal('finance-modal'); 
+            loadOrderList();
+            toggleBtnLoading('btn-submit-adj', false);
         }
 
         // --- 代付逻辑 ---
@@ -1300,13 +1470,14 @@
             const amt = parseFloat(document.getElementById('exp-amount').value);
             const reason = document.getElementById('exp-reason').value.trim(); 
 
-            if(!payee || !amt || amt <= 0 || !reason) return alert("代付事由、收款方全称和支付金额均为必填！");
+            if(!payee || !amt || amt <= 0 || !reason) return showToast("代付事由、收款方全称和支付金额均为必填！", 'error');
 
             const order = allOrders.find(o => o.id === currentModalOrderId);
             if(amt > order.paid_amount) {
                 if(!confirm(`⚠️ 警告：您申请的金额 (¥${amt}) 大于该订单当前的【已收总额】 (¥${order.paid_amount})。\n是否坚持超额支付？`)) return;
             }
 
+            toggleBtnLoading('btn-submit-exp', true);
             try {
                 const data = { 
                     project_id: pid, order_id: currentModalOrderId, fee_item_name: '总收款抵扣', 
@@ -1318,7 +1489,7 @@
                 const resData = await res.json();
                 
                 if(res.ok && resData.success) {
-                    alert("支出申请已记录！");
+                    showToast("支出申请已成功记录！");
                     document.getElementById('exp-reason').value = '';
                     document.getElementById('exp-payee').value = ''; 
                     document.getElementById('exp-amount').value = '';
@@ -1327,13 +1498,16 @@
                     throw new Error(resData.error || "后台写入失败");
                 }
             } catch(err) {
-                alert("❌ 保存失败: " + err.message);
+                showToast(err.message, 'error');
+            } finally {
+                toggleBtnLoading('btn-submit-exp', false);
             }
         }
 
         async function deleteExpense(expId) {
             if(!confirm("确定撤销该笔代付/返佣申请吗？")) return;
             await apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) });
+            showToast("撤销成功！");
             loadExpenseHistory(currentModalOrderId);
         }
 
@@ -1390,8 +1564,17 @@
         async function cancelOrder(orderId, boothId) {
             const pid = document.getElementById('global-project-select').value;
             if(!confirm(`🚨 危险操作：确定要作废订单吗？\n作废后，展位 [${boothId}] 将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
-            await apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
-            alert("退单成功！展位已释放。"); loadOrderList();
+            try {
+                const res = await apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
+                if(res.ok) {
+                    showToast("退单成功！展位已释放。"); loadOrderList();
+                } else {
+                    const err = await res.json();
+                    showToast(err.error || "作废失败", 'error');
+                }
+            } catch (e) {
+                // 已被 apiFetch 捕获拦截
+            }
         }
 
     </script>
