@@ -51,9 +51,10 @@
                     <div><span class="text-gray-500 block mb-1">联系人</span><span class="font-bold text-gray-800" id="dt-contact"></span></div>
                     <div><span class="text-gray-500 block mb-1">联系电话</span><span class="font-bold text-gray-800" id="dt-phone"></span></div>
                     <div class="col-span-2"><span class="text-gray-500 block mb-1">所在地区</span><span class="font-bold text-gray-800" id="dt-region"></span></div>
-                    <div class="col-span-2"><span class="text-gray-500 block mb-1">主营业务/展品</span><span class="font-bold text-gray-800" id="dt-business"></span></div>
+                    <div><span class="text-gray-500 block mb-1">产品分类</span><span class="font-bold text-gray-800" id="dt-category"></span></div>
+                    <div><span class="text-gray-500 block mb-1">详细展品</span><span class="font-bold text-gray-800" id="dt-business"></span></div>
                     <div class="col-span-2"><span class="text-gray-500 block mb-1">企业简介</span><div class="bg-gray-50 p-3 rounded border text-gray-700 leading-relaxed whitespace-pre-wrap" id="dt-profile"></div></div>
-                    <div class="col-span-2 border-t pt-3"><span class="text-gray-500 block mb-1">代理商情况</span><span class="font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded" id="dt-agent"></span></div>
+                    <div class="col-span-2 border-t pt-3"><span class="text-gray-500 block mb-1">招展渠道情况</span><span class="font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded" id="dt-agent"></span></div>
                 </div>
 
                 <div id="dt-edit-mode" class="hidden grid grid-cols-2 gap-y-4 gap-x-6 bg-blue-50/50 p-4 rounded border border-blue-100">
@@ -61,13 +62,14 @@
                     <div><label class="block text-gray-700 font-bold mb-1">联系人</label><input type="text" id="edit-dt-contact" class="w-full border p-2 rounded"></div>
                     <div><label class="block text-gray-700 font-bold mb-1">联系电话</label><input type="text" id="edit-dt-phone" class="w-full border p-2 rounded"></div>
                     <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">所在地区 (可手动输入覆盖)</label><input type="text" id="edit-dt-region" class="w-full border p-2 rounded"></div>
-                    <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">主营业务/展品</label><input type="text" id="edit-dt-business" list="industry-list" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-gray-700 font-bold mb-1">产品分类 (支持下拉或手填)</label><input type="text" id="edit-dt-category" list="industry-list" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-gray-700 font-bold mb-1">详细展品</label><input type="text" id="edit-dt-business" class="w-full border p-2 rounded"></div>
                     <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">企业简介</label><textarea id="edit-dt-profile" rows="3" class="w-full border p-2 rounded"></textarea></div>
                     
                     <div class="col-span-2 border-t pt-3">
                         <label class="block text-gray-700 font-bold mb-2">本单招展渠道</label>
                         <div class="flex items-center gap-4 mb-2">
-                            <label class="inline-flex items-center cursor-pointer"><input type="radio" name="edit_is_agent" value="0" onchange="toggleDtAgent()" class="w-4 h-4 text-blue-600 mr-1"> 直客参展</label>
+                            <label class="inline-flex items-center cursor-pointer"><input type="radio" name="edit_is_agent" value="0" onchange="toggleDtAgent()" class="w-4 h-4 text-blue-600 mr-1"> 直招</label>
                             <label class="inline-flex items-center cursor-pointer"><input type="radio" name="edit_is_agent" value="1" onchange="toggleDtAgent()" class="w-4 h-4 text-blue-600 mr-1"> 代理商招展</label>
                         </div>
                         <input type="text" id="edit-dt-agent-name" class="w-full border p-2 rounded hidden bg-white" placeholder="请输入具体代理商名称">
@@ -303,16 +305,18 @@
                         </div>
 
                         <div class="bg-white p-6 rounded shadow border-t-4 border-purple-500">
-                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">🏷️ 主营业务/行业分类配置</h3>
-                            <p class="text-xs text-gray-500 mb-4">配置后，业务员录入订单时可在下拉框快速统一选择（业务员仍可手动输入新行业）。</p>
+                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">🏷️ 产品分类下拉配置</h3>
+                            <p class="text-xs text-gray-500 mb-4">配置后，业务员录入订单时可在“产品分类”下拉框统一选择（业务员仍可手动输入新分类）。</p>
                             <div class="flex gap-2 mb-4">
                                 <input type="text" id="new-industry-name" placeholder="如：水产海鲜 / 智能制造" class="w-full border p-2 rounded text-sm">
                                 <button onclick="createIndustry()" class="bg-purple-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-purple-700 transition whitespace-nowrap">新增分类</button>
                             </div>
-                            <table class="w-full text-sm text-left border">
-                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">行业/分类名称</th><th class="p-2 text-right">操作</th></tr></thead>
-                                <tbody id="industry-list-tbody" class="divide-y"></tbody>
-                            </table>
+                            <div class="max-h-48 overflow-y-auto border rounded">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="bg-gray-100 border-b sticky top-0"><tr><th class="p-2">产品分类名称</th><th class="p-2 text-right">操作</th></tr></thead>
+                                    <tbody id="industry-list-tbody" class="divide-y"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -360,8 +364,8 @@
                             <div class="col-span-1 md:col-span-2 bg-blue-50 p-4 rounded border border-blue-200 mb-6">
                                 <label class="block text-blue-900 font-bold mb-2">本单招展渠道分类 <span class="text-red-500">*</span></label>
                                 <div class="flex items-center gap-6 mb-2">
-                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="0" checked onchange="toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 直招</label>
-                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="1" onchange="toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 代理商招展</label>
+                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="0" checked onchange="toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 否，直招</label>
+                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="1" onchange="toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 是，代理商招展</label>
                                 </div>
                                 <input type="text" id="order-agent-name" class="w-full border-2 border-blue-300 p-2 rounded hidden focus:border-blue-500 bg-white" placeholder="请输入具体代理商公司名称 (必填)">
                             </div>
@@ -424,13 +428,19 @@
                                             </optgroup>
                                         </select>
                                     </div>
-                                    <div><input type="text" id="reg-intl" class="w-full border p-2 rounded hidden" placeholder="请输入国家/地区名称"><select id="reg-city-sel" onchange="onCityChange()" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择城市 --</option><option value="福州">福州市</option><option value="厦门">厦门市</option><option value="泉州">泉州市</option><option value="漳州">漳州市</option><option value="莆田">莆田市</option><option value="宁德">宁德市</option><option value="三明">三明市</option><option value="南平">南平市</option><option value="龙岩">龙岩市</option><option value="平潭">平潭综合实验区</option></select><input type="text" id="reg-city-inp" class="w-full border p-2 rounded hidden" placeholder="请输入城市名称"></div>
+                                    <div><input type="text" id="reg-intl" class="w-full border p-2 rounded hidden border-blue-300" placeholder="请输入国家/地区名称 (必填)"><select id="reg-city-sel" onchange="onCityChange()" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择城市 --</option><option value="福州">福州市</option><option value="厦门">厦门市</option><option value="泉州">泉州市</option><option value="漳州">漳州市</option><option value="莆田">莆田市</option><option value="宁德">宁德市</option><option value="三明">三明市</option><option value="南平">南平市</option><option value="龙岩">龙岩市</option><option value="平潭">平潭综合实验区</option></select><input type="text" id="reg-city-inp" class="w-full border p-2 rounded hidden" placeholder="请输入城市名称"></div>
                                     <div><select id="reg-dist" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择区县 --</option><option value="鼓楼区">鼓楼区</option><option value="台江区">台江区</option><option value="仓山区">仓山区</option><option value="马尾区">马尾区</option><option value="晋安区">晋安区</option><option value="长乐区">长乐区</option><option value="闽侯县">闽侯县</option><option value="连江县">连江县</option><option value="罗源县">罗源县</option><option value="闽清县">闽清县</option><option value="永泰县">永泰县</option><option value="福清市">福清市</option></select></div>
                                 </div>
-                                <div class="col-span-1 md:col-span-2">
-                                    <label class="block text-gray-800 font-bold mb-1">主营业务/展品</label>
-                                    <input type="text" id="order-business" list="industry-list" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="下拉选择分类，或直接手动自由输入">
+                                
+                                <div class="col-span-1">
+                                    <label class="block text-gray-800 font-bold mb-1">产品分类</label>
+                                    <input type="text" id="order-category" list="industry-list" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="下拉选择分类，或直接手动输入">
                                 </div>
+                                <div class="col-span-1">
+                                    <label class="block text-gray-800 font-bold mb-1">主营业务/展品</label>
+                                    <input type="text" id="order-business" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请自由填写详细展品">
+                                </div>
+
                                 <div class="col-span-1 md:col-span-2"><label class="block text-gray-800 font-bold mb-1">企业简介 <span class="text-gray-400 font-normal text-xs">(200字以内)</span></label><textarea id="order-profile" rows="3" maxlength="200" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="简要介绍企业规模、核心产品等..."></textarea></div>
                             </div>
                         </div>
@@ -536,7 +546,7 @@
         let fmDynamicFees = [];
         let currentViewOrder = null; 
         let projectAccounts = []; 
-        let projectIndustries = []; // 行业分类数据
+        let projectIndustries = []; 
 
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
@@ -607,9 +617,7 @@
             const res = await fetch(`/api/industries?projectId=${pid}`);
             projectIndustries = await res.json();
             
-            // 填充配置表格
             const tbody = document.getElementById('industry-list-tbody'); if(tbody) tbody.innerHTML = '';
-            // 填充数据字典下拉框
             const datalist = document.getElementById('industry-list'); datalist.innerHTML = '';
             
             projectIndustries.forEach(ind => {
@@ -626,7 +634,7 @@
             loadIndustries();
         }
         async function deleteIndustry(id) {
-            if(!confirm("确定删除该行业分类吗？（不影响已录入的订单）")) return;
+            if(!confirm("确定删除该分类吗？（不影响已录入的订单）")) return;
             await fetch('/api/delete-industry', { method: 'POST', body: JSON.stringify({ industry_id: id }) });
             loadIndustries();
         }
@@ -737,11 +745,11 @@
             globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 };
             const bRes = await fetch(`/api/booths?projectId=${pid}`); allBooths = await bRes.json(); 
             resetOrderForm();
-            loadIndustries(); // 加载行业字典
+            loadIndustries(); 
         }
 
         function resetOrderForm() {
-            const inputs = ['order-company', 'order-credit-code', 'order-business', 'order-contact', 'order-phone', 'order-agent-name', 'order-actual-fee', 'booth-search-inp', 'order-discount-reason', 'order-contract', 'reg-intl', 'reg-city-inp', 'selected-booth-id', 'order-profile'];
+            const inputs = ['order-company', 'order-credit-code', 'order-category', 'order-business', 'order-contact', 'order-phone', 'order-agent-name', 'order-actual-fee', 'booth-search-inp', 'order-discount-reason', 'order-contract', 'reg-intl', 'reg-city-inp', 'selected-booth-id', 'order-profile'];
             inputs.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
             document.getElementById('reg-prov').value = ''; document.getElementById('reg-city-sel').value = ''; document.getElementById('reg-dist').value = ''; onProvinceChange(); 
             
@@ -815,7 +823,11 @@
 
             let finalRegion = ''; const prov = document.getElementById('reg-prov').value;
             if(!prov) return alert("请选择所在地区！");
-            if(prov === '国际') { const intl = document.getElementById('reg-intl').value.trim(); if(!intl) return alert("请输入国际详情！"); finalRegion = `国际 - ${intl}`; } 
+            if(prov === '国际') { 
+                const intl = document.getElementById('reg-intl').value.trim(); 
+                if(!intl) return alert("【国际】地区必须输入具体的国家/地区名称！"); 
+                finalRegion = `国际 - ${intl}`; 
+            } 
             else if (prov === '福建') { const city = document.getElementById('reg-city-sel').value; if(!city) return alert("请选择福建城市！"); finalRegion = `${prov}省 - ${city}市`; if(city === '福州') { const dist = document.getElementById('reg-dist').value; if(!dist) return alert("请选择区县！"); finalRegion += ` - ${dist}`; } } 
             else { const cityInp = document.getElementById('reg-city-inp').value.trim(); finalRegion = `${prov} - ${cityInp || '未知市'}`; }
 
@@ -826,6 +838,9 @@
             let otherFeeTotal = 0; let validFees = [];
             dynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { otherFeeTotal += parseFloat(f.amount); validFees.push(f); } });
             const feesJsonStr = JSON.stringify(validFees); 
+            
+            const category = document.getElementById('order-category').value.trim();
+            const business = document.getElementById('order-business').value.trim();
             const profile = document.getElementById('order-profile').value.trim(); 
             const booth = allBooths.find(b => b.id === boothId);
             
@@ -843,7 +858,7 @@
                 }
                 const orderData = {
                     project_id: pid, company_name: company, credit_code: code, no_code_checked: document.getElementById('order-no-code').checked,
-                    main_business: document.getElementById('order-business').value.trim(), is_agent: isAgent, agent_name: agentName,
+                    category: category, main_business: business, is_agent: isAgent, agent_name: agentName,
                     contact_person: contact, phone: phone, region: finalRegion, booth_id: boothId, area: booth.area, price_unit: booth.type === '光地' ? '平米' : '个', unit_price: booth.base_price > 0 ? booth.base_price : globalPrices[booth.type],
                     total_booth_fee: actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: actualBoothFee + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name
                 };
@@ -918,7 +933,7 @@
         function exportToExcel() {
             if(allOrders.length === 0) return alert("当前无数据可导出");
             let csvContent = "\uFEFF"; 
-            csvContent += "内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,主营业务,业务员,总应收(元),已收(元),录入时间,合同云端链接\n";
+            csvContent += "内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,产品分类,主营业务/展品,业务员,总应收(元),已收(元),录入时间,合同云端链接\n";
             
             allOrders.forEach(o => {
                 let status = o.paid_amount >= o.total_amount ? '已付全款' : (o.paid_amount > 0 ? '已付定金' : '未付款');
@@ -928,7 +943,7 @@
                 const safeWrap = (val) => `"${(val || '').toString().replace(/"/g, '""')}"`;
                 let row = [
                     status, o.hall, o.booth_id, o.area, o.booth_type,
-                    safeWrap(o.company_name), safeWrap(o.credit_code), safeWrap(o.region), safeWrap(o.contact_person), safeWrap(o.phone), safeWrap(o.main_business),
+                    safeWrap(o.company_name), safeWrap(o.credit_code), safeWrap(o.region), safeWrap(o.contact_person), safeWrap(o.phone), safeWrap(o.category), safeWrap(o.main_business),
                     o.sales_name, o.total_amount, o.paid_amount, o.created_at, safeWrap(contractLink)
                 ].join(',');
                 csvContent += row + "\n";
@@ -953,13 +968,15 @@
             document.getElementById('dt-region').innerText = o.region || '未填';
             document.getElementById('dt-contact').innerText = o.contact_person;
             document.getElementById('dt-phone').innerText = o.phone;
+            document.getElementById('dt-category').innerText = o.category || '未填';
             document.getElementById('dt-business').innerText = o.main_business || '未填';
             document.getElementById('dt-profile').innerText = o.profile || '暂无简介';
-            document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直客入驻';
+            document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直招入驻';
             
             document.getElementById('edit-dt-contact').value = o.contact_person;
             document.getElementById('edit-dt-phone').value = o.phone;
             document.getElementById('edit-dt-region').value = o.region || '';
+            document.getElementById('edit-dt-category').value = o.category || '';
             document.getElementById('edit-dt-business').value = o.main_business || '';
             document.getElementById('edit-dt-profile').value = o.profile || '';
             document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true;
@@ -968,12 +985,6 @@
 
             toggleDetailEditMode(false); 
             document.getElementById('order-detail-modal').classList.remove('hidden');
-        }
-
-        function toggleDtAgent() {
-            const isAgent = document.querySelector('input[name="edit_is_agent"]:checked').value === '1';
-            if(isAgent) { document.getElementById('edit-dt-agent-name').classList.remove('hidden'); } 
-            else { document.getElementById('edit-dt-agent-name').classList.add('hidden'); }
         }
 
         function toggleDetailEditMode(isEditing) {
@@ -999,6 +1010,7 @@
                 contact_person: document.getElementById('edit-dt-contact').value.trim(),
                 phone: document.getElementById('edit-dt-phone').value.trim(),
                 region: document.getElementById('edit-dt-region').value.trim(),
+                category: document.getElementById('edit-dt-category').value.trim(),
                 main_business: document.getElementById('edit-dt-business').value.trim(),
                 profile: document.getElementById('edit-dt-profile').value.trim(),
                 is_agent: isAgent,
@@ -1019,7 +1031,6 @@
                 } else { alert("修改失败，请重试。"); }
             } catch (e) { alert("错误：" + e.message); }
         }
-
 
         // --- 财务模态框 ---
         async function openFinanceModal(order, initialTab) {
