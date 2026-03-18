@@ -151,7 +151,17 @@ export default {
       }
       if (url.pathname === '/api/booths' && request.method === 'GET') {
         const projectId = url.searchParams.get('projectId');
-        const query = `SELECT b.*, o.total_booth_fee FROM Booths b LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status = '正常' WHERE b.project_id = ? ORDER BY b.id ASC`;
+        // 【核心优化】：使用 SUM 聚合金额，并使用 GROUP BY 保证展位号唯一
+        const query = `
+          SELECT 
+            b.*, 
+            SUM(o.total_booth_fee) as total_booth_fee 
+          FROM Booths b 
+          LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status = '正常'
+          WHERE b.project_id = ? 
+          GROUP BY b.id
+          ORDER BY b.id ASC
+        `;
         const { results } = await env.DB.prepare(query).bind(projectId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
