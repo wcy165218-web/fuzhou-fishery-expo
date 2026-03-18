@@ -437,7 +437,7 @@
                                     <input type="text" id="order-category" list="industry-list" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="下拉选择分类，或直接手动输入">
                                 </div>
                                 <div class="col-span-1">
-                                    <label class="block text-gray-800 font-bold mb-1">主营业务/展品</label>
+                                    <label class="block text-gray-800 font-bold mb-1">主营业务/详细展品</label>
                                     <input type="text" id="order-business" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请自由填写详细展品">
                                 </div>
 
@@ -556,6 +556,28 @@
             { id: 'config', label: '⚙️ 系统与人员配置', roles: ['admin'] }
         ];
 
+        // ============ 🔥 终极核心：全局 API 拦截器 ============
+        // 自动携带 Token，处理 401 身份过期
+        async function apiFetch(url, options = {}) {
+            const headers = options.headers || {};
+            if (currentUser && currentUser.token) {
+                headers['Authorization'] = `Bearer ${currentUser.token}`;
+            }
+            if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+            }
+            options.headers = headers;
+
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                alert("登录状态已过期或被管理员修改，请重新登录！");
+                localStorage.removeItem('exhibition_user');
+                location.reload();
+                throw new Error("Unauthorized");
+            }
+            return res;
+        }
+
         const savedUser = localStorage.getItem('exhibition_user'); 
         if (savedUser) { currentUser = JSON.parse(savedUser); } 
         document.addEventListener('DOMContentLoaded', () => { if (currentUser) enterMainView(); });
@@ -563,9 +585,13 @@
         async function handleLogin() { 
             const u = document.getElementById('login-user').value; 
             const p = document.getElementById('login-pass').value; 
-            const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({username: u, password: p}) }); 
+            const res = await fetch('/api/login', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({username: u, password: p}) 
+            }); 
             if (res.ok) { currentUser = (await res.json()).user; localStorage.setItem('exhibition_user', JSON.stringify(currentUser)); enterMainView(); } 
-            else { alert('登录失败'); } 
+            else { alert('登录失败，账号或密码错误'); } 
         }
         function handleLogout() { localStorage.removeItem('exhibition_user'); location.reload(); }
         
@@ -592,29 +618,32 @@
             });
         }
 
+        // --- 以下所有数据交互均已替换为 apiFetch ---
+
         async function loadProjects() {
-            allProjects = await (await fetch('/api/projects')).json(); const sel = document.getElementById('global-project-select'); sel.innerHTML = ''; const tbody = document.getElementById('project-list-tbody'); if(tbody) tbody.innerHTML = '';
+            allProjects = await (await apiFetch('/api/projects')).json(); const sel = document.getElementById('global-project-select'); sel.innerHTML = ''; const tbody = document.getElementById('project-list-tbody'); if(tbody) tbody.innerHTML = '';
             allProjects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${p.name}</option>`; if(tbody) { const d = (p.start_date) ? `${p.start_date} 至 ${p.end_date}` : '未设'; tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-blue-600">${p.name}</td><td class="p-2 text-gray-500">${d}</td><td class="p-2 text-right"><button onclick='openEditProjectModal(${JSON.stringify(p)})' class="text-indigo-600 hover:underline text-xs">编辑</button></td></tr>`; }});
             onProjectChange();
         }
         function onProjectChange() { if(document.getElementById('sec-config').classList.contains('active')) { loadStaff(); loadAccounts(); loadIndustries(); } if(document.getElementById('sec-booth').classList.contains('active')) { loadPrices(); loadBooths(); } if(document.getElementById('sec-order-entry').classList.contains('active')) initOrderForm(); if(document.getElementById('sec-order-list').classList.contains('active')) loadOrderList(); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-        async function createProject() { const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value, start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value }; if(!data.name) return; await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }); document.getElementById('new-proj-name').value = ''; loadProjects(); }
+        async function createProject() { const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value, start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value }; if(!data.name) return; await apiFetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }); document.getElementById('new-proj-name').value = ''; loadProjects(); }
         function openEditProjectModal(p) { document.getElementById('edit-p-id').value = p.id; document.getElementById('edit-p-name').value = p.name; document.getElementById('edit-p-year').value = p.year; document.getElementById('edit-p-start').value = p.start_date; document.getElementById('edit-p-end').value = p.end_date; document.getElementById('edit-project-modal').classList.remove('hidden'); }
-        async function submitEditProject() { const data = { id: document.getElementById('edit-p-id').value, name: document.getElementById('edit-p-name').value, year: document.getElementById('edit-p-year').value, start_date: document.getElementById('edit-p-start').value, end_date: document.getElementById('edit-p-end').value }; await fetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) }); closeModal('edit-project-modal'); loadProjects(); }
-        async function loadStaff() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const staff = await (await fetch(`/api/staff?projectId=${pid}`)).json(); const tbody = document.getElementById('staff-list-tbody'); tbody.innerHTML = ''; staff.forEach(s => { const isSA = s.name === 'admin'; const ts = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设</span>'; let rh = isSA ? '<span class="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">超级管理员</span>' : `<select onchange="updateStaffRole('${s.name}', this.value)" class="border border-gray-300 p-1 text-xs rounded bg-white text-gray-700"><option value="user" ${s.role==='user'?'selected':''}>业务员</option><option value="admin" ${s.role==='admin'?'selected':''}>管理员</option></select>`; let ah = isSA ? '<span class="text-gray-300 text-xs">系统保护</span>' : `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:text-indigo-800 text-xs mr-2">设目标</button><button onclick="deleteStaff('${s.name}')" class="text-red-500 hover:text-red-700 text-xs">删除</button>`; tbody.innerHTML += `<tr class="hover:bg-gray-50 border-b transition"><td class="p-2 font-bold text-gray-700">${s.name}</td><td class="p-2">${rh}</td><td class="p-2">${ts}</td><td class="p-2">${ah}</td></tr>`; }); }
-        async function createStaff() { const d = { name: document.getElementById('new-staff-name').value.trim(), role: document.getElementById('new-staff-role').value }; if(!d.name) return; const res = await fetch('/api/staff', { method: 'POST', body: JSON.stringify(d) }); if(res.ok) { document.getElementById('new-staff-name').value = ''; loadStaff(); } else alert("姓名已存在"); }
-        async function setTarget(n) { const pid = document.getElementById('global-project-select').value; const t = prompt(`设置目标:`, "100"); if(t && !isNaN(t)) { await fetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: n, target: parseFloat(t)}) }); loadStaff(); } }
-        async function updateStaffRole(n, r) { await fetch('/api/update-staff-role', { method: 'POST', body: JSON.stringify({staffName: n, role: r}) }); loadStaff(); }
-        async function deleteStaff(n) { if(confirm(`删除？`)) { await fetch('/api/delete-staff', { method: 'POST', body: JSON.stringify({staffName: n}) }); loadStaff(); } }
+        async function submitEditProject() { const data = { id: document.getElementById('edit-p-id').value, name: document.getElementById('edit-p-name').value, year: document.getElementById('edit-p-year').value, start_date: document.getElementById('edit-p-start').value, end_date: document.getElementById('edit-p-end').value }; await apiFetch('/api/update-project', { method: 'POST', body: JSON.stringify(data) }); closeModal('edit-project-modal'); loadProjects(); }
+        
+        async function loadStaff() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const staff = await (await apiFetch(`/api/staff?projectId=${pid}`)).json(); const tbody = document.getElementById('staff-list-tbody'); tbody.innerHTML = ''; staff.forEach(s => { const isSA = s.name === 'admin'; const ts = s.target > 0 ? `<span class="text-green-600 font-bold">${s.target}</span>` : '<span class="text-gray-400">未设</span>'; let rh = isSA ? '<span class="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">超级管理员</span>' : `<select onchange="updateStaffRole('${s.name}', this.value)" class="border border-gray-300 p-1 text-xs rounded bg-white text-gray-700"><option value="user" ${s.role==='user'?'selected':''}>业务员</option><option value="admin" ${s.role==='admin'?'selected':''}>管理员</option></select>`; let ah = isSA ? '<span class="text-gray-300 text-xs">系统保护</span>' : `<button onclick="setTarget('${s.name}')" class="text-indigo-600 hover:text-indigo-800 text-xs mr-2">设目标</button><button onclick="deleteStaff('${s.name}')" class="text-red-500 hover:text-red-700 text-xs">删除</button>`; tbody.innerHTML += `<tr class="hover:bg-gray-50 border-b transition"><td class="p-2 font-bold text-gray-700">${s.name}</td><td class="p-2">${rh}</td><td class="p-2">${ts}</td><td class="p-2">${ah}</td></tr>`; }); }
+        async function createStaff() { const d = { name: document.getElementById('new-staff-name').value.trim(), role: document.getElementById('new-staff-role').value }; if(!d.name) return; const res = await apiFetch('/api/staff', { method: 'POST', body: JSON.stringify(d) }); if(res.ok) { document.getElementById('new-staff-name').value = ''; loadStaff(); } else { const err = await res.json(); alert(err.message || "添加失败"); } }
+        async function setTarget(n) { const pid = document.getElementById('global-project-select').value; const t = prompt(`设置目标:`, "100"); if(t && !isNaN(t)) { await apiFetch('/api/set-target', { method: 'POST', body: JSON.stringify({projectId: pid, staffName: n, target: parseFloat(t)}) }); loadStaff(); } }
+        async function updateStaffRole(n, r) { await apiFetch('/api/update-staff-role', { method: 'POST', body: JSON.stringify({staffName: n, role: r}) }); loadStaff(); }
+        async function deleteStaff(n) { if(confirm(`删除？`)) { await apiFetch('/api/delete-staff', { method: 'POST', body: JSON.stringify({staffName: n}) }); loadStaff(); } }
         function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
-        async function submitPasswordChange() { const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; if(!op || !np) return; const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); if(res.ok) { alert("修改成功，请重新登录"); closeModal('password-modal'); handleLogout(); } else alert("原密码错误"); }
+        async function submitPasswordChange() { const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; if(!op || !np) return; const res = await apiFetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); if(res.ok) { alert("修改成功，请重新登录"); closeModal('password-modal'); handleLogout(); } else { const err = await res.json(); alert(err.message || "原密码错误"); } }
 
         // --- 行业分类管理 ---
         async function loadIndustries() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
-            const res = await fetch(`/api/industries?projectId=${pid}`);
+            const res = await apiFetch(`/api/industries?projectId=${pid}`);
             projectIndustries = await res.json();
             
             const tbody = document.getElementById('industry-list-tbody'); if(tbody) tbody.innerHTML = '';
@@ -629,20 +658,20 @@
             const pid = document.getElementById('global-project-select').value;
             const name = document.getElementById('new-industry-name').value.trim();
             if(!name) return alert("请填写分类名称！");
-            await fetch('/api/add-industry', { method: 'POST', body: JSON.stringify({ project_id: pid, industry_name: name }) });
+            await apiFetch('/api/add-industry', { method: 'POST', body: JSON.stringify({ project_id: pid, industry_name: name }) });
             document.getElementById('new-industry-name').value = '';
             loadIndustries();
         }
         async function deleteIndustry(id) {
             if(!confirm("确定删除该分类吗？（不影响已录入的订单）")) return;
-            await fetch('/api/delete-industry', { method: 'POST', body: JSON.stringify({ industry_id: id }) });
+            await apiFetch('/api/delete-industry', { method: 'POST', body: JSON.stringify({ industry_id: id }) });
             loadIndustries();
         }
 
         // --- 收款账户配置 ---
         async function loadAccounts() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
-            const res = await fetch(`/api/accounts?projectId=${pid}`);
+            const res = await apiFetch(`/api/accounts?projectId=${pid}`);
             projectAccounts = await res.json();
             const tbody = document.getElementById('account-list-tbody'); tbody.innerHTML = '';
             projectAccounts.forEach(a => {
@@ -655,27 +684,44 @@
             const bank = document.getElementById('new-acc-bank').value.trim();
             const no = document.getElementById('new-acc-no').value.trim();
             if(!name || !bank) return alert("户名和开户行(或渠道类型)为必填！");
-            await fetch('/api/add-account', { method: 'POST', body: JSON.stringify({ project_id: pid, account_name: name, bank_name: bank, account_no: no }) });
+            await apiFetch('/api/add-account', { method: 'POST', body: JSON.stringify({ project_id: pid, account_name: name, bank_name: bank, account_no: no }) });
             document.getElementById('new-acc-name').value = ''; document.getElementById('new-acc-bank').value = ''; document.getElementById('new-acc-no').value = '';
             loadAccounts();
         }
         async function deleteAccount(id) {
             if(!confirm("确定删除这个收款配置吗？")) return;
-            await fetch('/api/delete-account', { method: 'POST', body: JSON.stringify({ account_id: id }) });
+            await apiFetch('/api/delete-account', { method: 'POST', body: JSON.stringify({ account_id: id }) });
             loadAccounts();
         }
 
         // ================= 展位管理与动态大盘 =================
-        async function loadPrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const res = await fetch(`/api/prices?projectId=${pid}`); const data = await res.json(); globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 }; document.getElementById('price-bt').value = globalPrices['标摊']; document.getElementById('price-hb').value = globalPrices['豪标']; document.getElementById('price-gd').value = globalPrices['光地']; }
-        async function savePrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; await fetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); alert("保存成功！"); loadPrices(); loadBooths(); }
+        async function loadPrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const res = await apiFetch(`/api/prices?projectId=${pid}`); const data = await res.json(); globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 }; document.getElementById('price-bt').value = globalPrices['标摊']; document.getElementById('price-hb').value = globalPrices['豪标']; document.getElementById('price-gd').value = globalPrices['光地']; }
+        async function savePrices() { const pid = document.getElementById('global-project-select').value; if(!pid) return; const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; await apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); alert("保存成功！"); loadPrices(); loadBooths(); }
         function toggleEntrySection() { const sec = document.getElementById('entry-section'); const arr = document.getElementById('entry-arrow'); if(sec.classList.contains('hidden')) { sec.classList.remove('hidden'); arr.innerText = '▲'; } else { sec.classList.add('hidden'); arr.innerText = '▼'; } }
-        async function addSingleBooth() { const pid = document.getElementById('global-project-select').value; const idVal = document.getElementById('s-id').value.trim(); const hallNum = document.getElementById('s-hall-num').value.trim(); if(!idVal || !hallNum) return; const type = document.getElementById('s-type').value; const area = parseFloat(document.getElementById('s-area').value); if(isNaN(area) || area <= 0) return; await fetch('/api/add-booth', { method: 'POST', body: JSON.stringify({ project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 }) }); document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; loadBooths(); }
+        async function addSingleBooth() { const pid = document.getElementById('global-project-select').value; const idVal = document.getElementById('s-id').value.trim(); const hallNum = document.getElementById('s-hall-num').value.trim(); if(!idVal || !hallNum) return; const type = document.getElementById('s-type').value; const area = parseFloat(document.getElementById('s-area').value); if(isNaN(area) || area <= 0) return; await apiFetch('/api/add-booth', { method: 'POST', body: JSON.stringify({ project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 }) }); document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; loadBooths(); }
         function downloadTemplate() { const blob = new Blob(["\uFEFF展位号,展馆数字(如1),类型(标摊/光地/豪标),面积(㎡)\nA01,1,标摊,18\nA02,1,光地,36\n"], { type: "text/csv;charset=utf-8;" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "展位导入模板.csv"; link.click(); }
-        async function parseAndImportBooths() { const pid = document.getElementById('global-project-select').value; const text = document.getElementById('booth-import-text').value.trim(); if(!text) return; const rows = text.split('\n'); const booths = []; for(let r of rows) { if(!r.trim()) continue; const cols = r.split(/[\s,]+/).filter(c => c.trim() !== ""); if(cols.length >= 4 && cols[0] !== '展位号') booths.push({ id: cols[0], hall: cols[1].replace(/馆|号/g, '') + '号馆', type: cols[2], area: parseFloat(cols[3]) || 0, price_unit: cols[2]==='光地'?'平米':'个' }); } if(booths.length === 0) return; await fetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) }); document.getElementById('booth-import-text').value = ''; loadBooths(); }
+        
+        async function parseAndImportBooths() { 
+            const pid = document.getElementById('global-project-select').value; const text = document.getElementById('booth-import-text').value.trim(); if(!text) return; 
+            const rows = text.split('\n'); const booths = []; 
+            for(let r of rows) { if(!r.trim()) continue; const cols = r.split(/[\s,]+/).filter(c => c.trim() !== ""); if(cols.length >= 4 && cols[0] !== '展位号') booths.push({ id: cols[0], hall: cols[1].replace(/馆|号/g, '') + '号馆', type: cols[2], area: parseFloat(cols[3]) || 0, price_unit: cols[2]==='光地'?'平米':'个' }); } 
+            if(booths.length === 0) return; 
+            const btn = document.querySelector('button[onclick="parseAndImportBooths()"]');
+            btn.innerHTML = "导入中..."; btn.disabled = true;
+            try {
+                await apiFetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) }); 
+                document.getElementById('booth-import-text').value = ''; loadBooths(); 
+                alert("批量导入成功！");
+            } catch (e) {
+                alert("导入失败");
+            } finally {
+                btn.innerHTML = "解析导入"; btn.disabled = false;
+            }
+        }
         
         async function loadBooths() { 
             const pid = document.getElementById('global-project-select').value; if(!pid) return; 
-            allBooths = await (await fetch(`/api/booths?projectId=${pid}`)).json(); 
+            allBooths = await (await apiFetch(`/api/booths?projectId=${pid}`)).json(); 
             const halls = [...new Set(allBooths.map(b => b.hall))].sort(); 
             const hallFilter = document.getElementById('filter-hall'); 
             hallFilter.innerHTML = '<option value="">🏢 所有展馆</option>'; 
@@ -731,19 +777,19 @@
 
         function toggleAllChecks(source) { document.querySelectorAll('.booth-check:not(:disabled)').forEach(cb => cb.checked = source.checked); } 
         function getCheckedIds() { return Array.from(document.querySelectorAll('.booth-check:checked')).map(cb => cb.value); }
-        async function updateSingleBoothStatus(bid, st) { if(!confirm(`确定将展位 [${bid}] 修改为【${st}】吗？`)) { loadBooths(); return; } const pid = document.getElementById('global-project-select').value; await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); loadBooths(); }
-        async function batchUpdateStatus() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); const st = document.getElementById('batch-status-select').value; if(!confirm(`确定批量修改选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await fetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); alert("成功！"); loadBooths(); }
-        async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); alert("删除成功！"); loadBooths(); }
-        async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); if(!confirm(`🚨 危险操作：永久删除选中的 ${ids.length} 个展位？`)) return; const pid = document.getElementById('global-project-select').value; await fetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); alert("成功！"); loadBooths(); }
+        async function updateSingleBoothStatus(bid, st) { if(!confirm(`确定将展位 [${bid}] 修改为【${st}】吗？`)) { loadBooths(); return; } const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); loadBooths(); }
+        async function batchUpdateStatus() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); const st = document.getElementById('batch-status-select').value; if(!confirm(`确定批量修改选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); alert(`成功更新了 ${ids.length} 个展位状态！`); loadBooths(); }
+        async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); alert("删除成功！"); loadBooths(); }
+        async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return alert("请勾选展位"); if(!confirm(`🚨 危险操作：永久删除选中的 ${ids.length} 个展位？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); alert(`成功删除了 ${ids.length} 个展位！`); loadBooths(); }
         function openEditBooth(id, type, area, bp) { document.getElementById('eb-id').innerText = id; document.getElementById('eb-type').value = type; document.getElementById('eb-area').value = area; document.getElementById('eb-custom-price').value = bp > 0 ? bp : ''; document.getElementById('edit-booth-modal').classList.remove('hidden'); }
-        async function submitEditBooth() { if(!confirm(`确定保存展位信息的修改吗？`)) return; const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; await fetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); closeModal('edit-booth-modal'); alert("成功！"); loadBooths(); }
+        async function submitEditBooth() { if(!confirm(`确定保存展位信息的修改吗？`)) return; const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); closeModal('edit-booth-modal'); alert("修改成功！"); loadBooths(); }
 
         // ================= 订单录入逻辑 =================
         async function initOrderForm() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
-            const pRes = await fetch(`/api/prices?projectId=${pid}`); const data = await pRes.json();
+            const pRes = await apiFetch(`/api/prices?projectId=${pid}`); const data = await pRes.json();
             globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 };
-            const bRes = await fetch(`/api/booths?projectId=${pid}`); allBooths = await bRes.json(); 
+            const bRes = await apiFetch(`/api/booths?projectId=${pid}`); allBooths = await bRes.json(); 
             resetOrderForm();
             loadIndustries(); 
         }
@@ -851,10 +897,12 @@
             try {
                 const fileInput = document.getElementById('order-contract');
                 if (fileInput.files.length > 0) {
-                    const file = fileInput.files[0]; if (file.size > 10 * 1024 * 1024) throw new Error("附件超10MB！");
+                    const file = fileInput.files[0]; 
                     const formData = new FormData(); formData.append('file', file);
-                    const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData }); const uploadData = await uploadRes.json();
-                    if (!uploadRes.ok || !uploadData.success) throw new Error("上传失败"); uploadedFileKey = uploadData.fileKey;
+                    const uploadRes = await apiFetch('/api/upload', { method: 'POST', body: formData }); 
+                    const uploadData = await uploadRes.json();
+                    if (!uploadRes.ok || !uploadData.success) throw new Error(uploadData.error || "上传失败"); 
+                    uploadedFileKey = uploadData.fileKey;
                 }
                 const orderData = {
                     project_id: pid, company_name: company, credit_code: code, no_code_checked: document.getElementById('order-no-code').checked,
@@ -862,7 +910,7 @@
                     contact_person: contact, phone: phone, region: finalRegion, booth_id: boothId, area: booth.area, price_unit: booth.type === '光地' ? '平米' : '个', unit_price: booth.base_price > 0 ? booth.base_price : globalPrices[booth.type],
                     total_booth_fee: actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: actualBoothFee + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name
                 };
-                const res = await fetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) });
+                const res = await apiFetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) });
                 if(res.ok) { alert("🎉 订单录入成功！"); initOrderForm(); } else { const err = await res.json(); throw new Error(err.error); }
             } catch (error) { alert("❌ 中止：" + error.message); } finally { submitBtn.disabled = false; submitBtn.classList.replace('bg-blue-400', 'bg-blue-600'); submitText.innerHTML = '✅ 确认无误，生成订单并锁定展位'; }
         }
@@ -871,7 +919,7 @@
         // ================= 5. 订单与财务大盘 =================
         async function loadOrderList() {
             const pid = document.getElementById('global-project-select').value; if(!pid) return;
-            const res = await fetch(`/api/orders?projectId=${pid}&role=${currentUser.role}&salesName=${currentUser.name}`);
+            const res = await apiFetch(`/api/orders?projectId=${pid}&role=${currentUser.role}&salesName=${currentUser.name}`);
             allOrders = await res.json();
             renderOrderList();
         }
@@ -1021,7 +1069,7 @@
             if(isAgent && !updatedData.agent_name) return alert("请填写代理商名称！");
 
             try {
-                const res = await fetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
+                const res = await apiFetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
                 if(res.ok) {
                     alert("资料修改成功！");
                     Object.assign(currentViewOrder, updatedData);
@@ -1097,7 +1145,7 @@
         async function loadPaymentHistory(orderId) {
             const listDiv = document.getElementById('fm-pay-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
             try {
-                const response = await fetch(`/api/payments?orderId=${orderId}`);
+                const response = await apiFetch(`/api/payments?orderId=${orderId}`);
                 const pays = await response.json();
                 if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
                 listDiv.innerHTML = '';
@@ -1138,7 +1186,7 @@
             if(!time || !payer) return alert("时间和打款户名为必填项！");
             if(!bank) return alert("请选择收款银行/途径！");
 
-            await fetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) });
+            await apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) });
             alert("收款入账成功！"); closeModal('finance-modal'); loadOrderList(); 
         }
 
@@ -1151,14 +1199,14 @@
             const data = { project_id: pid, order_id: currentModalOrderId, payment_id: document.getElementById('ep-id').value, amount: parseFloat(document.getElementById('ep-amount').value), payer_name: document.getElementById('ep-payer').value.trim(), bank_name: document.getElementById('ep-bank').value, payment_time: document.getElementById('ep-time').value, remarks: document.getElementById('ep-remark').value };
             if(!data.amount || !data.payer_name) return alert("金额和户名必填");
             
-            await fetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) });
+            await apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) });
             closeModal('edit-payment-modal'); loadPaymentHistory(currentModalOrderId); loadOrderList();
         }
 
         async function deletePayment(payId) {
             const pid = document.getElementById('global-project-select').value;
             if(!confirm("确定要删除这条收款记录吗？相关的已收金额会自动扣减！")) return;
-            await fetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, payment_id: payId }) });
+            await apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, payment_id: payId }) });
             loadPaymentHistory(currentModalOrderId); loadOrderList();
         }
 
@@ -1196,7 +1244,7 @@
             let ot = 0; let validFees = [];
             fmDynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { ot += parseFloat(f.amount); validFees.push(f); } });
             
-            await fetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) });
+            await apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) });
             alert("合同金额变更成功！系统已重算尾款状态。"); closeModal('finance-modal'); loadOrderList();
         }
 
@@ -1206,7 +1254,7 @@
             listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
             
             try {
-                const response = await fetch(`/api/expenses?orderId=${orderId}`);
+                const response = await apiFetch(`/api/expenses?orderId=${orderId}`);
                 const data = await response.json();
                 
                 if (!response.ok || data.error) {
@@ -1266,7 +1314,7 @@
                     amount: amt, applicant: currentUser.name, reason: reason 
                 };
                 
-                const res = await fetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) });
+                const res = await apiFetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) });
                 const resData = await res.json();
                 
                 if(res.ok && resData.success) {
@@ -1285,7 +1333,7 @@
 
         async function deleteExpense(expId) {
             if(!confirm("确定撤销该笔代付/返佣申请吗？")) return;
-            await fetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) });
+            await apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) });
             loadExpenseHistory(currentModalOrderId);
         }
 
@@ -1342,7 +1390,7 @@
         async function cancelOrder(orderId, boothId) {
             const pid = document.getElementById('global-project-select').value;
             if(!confirm(`🚨 危险操作：确定要作废订单吗？\n作废后，展位 [${boothId}] 将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
-            await fetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
+            await apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
             alert("退单成功！展位已释放。"); loadOrderList();
         }
 
