@@ -883,8 +883,8 @@
                     let actualUnit = b.type === '光地' ? (b.total_booth_fee / b.area) : (b.total_booth_fee / (b.area / 9)); actualUnit = Number(actualUnit.toFixed(2));
                     pStr = `<span class="bg-green-100 text-green-700 px-1 rounded text-xs font-bold">实际单价</span> ¥${actualUnit}/${unit}`;
                 } else {
-                    const standardPrice = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); const tagStr = b.base_price > 0 ? "定制原价" : "原价"; const tagColor = b.base_price > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500";
-                    pStr = `<span class="${tagColor} px-1 rounded text-xs">${tagStr}</span> ¥${standardPrice}/${unit}`;
+                    const standardPrice = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); 
+                    pStr = `<span class="bg-gray-100 text-gray-500 px-1 rounded text-xs font-bold">原价</span> ¥${standardPrice}/${unit}`;
                 }
                 let selectHtml = '';
                 if (isLockedByOrder) { selectHtml = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-xs font-bold flex items-center justify-center gap-1" title="受订单关联控制，不可手动更改">🔒 ${b.status}</span>`; } else { selectHtml = `<select onchange="updateSingleBoothStatus('${b.id}', this.value)" class="border p-1 text-xs rounded w-20 bg-white">`; ['可售', '已锁定'].forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${opt}</option>`); selectHtml += `</select>`; }
@@ -905,7 +905,9 @@
             const pid = document.getElementById('global-project-select').value; const id = document.getElementById('eb-id').innerText; const type = document.getElementById('eb-type').value; const area = parseFloat(document.getElementById('eb-area').value); const cp = parseFloat(document.getElementById('eb-custom-price').value) || 0; 
             toggleBtnLoading('btn-save-booth', true);
             await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: cp}) }); 
-            closeModal('edit-booth-modal'); showToast("展位信息修改成功"); loadBooths(); 
+            closeModal('edit-booth-modal'); 
+            showToast("展位信息修改成功"); 
+            await loadBooths(); 
             toggleBtnLoading('btn-save-booth', false);
         }
 
