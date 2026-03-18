@@ -577,17 +577,15 @@
             toast.innerHTML = `<span>${icon}</span><span class="font-bold">${message}</span>`;
             container.appendChild(toast);
 
-            // 触发进入动画
             requestAnimationFrame(() => {
                 toast.classList.remove('toast-enter');
                 toast.classList.add('toast-enter-active');
             });
 
-            // 3秒后触发离开动画并移除
             setTimeout(() => {
                 toast.classList.remove('toast-enter-active');
                 toast.classList.add('toast-leave-active');
-                setTimeout(() => toast.remove(), 300); // 等待动画结束
+                setTimeout(() => toast.remove(), 300); 
             }, 3000);
         }
 
@@ -612,7 +610,6 @@
             return res;
         }
 
-        // 按钮 Loading 状态切换辅助函数
         function toggleBtnLoading(btnId, isLoading, originalText = '') {
             const btn = document.getElementById(btnId);
             if (!btn) return;
@@ -652,6 +649,8 @@
                 } else { 
                     showToast('登录失败，账号或密码错误', 'error'); 
                 } 
+            } catch(e) {
+                showToast('网络请求失败', 'error');
             } finally {
                 toggleBtnLoading('login-btn', false);
             }
@@ -878,6 +877,8 @@
             const tbody = document.getElementById('booth-list-tbody'); tbody.innerHTML = ''; document.getElementById('check-all').checked = false; 
             filtered.forEach(b => { 
                 const unit = b.type === '光地' ? '㎡' : '个'; const bCount = Number((b.area / 9).toFixed(2)).toString(); const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
+                
+                // 【核心修正】如果是手工设定的价格，不再显示“定制原价”，统一显示“原价”
                 let pStr = '';
                 if (isLockedByOrder && b.total_booth_fee != null) {
                     let actualUnit = b.type === '光地' ? (b.total_booth_fee / b.area) : (b.total_booth_fee / (b.area / 9)); actualUnit = Number(actualUnit.toFixed(2));
@@ -886,6 +887,7 @@
                     const standardPrice = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); 
                     pStr = `<span class="bg-gray-100 text-gray-500 px-1 rounded text-xs font-bold">原价</span> ¥${standardPrice}/${unit}`;
                 }
+                
                 let selectHtml = '';
                 if (isLockedByOrder) { selectHtml = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-xs font-bold flex items-center justify-center gap-1" title="受订单关联控制，不可手动更改">🔒 ${b.status}</span>`; } else { selectHtml = `<select onchange="updateSingleBoothStatus('${b.id}', this.value)" class="border p-1 text-xs rounded w-20 bg-white">`; ['可售', '已锁定'].forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${opt}</option>`); selectHtml += `</select>`; }
                 const actionHtml = isLockedByOrder ? `<span class="text-xs text-gray-400 font-bold">订单锁定</span>` : `<button onclick="openEditBooth('${b.id}', '${b.type}', ${b.area}, ${b.base_price})" class="text-indigo-600 hover:underline mr-2 text-xs">修改</button><button onclick="deleteSingleBooth('${b.id}')" class="text-red-500 hover:underline text-xs">删除</button>`; 
@@ -900,41 +902,34 @@
         async function batchUpdateStatus() { const ids = getCheckedIds(); if(ids.length === 0) return showToast("请勾选要操作的展位", 'error'); const st = document.getElementById('batch-status-select').value; if(!confirm(`确定批量修改选中的 ${ids.length} 个展位状态为【${st}】吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); showToast(`成功更新了 ${ids.length} 个展位状态！`); loadBooths(); }
         async function deleteSingleBooth(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); showToast("展位删除成功"); loadBooths(); }
         async function batchDelete() { const ids = getCheckedIds(); if(ids.length === 0) return showToast("请勾选展位", 'error'); if(!confirm(`🚨 危险操作：确定永久删除选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); showToast(`成功删除了 ${ids.length} 个展位！`); loadBooths(); }
+        
         function openEditBooth(id, type, area, bp) { document.getElementById('eb-id').innerText = id; document.getElementById('eb-type').value = type; document.getElementById('eb-area').value = area; document.getElementById('eb-custom-price').value = bp > 0 ? bp : ''; document.getElementById('edit-booth-modal').classList.remove('hidden'); }
-        async function submitEditBooth() {
-            const pid = document.getElementById('global-project-select').value;
-            const id = document.getElementById('eb-id').innerText;
-            const type = document.getElementById('eb-type').value;
-            const area = parseFloat(document.getElementById('eb-area').value);
-            // 【核心修正点】：确保抓取的是 id 为 eb-custom-price 的输入值
+        async function submitEditBooth() { 
+            const pid = document.getElementById('global-project-select').value; 
+            const id = document.getElementById('eb-id').innerText; 
+            const type = document.getElementById('eb-type').value; 
+            const area = parseFloat(document.getElementById('eb-area').value); 
+            
+            // 【核心修正】：确保读取的是最新的 custom-price 值
             const cp = parseFloat(document.getElementById('eb-custom-price').value);
-            // 如果填的是 0 或者 NaN，则视为 0（随全局）
             const finalCustomPrice = isNaN(cp) ? 0 : cp;
-            if (isNaN(area) || area <= 0) return showToast("面积必须大于0", "error");
-            if(!confirm(`确定保存展位 [${id}] 的修改吗？`)) return;
+
+            if (isNaN(area) || area <= 0) return showToast("面积必须大于0", 'error');
+
             toggleBtnLoading('btn-save-booth', true);
             try {
-                const res = await apiFetch('/api/edit-booth', { 
-                    method: 'POST', 
-                    body: JSON.stringify({
-                        projectId: pid, 
-                        id: id, 
-                        type: type, 
-                        area: area, 
-                        base_price: finalCustomPrice // 将修正后的变量传给后端
-                    }) 
-                }); 
+                const res = await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({projectId: pid, id, type, area, base_price: finalCustomPrice}) }); 
                 if(res.ok) {
                     closeModal('edit-booth-modal'); 
                     showToast("展位信息修改成功"); 
-                    await loadBooths(); 
+                    await loadBooths(); // 加上 await 确保瞬间刷新
                 } else {
-                    showToast("数据库更新失败", "error");
+                    showToast("修改失败", 'error');
                 }
-            } catch (e) {
-                showToast("网络错误", "error");
             } finally {
                 toggleBtnLoading('btn-save-booth', false);
+            }
+        }
 
         // ================= 订单录入逻辑 =================
         async function initOrderForm() {
@@ -1243,11 +1238,11 @@
             finally { toggleBtnLoading('btn-save-detail', false); }
         }
 
-        // --- 财务模态框 (包含记忆功能) ---
+        // --- 财务模态框 ---
         async function openFinanceModal(order, forcedTab = null) {
             currentModalOrderId = order.id;
             
-            // 【UI增强】：自动记忆上次打开的财务页面（如果有强制跳转则用跳转的）
+            // 【UI增强】：自动记忆上次打开的财务页面
             const targetTab = forcedTab || lastFmTab || 'pay';
 
             document.getElementById('fm-order-title').innerText = `当前客户：${order.company_name} (展位: ${order.booth_id})`;
@@ -1261,6 +1256,7 @@
             document.getElementById('pay-time').value = new Date().toISOString().split('T')[0]; 
             document.getElementById('pay-payer').value = order.company_name; 
             document.getElementById('pay-remark').value = '';
+
             const accGroup = document.getElementById('optgroup-accounts');
             accGroup.innerHTML = '';
             projectAccounts.forEach(acc => {
@@ -1319,7 +1315,6 @@
                 document.getElementById('tab-expense').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-purple-500 text-purple-600';
             }
 
-            // 显示导航区
             document.querySelector('.border-b.border-gray-200.hidden')?.classList.remove('hidden');
         }
 
