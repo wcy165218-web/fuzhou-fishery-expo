@@ -29,6 +29,8 @@
 
     <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none"></div>
 
+    <input type="file" id="silent-file-upload" class="hidden" accept=".pdf" onchange="handleSilentUpload(this)">
+
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4">修改密码</h3><input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm"><input type="password" id="modal-new-pass" placeholder="新密码" class="w-full border p-2 rounded mb-5 text-sm"><div class="flex justify-end gap-2"><button onclick="closeModal('password-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button id="btn-change-pass" onclick="submitPasswordChange()" class="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold">确认</button></div></div></div>
     <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3><input type="hidden" id="edit-p-id"><div class="space-y-3"><input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm"><input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm"><div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div><div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-project-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button id="btn-save-project" onclick="submitEditProject()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存</button></div></div></div>
     <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-3">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="closeModal('edit-booth-modal')" class="px-4 py-2 bg-gray-200 rounded text-sm">取消</button><button id="btn-save-booth" onclick="submitEditBooth()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">保存修改</button></div></div></div>
@@ -554,9 +556,8 @@
         let currentViewOrder = null; 
         let projectAccounts = []; 
         let projectIndustries = []; 
-
-        // 全局 Tab 记忆变量
         let lastFmTab = 'pay';
+        let currentSilentOrderId = null; 
 
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
@@ -878,7 +879,6 @@
             filtered.forEach(b => { 
                 const unit = b.type === '光地' ? '㎡' : '个'; const bCount = Number((b.area / 9).toFixed(2)).toString(); const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
                 
-                // 【核心修正】如果是手工设定的价格，不再显示“定制原价”，统一显示“原价”
                 let pStr = '';
                 if (isLockedByOrder && b.total_booth_fee != null) {
                     let actualUnit = b.type === '光地' ? (b.total_booth_fee / b.area) : (b.total_booth_fee / (b.area / 9)); actualUnit = Number(actualUnit.toFixed(2));
@@ -910,7 +910,6 @@
             const type = document.getElementById('eb-type').value; 
             const area = parseFloat(document.getElementById('eb-area').value); 
             
-            // 【核心修正】：确保读取的是最新的 custom-price 值
             const cp = parseFloat(document.getElementById('eb-custom-price').value);
             const finalCustomPrice = isNaN(cp) ? 0 : cp;
 
@@ -918,21 +917,11 @@
 
             toggleBtnLoading('btn-save-booth', true);
             try {
-                // 【致命Bug修复】：将 projectId 改为 project_id，与后端保持一致
-                const res = await apiFetch('/api/edit-booth', { 
-                    method: 'POST', 
-                    body: JSON.stringify({
-                        project_id: pid, 
-                        id: id, 
-                        type: type, 
-                        area: area, 
-                        base_price: finalCustomPrice
-                    }) 
-                }); 
+                const res = await apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({project_id: pid, id: id, type: type, area: area, base_price: finalCustomPrice}) }); 
                 if(res.ok) {
                     closeModal('edit-booth-modal'); 
                     showToast("展位信息修改成功"); 
-                    await loadBooths(); // 加上 await 确保瞬间刷新
+                    await loadBooths();
                 } else {
                     showToast("修改失败", 'error');
                 }
@@ -1116,7 +1105,7 @@
                 }
                 if(o.paid_amount >= o.total_amount) payBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">🟢 已付全款</span>`;
 
-                const contractBtn = o.contract_url ? `<a href="/api/file/${o.contract_url}" target="_blank" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已签合同</a>` : `<span class="text-gray-400 text-xs">未传</span>`;
+                const contractBtn = o.contract_url ? `<a href="/api/file/${o.contract_url}" target="_blank" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已传/预览</a>` : `<button onclick="triggerSilentUpload(${o.id})" class="text-red-500 hover:text-red-700 text-xs font-bold underline">未传/补传</button>`;
                 
                 const safeCompany = o.company_name.replace(/'/g, "&#39;");
                 const safeOrderObj = JSON.stringify(o).replace(/'/g, "&#39;");
@@ -1135,8 +1124,10 @@
                         <td class="p-3 text-center align-middle">${payBadge}</td>
                         <td class="p-3 text-center align-middle">${contractBtn}</td>
                         <td class="p-3 text-center whitespace-nowrap align-middle">
-                            <button onclick='openFinanceModal(${safeOrderObj})' class="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm transition-transform hover:scale-105">💰 办理财务</button>
-                            ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm ml-2">作废</button>` : ''}
+                            <button onclick='openFinanceDirect(${safeOrderObj}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
+                            <button onclick='openFinanceDirect(${safeOrderObj}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
+                            <button onclick='openFinanceDirect(${safeOrderObj}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
+                            ${currentUser.role==='admin' ? `<button onclick="cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">作废</button>` : ''}
                         </td>
                     </tr>
                 `;
@@ -1167,6 +1158,37 @@
             link.download = `展位订单大盘导出_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
             link.click();
             showToast("数据大盘导出成功！");
+        }
+
+        // --- 补充上传合同逻辑 ---
+        function triggerSilentUpload(orderId) {
+            currentSilentOrderId = orderId;
+            document.getElementById('silent-file-upload').click();
+        }
+        async function handleSilentUpload(input) {
+            if(!input.files[0] || !currentSilentOrderId) return;
+            showToast("正在上传合同并更新单据...");
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            try {
+                const upRes = await apiFetch('/api/upload', {method:'POST', body: formData});
+                const upData = await upRes.json();
+                
+                const order = allOrders.find(o => o.id === currentSilentOrderId);
+                const data = {
+                    project_id: document.getElementById('global-project-select').value,
+                    order_id: currentSilentOrderId,
+                    contact_person: order.contact_person, phone: order.phone, region: order.region,
+                    main_business: order.main_business, profile: order.profile, category: order.category,
+                    is_agent: order.is_agent === 1, agent_name: order.agent_name,
+                    contract_url: upData.fileKey 
+                };
+                
+                await apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
+                showToast("合同补传成功！");
+                loadOrderList();
+            } catch (e) { showToast("上传失败", 'error'); }
+            finally { input.value = ''; currentSilentOrderId = null; }
         }
 
         // --- 客户全景档案与编辑 ---
@@ -1248,11 +1270,31 @@
             finally { toggleBtnLoading('btn-save-detail', false); }
         }
 
-        // --- 财务模态框 ---
+        // --- 财务模态框 (包含记忆功能与强刷新) ---
+        async function openFinanceDirect(order, tab) {
+            // 解决账户下拉框有时不加载的问题：每次打开模态框前强制同步一次账户数据
+            const pid = document.getElementById('global-project-select').value;
+            const res = await apiFetch(`/api/accounts?projectId=${pid}`);
+            projectAccounts = await res.json();
+            
+            const sel = document.getElementById('pay-account-select');
+            sel.innerHTML = '<option value="">-- 请选择收款方式 --</option>';
+            const group = document.createElement('optgroup');
+            group.label = "🏢 系统配置对公账户";
+            projectAccounts.forEach(a => {
+                const textStr = `${a.account_name} - ${a.bank_name || ''} ${a.account_no ? '('+a.account_no+')' : ''}`;
+                group.innerHTML += `<option value="${textStr}">🏦 ${textStr}</option>`;
+            });
+            sel.appendChild(group);
+            sel.innerHTML += `<optgroup label="📱 其他常规方式"><option value="微信">💬 微信</option><option value="支付宝">🔵 支付宝</option><option value="现金">💵 现金</option><option value="其他">其他</option></optgroup>`;
+
+            openFinanceModal(order, tab);
+        }
+
         async function openFinanceModal(order, forcedTab = null) {
             currentModalOrderId = order.id;
             
-            // 【UI增强】：自动记忆上次打开的财务页面
+            // 记忆上次打开的财务页面
             const targetTab = forcedTab || lastFmTab || 'pay';
 
             document.getElementById('fm-order-title').innerText = `当前客户：${order.company_name} (展位: ${order.booth_id})`;
@@ -1266,13 +1308,6 @@
             document.getElementById('pay-time').value = new Date().toISOString().split('T')[0]; 
             document.getElementById('pay-payer').value = order.company_name; 
             document.getElementById('pay-remark').value = '';
-
-            const accGroup = document.getElementById('optgroup-accounts');
-            accGroup.innerHTML = '';
-            projectAccounts.forEach(acc => {
-                const textStr = `${acc.account_name} - ${acc.bank_name || ''} ${acc.account_no ? '('+acc.account_no+')' : ''}`;
-                accGroup.innerHTML += `<option value="${textStr}">🏦 ${textStr}</option>`;
-            });
             document.getElementById('pay-account-select').value = '';
 
             // 初始化 Tab 2: 变更
@@ -1298,7 +1333,7 @@
         }
 
         function switchFmTab(tab) {
-            lastFmTab = tab; // 【记忆Tab】
+            lastFmTab = tab; // 记录Tab
             const mainTitle = document.getElementById('fm-main-title');
             if(tab === 'pay') mainTitle.innerText = "💰 收款流水管理";
             if(tab === 'adj') mainTitle.innerText = "🛠️ 变更费用信息";
@@ -1402,8 +1437,9 @@
         }
 
         async function deletePayment(payId) {
+            const pid = document.getElementById('global-project-select').value;
             if(!confirm("确定要删除这条收款记录吗？相关的已收金额会自动扣减！")) return;
-            await apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: currentModalOrderId, payment_id: payId }) });
+            await apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: currentModalOrderId, payment_id: payId }) });
             showToast("删除成功，流水已回退");
             loadPaymentHistory(currentModalOrderId); loadOrderList();
         }
