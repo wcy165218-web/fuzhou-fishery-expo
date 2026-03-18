@@ -61,11 +61,16 @@
                     <div><label class="block text-gray-700 font-bold mb-1">联系人</label><input type="text" id="edit-dt-contact" class="w-full border p-2 rounded"></div>
                     <div><label class="block text-gray-700 font-bold mb-1">联系电话</label><input type="text" id="edit-dt-phone" class="w-full border p-2 rounded"></div>
                     <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">所在地区 (可手动输入覆盖)</label><input type="text" id="edit-dt-region" class="w-full border p-2 rounded"></div>
-                    <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">主营业务/展品</label><input type="text" id="edit-dt-business" class="w-full border p-2 rounded"></div>
+                    <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">主营业务/展品</label><input type="text" id="edit-dt-business" list="industry-list" class="w-full border p-2 rounded"></div>
                     <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">企业简介</label><textarea id="edit-dt-profile" rows="3" class="w-full border p-2 rounded"></textarea></div>
-                    <div class="col-span-2 border-t pt-3 flex items-center gap-3">
-                        <label class="inline-flex items-center font-bold text-gray-700"><input type="checkbox" id="edit-dt-is-agent" onchange="toggleDtAgent()" class="mr-2"> 本单由代理商代招</label>
-                        <input type="text" id="edit-dt-agent-name" class="border p-2 rounded flex-1 hidden" placeholder="代理商名称">
+                    
+                    <div class="col-span-2 border-t pt-3">
+                        <label class="block text-gray-700 font-bold mb-2">本单招展渠道</label>
+                        <div class="flex items-center gap-4 mb-2">
+                            <label class="inline-flex items-center cursor-pointer"><input type="radio" name="edit_is_agent" value="0" onchange="toggleDtAgent()" class="w-4 h-4 text-blue-600 mr-1"> 直客参展</label>
+                            <label class="inline-flex items-center cursor-pointer"><input type="radio" name="edit_is_agent" value="1" onchange="toggleDtAgent()" class="w-4 h-4 text-blue-600 mr-1"> 代理商招展</label>
+                        </div>
+                        <input type="text" id="edit-dt-agent-name" class="w-full border p-2 rounded hidden bg-white" placeholder="请输入具体代理商名称">
                     </div>
                 </div>
             </div>
@@ -236,6 +241,8 @@
         </div>
     </div>
 
+    <datalist id="industry-list"></datalist>
+
     <div id="login-view" class="flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
             <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
@@ -277,20 +284,34 @@
                 <section id="sec-config" class="page-section">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500"><h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3><div class="bg-gray-50 p-4 rounded border mb-6"><input type="text" id="new-proj-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm mb-2"><input type="number" id="new-proj-year" placeholder="归属年份" class="w-full border p-2 rounded text-sm mb-2"><div class="flex gap-2 mb-3 text-sm text-gray-600">开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1"></div><button onclick="createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th><th class="p-2 text-right">操作</th></tr></thead><tbody id="project-list-tbody" class="divide-y"></tbody></table></div>
+                        
                         <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500"><h3 class="text-lg font-bold mb-4 flex justify-between items-center"><span>👥 业务员与目标管理</span></h3><div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2"><input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1"><select id="new-staff-role" class="border p-2 rounded text-sm w-28"><option value="user">业务员</option><option value="admin">管理员</option></select><button onclick="createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700 transition">添加</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead><tbody id="staff-list-tbody" class="divide-y"></tbody></table></div>
                         
-                        <div class="col-span-1 lg:col-span-2 bg-white p-6 rounded shadow border-t-4 border-blue-500">
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-blue-500">
                             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">💳 项目专属收款账户配置</h3>
-                            <p class="text-xs text-gray-500 mb-4">在此配置公司的对公账户或收款码信息，录入订单流水时可一键快捷选择，避免手动输错。</p>
+                            <p class="text-xs text-gray-500 mb-4">在此配置对公账户，录入流水时可一键快捷选择，避免手动输错。</p>
                             <div class="bg-blue-50 p-4 rounded border border-blue-100 mb-4 flex flex-wrap gap-2 items-end">
-                                <div class="flex-1 min-w-[200px]"><label class="block text-xs font-bold text-gray-600 mb-1">户名 / 渠道名</label><input type="text" id="new-acc-name" placeholder="如：XX科技有限公司 / 官方支付宝" class="w-full border p-2 rounded text-sm"></div>
-                                <div class="flex-1 min-w-[150px]"><label class="block text-xs font-bold text-gray-600 mb-1">开户行 / 类型</label><input type="text" id="new-acc-bank" placeholder="如：建设银行北京支行" class="w-full border p-2 rounded text-sm"></div>
-                                <div class="flex-1 min-w-[200px]"><label class="block text-xs font-bold text-gray-600 mb-1">银行账号 (非必填)</label><input type="text" id="new-acc-no" placeholder="输入卡号" class="w-full border p-2 rounded text-sm"></div>
-                                <button onclick="createAccount()" class="bg-blue-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-blue-700 transition h-[38px]">新增配置</button>
+                                <div class="flex-1 min-w-[120px]"><label class="block text-xs font-bold text-gray-600 mb-1">户名 / 渠道名</label><input type="text" id="new-acc-name" placeholder="如：XX科技有限公司" class="w-full border p-2 rounded text-sm"></div>
+                                <div class="flex-1 min-w-[100px]"><label class="block text-xs font-bold text-gray-600 mb-1">开户行 / 类型</label><input type="text" id="new-acc-bank" placeholder="如：建设银行" class="w-full border p-2 rounded text-sm"></div>
+                                <div class="flex-1 min-w-[120px]"><label class="block text-xs font-bold text-gray-600 mb-1">银行账号</label><input type="text" id="new-acc-no" placeholder="输入卡号" class="w-full border p-2 rounded text-sm"></div>
+                                <button onclick="createAccount()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700 transition h-[38px]">新增</button>
                             </div>
                             <table class="w-full text-sm text-left border">
                                 <thead class="bg-gray-100 border-b"><tr><th class="p-2">户名/渠道</th><th class="p-2">开户行</th><th class="p-2">账号</th><th class="p-2 text-right">操作</th></tr></thead>
                                 <tbody id="account-list-tbody" class="divide-y"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-purple-500">
+                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">🏷️ 主营业务/行业分类配置</h3>
+                            <p class="text-xs text-gray-500 mb-4">配置后，业务员录入订单时可在下拉框快速统一选择（业务员仍可手动输入新行业）。</p>
+                            <div class="flex gap-2 mb-4">
+                                <input type="text" id="new-industry-name" placeholder="如：水产海鲜 / 智能制造" class="w-full border p-2 rounded text-sm">
+                                <button onclick="createIndustry()" class="bg-purple-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-purple-700 transition whitespace-nowrap">新增分类</button>
+                            </div>
+                            <table class="w-full text-sm text-left border">
+                                <thead class="bg-gray-100 border-b"><tr><th class="p-2">行业/分类名称</th><th class="p-2 text-right">操作</th></tr></thead>
+                                <tbody id="industry-list-tbody" class="divide-y"></tbody>
                             </table>
                         </div>
                     </div>
@@ -336,10 +357,15 @@
                 <section id="sec-order-entry" class="page-section">
                     <div class="max-w-5xl mx-auto space-y-6 pb-20">
                         <div class="bg-white p-6 rounded shadow border-t-4 border-blue-600 relative">
-                            <div class="col-span-1 md:col-span-2 bg-gray-50 p-4 rounded border border-gray-200 flex items-center gap-4 mb-6">
-                                <label class="inline-flex items-center text-gray-800 font-bold cursor-pointer text-base"><input type="checkbox" id="order-is-agent" onchange="toggleAgent()" class="mr-2 w-5 h-5 text-blue-600"> 本单由代理商代招</label>
-                                <input type="text" id="order-agent-name" class="border-2 border-blue-300 p-2 rounded hidden flex-1 focus:border-blue-500" placeholder="请输入代理商公司名称">
+                            <div class="col-span-1 md:col-span-2 bg-blue-50 p-4 rounded border border-blue-200 mb-6">
+                                <label class="block text-blue-900 font-bold mb-2">本单招展渠道分类 <span class="text-red-500">*</span></label>
+                                <div class="flex items-center gap-6 mb-2">
+                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="0" checked onchange="toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 否，直客参展</label>
+                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="1" onchange="toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 是，代理商招展</label>
+                                </div>
+                                <input type="text" id="order-agent-name" class="w-full border-2 border-blue-300 p-2 rounded hidden focus:border-blue-500 bg-white" placeholder="请输入具体代理商公司名称 (必填)">
                             </div>
+
                             <h3 class="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">🏢 第一步：客户基本资料</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
                                 <div><label class="block text-gray-800 font-bold mb-1">参展企业全称 <span class="text-red-500">*</span></label><input type="text" id="order-company" class="w-full border-2 border-blue-200 p-2 rounded focus:border-blue-500" placeholder="请输入营业执照名称"><p class="text-xs text-gray-400 mt-1">* 默认作为会刊及楣板名称</p></div>
@@ -348,11 +374,63 @@
                                 <div><label class="block text-gray-800 font-bold mb-1">联系电话 <span class="text-red-500">*</span></label><input type="text" id="order-phone" class="w-full border p-2 rounded bg-gray-50 focus:bg-white"></div>
                                 <div class="col-span-1 md:col-span-2 grid grid-cols-3 gap-2 bg-gray-50 p-3 rounded border">
                                     <div class="col-span-3"><label class="block text-gray-800 font-bold mb-1">所在地区 <span class="text-red-500">*</span></label></div>
-                                    <div><select id="reg-prov" onchange="onProvinceChange()" class="w-full border p-2 rounded text-gray-700 bg-white"><option value="">-- 省份/地区 --</option><option value="国际">🌐 国际</option><option value="福建">福建省</option><option value="广东">广东省</option><option value="浙江">浙江省</option><option value="江苏">江苏省</option><option value="山东">山东省</option><option value="上海">上海市</option><option value="北京">北京市</option><option value="天津">天津市</option><option value="河北">河北省</option><option value="山西">山西省</option><option value="内蒙古">内蒙古自治区</option><option value="辽宁">辽宁省</option><option value="吉林">吉林省</option><option value="黑龙江">黑龙江省</option><option value="安徽">安徽省</option><option value="江西">江西省</option><option value="河南">河南省</option><option value="湖北">湖北省</option><option value="湖南">湖南省</option><option value="广西">广西壮族自治区</option><option value="海南">海南省</option><option value="重庆">重庆市</option><option value="四川">四川省</option><option value="贵州">贵州省</option><option value="云南">云南省</option><option value="西藏">西藏自治区</option><option value="陕西">陕西省</option><option value="甘肃">甘肃省</option><option value="青海">青海省</option><option value="宁夏">宁夏回族自治区</option><option value="新疆">新疆维吾尔自治区</option><option value="台湾">台湾省</option><option value="香港">香港特别行政区</option><option value="澳门">澳门特别行政区</option></select></div>
+                                    <div>
+                                        <select id="reg-prov" onchange="onProvinceChange()" class="w-full border p-2 rounded text-gray-700 bg-white">
+                                            <option value="">-- 拼音首字母省份/地区 --</option>
+                                            <optgroup label="🌐 国际与港澳台">
+                                                <option value="国际">国际 (International)</option>
+                                                <option value="香港">香港特别行政区</option>
+                                                <option value="澳门">澳门特别行政区</option>
+                                                <option value="台湾">台湾省</option>
+                                            </optgroup>
+                                            <optgroup label="A-F">
+                                                <option value="安徽">安徽省 (A)</option>
+                                                <option value="北京">北京市 (B)</option>
+                                                <option value="重庆">重庆市 (C)</option>
+                                                <option value="福建">福建省 (F)</option>
+                                            </optgroup>
+                                            <optgroup label="G-J">
+                                                <option value="甘肃">甘肃省 (G)</option>
+                                                <option value="广东">广东省 (G)</option>
+                                                <option value="广西">广西壮族自治区 (G)</option>
+                                                <option value="贵州">贵州省 (G)</option>
+                                                <option value="海南">海南省 (H)</option>
+                                                <option value="河北">河北省 (H)</option>
+                                                <option value="河南">河南省 (H)</option>
+                                                <option value="黑龙江">黑龙江省 (H)</option>
+                                                <option value="湖北">湖北省 (H)</option>
+                                                <option value="湖南">湖南省 (H)</option>
+                                                <option value="吉林">吉林省 (J)</option>
+                                                <option value="江苏">江苏省 (J)</option>
+                                                <option value="江西">江西省 (J)</option>
+                                            </optgroup>
+                                            <optgroup label="L-S">
+                                                <option value="辽宁">辽宁省 (L)</option>
+                                                <option value="内蒙古">内蒙古自治区 (N)</option>
+                                                <option value="宁夏">宁夏回族自治区 (N)</option>
+                                                <option value="青海">青海省 (Q)</option>
+                                                <option value="山东">山东省 (S)</option>
+                                                <option value="山西">山西省 (S)</option>
+                                                <option value="陕西">陕西省 (S)</option>
+                                                <option value="上海">上海市 (S)</option>
+                                                <option value="四川">四川省 (S)</option>
+                                            </optgroup>
+                                            <optgroup label="T-Z">
+                                                <option value="天津">天津市 (T)</option>
+                                                <option value="西藏">西藏自治区 (X)</option>
+                                                <option value="新疆">新疆维吾尔自治区 (X)</option>
+                                                <option value="云南">云南省 (Y)</option>
+                                                <option value="浙江">浙江省 (Z)</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
                                     <div><input type="text" id="reg-intl" class="w-full border p-2 rounded hidden" placeholder="请输入国家/地区名称"><select id="reg-city-sel" onchange="onCityChange()" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择城市 --</option><option value="福州">福州市</option><option value="厦门">厦门市</option><option value="泉州">泉州市</option><option value="漳州">漳州市</option><option value="莆田">莆田市</option><option value="宁德">宁德市</option><option value="三明">三明市</option><option value="南平">南平市</option><option value="龙岩">龙岩市</option><option value="平潭">平潭综合实验区</option></select><input type="text" id="reg-city-inp" class="w-full border p-2 rounded hidden" placeholder="请输入城市名称"></div>
                                     <div><select id="reg-dist" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择区县 --</option><option value="鼓楼区">鼓楼区</option><option value="台江区">台江区</option><option value="仓山区">仓山区</option><option value="马尾区">马尾区</option><option value="晋安区">晋安区</option><option value="长乐区">长乐区</option><option value="闽侯县">闽侯县</option><option value="连江县">连江县</option><option value="罗源县">罗源县</option><option value="闽清县">闽清县</option><option value="永泰县">永泰县</option><option value="福清市">福清市</option></select></div>
                                 </div>
-                                <div class="col-span-1 md:col-span-2"><label class="block text-gray-800 font-bold mb-1">主营业务/展品</label><input type="text" id="order-business" list="industry-list" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="手动输入或下拉选择"></div>
+                                <div class="col-span-1 md:col-span-2">
+                                    <label class="block text-gray-800 font-bold mb-1">主营业务/展品</label>
+                                    <input type="text" id="order-business" list="industry-list" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="下拉选择分类，或直接手动自由输入">
+                                </div>
                                 <div class="col-span-1 md:col-span-2"><label class="block text-gray-800 font-bold mb-1">企业简介 <span class="text-gray-400 font-normal text-xs">(200字以内)</span></label><textarea id="order-profile" rows="3" maxlength="200" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="简要介绍企业规模、核心产品等..."></textarea></div>
                             </div>
                         </div>
@@ -458,6 +536,7 @@
         let fmDynamicFees = [];
         let currentViewOrder = null; 
         let projectAccounts = []; 
+        let projectIndustries = []; // 行业分类数据
 
         const navConfig = [
             { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
@@ -494,7 +573,7 @@
                     const btn = document.createElement('button'); btn.className = "w-full text-left px-4 py-3 rounded text-slate-300 hover:bg-blue-600 transition text-sm mb-1"; btn.innerText = item.label;
                     btn.onclick = () => { 
                         document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active')); document.getElementById(`sec-${item.id}`).classList.add('active'); document.getElementById('current-page-title').innerText = item.label.substring(3);
-                        if(item.id === 'config') { loadStaff(); loadAccounts(); } 
+                        if(item.id === 'config') { loadStaff(); loadAccounts(); loadIndustries(); } 
                         if(item.id === 'booth') { loadPrices(); loadBooths(); } 
                         if(item.id === 'order-entry') initOrderForm(); 
                         if(item.id === 'order-list') loadOrderList();
@@ -508,7 +587,7 @@
             allProjects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${p.name}</option>`; if(tbody) { const d = (p.start_date) ? `${p.start_date} 至 ${p.end_date}` : '未设'; tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-blue-600">${p.name}</td><td class="p-2 text-gray-500">${d}</td><td class="p-2 text-right"><button onclick='openEditProjectModal(${JSON.stringify(p)})' class="text-indigo-600 hover:underline text-xs">编辑</button></td></tr>`; }});
             onProjectChange();
         }
-        function onProjectChange() { if(document.getElementById('sec-config').classList.contains('active')) { loadStaff(); loadAccounts(); } if(document.getElementById('sec-booth').classList.contains('active')) { loadPrices(); loadBooths(); } if(document.getElementById('sec-order-entry').classList.contains('active')) initOrderForm(); if(document.getElementById('sec-order-list').classList.contains('active')) loadOrderList(); }
+        function onProjectChange() { if(document.getElementById('sec-config').classList.contains('active')) { loadStaff(); loadAccounts(); loadIndustries(); } if(document.getElementById('sec-booth').classList.contains('active')) { loadPrices(); loadBooths(); } if(document.getElementById('sec-order-entry').classList.contains('active')) initOrderForm(); if(document.getElementById('sec-order-list').classList.contains('active')) loadOrderList(); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
         async function createProject() { const data = { name: document.getElementById('new-proj-name').value, year: document.getElementById('new-proj-year').value, start_date: document.getElementById('new-proj-start').value, end_date: document.getElementById('new-proj-end').value }; if(!data.name) return; await fetch('/api/projects', { method: 'POST', body: JSON.stringify(data) }); document.getElementById('new-proj-name').value = ''; loadProjects(); }
@@ -521,6 +600,36 @@
         async function deleteStaff(n) { if(confirm(`删除？`)) { await fetch('/api/delete-staff', { method: 'POST', body: JSON.stringify({staffName: n}) }); loadStaff(); } }
         function openPasswordModal() { document.getElementById('password-modal').classList.remove('hidden'); }
         async function submitPasswordChange() { const op = document.getElementById('modal-old-pass').value; const np = document.getElementById('modal-new-pass').value; if(!op || !np) return; const res = await fetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); if(res.ok) { alert("修改成功，请重新登录"); closeModal('password-modal'); handleLogout(); } else alert("原密码错误"); }
+
+        // --- 行业分类管理 ---
+        async function loadIndustries() {
+            const pid = document.getElementById('global-project-select').value; if(!pid) return;
+            const res = await fetch(`/api/industries?projectId=${pid}`);
+            projectIndustries = await res.json();
+            
+            // 填充配置表格
+            const tbody = document.getElementById('industry-list-tbody'); if(tbody) tbody.innerHTML = '';
+            // 填充数据字典下拉框
+            const datalist = document.getElementById('industry-list'); datalist.innerHTML = '';
+            
+            projectIndustries.forEach(ind => {
+                if(tbody) tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-gray-700">${ind.industry_name}</td><td class="p-2 text-right"><button onclick="deleteIndustry(${ind.id})" class="text-red-500 hover:underline text-xs">删除</button></td></tr>`;
+                datalist.innerHTML += `<option value="${ind.industry_name}">`;
+            });
+        }
+        async function createIndustry() {
+            const pid = document.getElementById('global-project-select').value;
+            const name = document.getElementById('new-industry-name').value.trim();
+            if(!name) return alert("请填写分类名称！");
+            await fetch('/api/add-industry', { method: 'POST', body: JSON.stringify({ project_id: pid, industry_name: name }) });
+            document.getElementById('new-industry-name').value = '';
+            loadIndustries();
+        }
+        async function deleteIndustry(id) {
+            if(!confirm("确定删除该行业分类吗？（不影响已录入的订单）")) return;
+            await fetch('/api/delete-industry', { method: 'POST', body: JSON.stringify({ industry_id: id }) });
+            loadIndustries();
+        }
 
         // --- 收款账户配置 ---
         async function loadAccounts() {
@@ -566,43 +675,18 @@
             renderBooths(); 
         }
         
-        // 动态大盘渲染 (随筛选条件联动)
         function renderStats(boothData) { 
             const panel = document.getElementById('stats-panel'); 
             if(boothData.length === 0) { panel.innerHTML = '<div class="col-span-4 text-gray-500 text-center py-4">无符合条件的数据</div>'; return; } 
-            
             let totalArea = 0, totalRev = 0, gdArea = 0, btArea = 0; 
             let statusMap = { '可售':0, '已锁定':0, '已预订':0, '已成交':0 }; 
-            
             boothData.forEach(b => { 
-                totalArea += b.area; 
-                statusMap[b.status] = (statusMap[b.status] || 0) + b.area; 
+                totalArea += b.area; statusMap[b.status] = (statusMap[b.status] || 0) + b.area; 
                 if(b.type === '光地') gdArea += b.area; else btArea += b.area; 
-                
-                // 动态计算金额：已售用真实成交价，未售用预估底价
-                if (b.status === '已预订' || b.status === '已成交') {
-                    totalRev += (b.total_booth_fee || 0);
-                } else {
-                    let price = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); 
-                    let currentRev = (b.type === '光地') ? (price * b.area) : (price * (b.area/9)); 
-                    totalRev += currentRev; 
-                }
+                if (b.status === '已预订' || b.status === '已成交') { totalRev += (b.total_booth_fee || 0); } else { let price = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); let currentRev = (b.type === '光地') ? (price * b.area) : (price * (b.area/9)); totalRev += currentRev; }
             }); 
-            
-            const fC = (a) => Number((a/9).toFixed(2)).toString(); 
-            const cR = (v, t) => t > 0 ? ((v/t)*100).toFixed(1) : 0; 
-            const soldArea = (statusMap['已成交'] || 0) + (statusMap['已预订'] || 0);
-
-            panel.innerHTML = `
-                <div class="bg-gray-50 p-3 border rounded shadow-sm"><div class="text-xs text-gray-500">💰 (筛选范围) 预期总收入</div><div class="text-lg font-bold text-red-600">¥${totalRev.toLocaleString()}</div><div class="text-xs text-gray-400 mt-1">折 ${fC(totalArea)} 个</div></div>
-                <div class="bg-blue-50 p-3 border rounded shadow-sm"><div class="text-xs text-blue-500">🟦 光地总面积</div><div class="text-lg font-bold text-blue-700">${gdArea}㎡</div></div>
-                <div class="bg-indigo-50 p-3 border rounded shadow-sm"><div class="text-xs text-indigo-500">🟪 标摊总面积</div><div class="text-lg font-bold text-indigo-700">${btArea}㎡</div></div>
-                <div class="bg-gray-50 p-3 border rounded shadow-sm text-xs flex flex-col justify-center space-y-1">
-                    <div class="flex justify-between"><span>✅ 可售:</span><span class="font-bold">${cR(statusMap['可售'], totalArea)}%</span></div>
-                    <div class="flex justify-between text-yellow-600"><span>🔒 已锁定:</span><span class="font-bold">${cR(statusMap['已锁定'], totalArea)}%</span></div>
-                    <div class="flex justify-between text-green-600"><span>🤝 已成交/预订:</span><span class="font-bold">${cR(soldArea, totalArea)}%</span></div>
-                </div>
-            `; 
+            const fC = (a) => Number((a/9).toFixed(2)).toString(); const cR = (v, t) => t > 0 ? ((v/t)*100).toFixed(1) : 0; const soldArea = (statusMap['已成交'] || 0) + (statusMap['已预订'] || 0);
+            panel.innerHTML = `<div class="bg-gray-50 p-3 border rounded shadow-sm"><div class="text-xs text-gray-500">💰 (筛选范围) 预期总收入</div><div class="text-lg font-bold text-red-600">¥${totalRev.toLocaleString()}</div><div class="text-xs text-gray-400 mt-1">折 ${fC(totalArea)} 个</div></div><div class="bg-blue-50 p-3 border rounded shadow-sm"><div class="text-xs text-blue-500">🟦 光地总面积</div><div class="text-lg font-bold text-blue-700">${gdArea}㎡</div></div><div class="bg-indigo-50 p-3 border rounded shadow-sm"><div class="text-xs text-indigo-500">🟪 标摊总面积</div><div class="text-lg font-bold text-indigo-700">${btArea}㎡</div></div><div class="bg-gray-50 p-3 border rounded shadow-sm text-xs flex flex-col justify-center space-y-1"><div class="flex justify-between"><span>✅ 可售:</span><span class="font-bold">${cR(statusMap['可售'], totalArea)}%</span></div><div class="flex justify-between text-yellow-600"><span>🔒 已锁定:</span><span class="font-bold">${cR(statusMap['已锁定'], totalArea)}%</span></div><div class="flex justify-between text-green-600"><span>🤝 已成交/预订:</span><span class="font-bold">${cR(soldArea, totalArea)}%</span></div></div>`; 
         }
 
         function renderBooths() { 
@@ -610,7 +694,6 @@
             const hallTxt = document.getElementById('filter-hall').value; 
             const typeTxt = document.getElementById('filter-type').value; 
             const statusTxt = document.getElementById('filter-status').value; 
-            
             const filtered = allBooths.filter(b => { 
                 if(searchTxt && !b.id.toLowerCase().includes(searchTxt)) return false; 
                 if(hallTxt && b.hall !== hallTxt) return false; 
@@ -618,44 +701,22 @@
                 if(statusTxt && b.status !== statusTxt) return false; 
                 return true; 
             }); 
-            
-            // 每次筛选后，实时渲染动态大盘
             renderStats(filtered);
-
-            const tbody = document.getElementById('booth-list-tbody'); 
-            tbody.innerHTML = ''; 
-            document.getElementById('check-all').checked = false; 
-            
+            const tbody = document.getElementById('booth-list-tbody'); tbody.innerHTML = ''; document.getElementById('check-all').checked = false; 
             filtered.forEach(b => { 
-                const unit = b.type === '光地' ? '㎡' : '个'; 
-                const bCount = Number((b.area / 9).toFixed(2)).toString(); 
-                const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
-                
-                // 【重点功能】：单价智能展示
+                const unit = b.type === '光地' ? '㎡' : '个'; const bCount = Number((b.area / 9).toFixed(2)).toString(); const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
                 let pStr = '';
                 if (isLockedByOrder && b.total_booth_fee != null) {
-                    let actualUnit = b.type === '光地' ? (b.total_booth_fee / b.area) : (b.total_booth_fee / (b.area / 9));
-                    actualUnit = Number(actualUnit.toFixed(2));
+                    let actualUnit = b.type === '光地' ? (b.total_booth_fee / b.area) : (b.total_booth_fee / (b.area / 9)); actualUnit = Number(actualUnit.toFixed(2));
                     pStr = `<span class="bg-green-100 text-green-700 px-1 rounded text-xs font-bold">实际单价</span> ¥${actualUnit}/${unit}`;
                 } else {
-                    const standardPrice = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0);
-                    const tagStr = b.base_price > 0 ? "定制原价" : "原价";
-                    const tagColor = b.base_price > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500";
+                    const standardPrice = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); const tagStr = b.base_price > 0 ? "定制原价" : "原价"; const tagColor = b.base_price > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500";
                     pStr = `<span class="${tagColor} px-1 rounded text-xs">${tagStr}</span> ¥${standardPrice}/${unit}`;
                 }
-
                 let selectHtml = '';
-                if (isLockedByOrder) {
-                    selectHtml = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-xs font-bold flex items-center justify-center gap-1" title="受订单关联控制，不可手动更改">🔒 ${b.status}</span>`;
-                } else {
-                    selectHtml = `<select onchange="updateSingleBoothStatus('${b.id}', this.value)" class="border p-1 text-xs rounded w-20 bg-white">`; 
-                    ['可售', '已锁定'].forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${opt}</option>`); 
-                    selectHtml += `</select>`; 
-                }
-                
+                if (isLockedByOrder) { selectHtml = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-xs font-bold flex items-center justify-center gap-1" title="受订单关联控制，不可手动更改">🔒 ${b.status}</span>`; } else { selectHtml = `<select onchange="updateSingleBoothStatus('${b.id}', this.value)" class="border p-1 text-xs rounded w-20 bg-white">`; ['可售', '已锁定'].forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${opt}</option>`); selectHtml += `</select>`; }
                 const actionHtml = isLockedByOrder ? `<span class="text-xs text-gray-400 font-bold">订单锁定</span>` : `<button onclick="openEditBooth('${b.id}', '${b.type}', ${b.area}, ${b.base_price})" class="text-indigo-600 hover:underline mr-2 text-xs">修改</button><button onclick="deleteSingleBooth('${b.id}')" class="text-red-500 hover:underline text-xs">删除</button>`; 
                 const checkHtml = isLockedByOrder ? `<input type="checkbox" disabled title="不可批量操作">` : `<input type="checkbox" class="booth-check" value="${b.id}">`; 
-                
                 tbody.innerHTML += `<tr class="border-b"><td class="p-3">${checkHtml}</td><td class="p-3 font-bold">${b.id}</td><td class="p-3">${b.hall}</td><td class="p-3">${b.type}</td><td class="p-3">${b.area}㎡</td><td class="p-3">${bCount}个</td><td class="p-3">${pStr}</td><td class="p-3 text-center">${selectHtml}</td><td class="p-3 text-center">${actionHtml}</td></tr>`; 
             }); 
         }
@@ -676,14 +737,18 @@
             globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 };
             const bRes = await fetch(`/api/booths?projectId=${pid}`); allBooths = await bRes.json(); 
             resetOrderForm();
+            loadIndustries(); // 加载行业字典
         }
 
         function resetOrderForm() {
             const inputs = ['order-company', 'order-credit-code', 'order-business', 'order-contact', 'order-phone', 'order-agent-name', 'order-actual-fee', 'booth-search-inp', 'order-discount-reason', 'order-contract', 'reg-intl', 'reg-city-inp', 'selected-booth-id', 'order-profile'];
             inputs.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
             document.getElementById('reg-prov').value = ''; document.getElementById('reg-city-sel').value = ''; document.getElementById('reg-dist').value = ''; onProvinceChange(); 
-            document.getElementById('order-is-agent').checked = false; document.getElementById('order-no-code').checked = false; isJointExhibition = false; 
-            toggleAgent(); toggleCreditCode();
+            
+            document.querySelector('input[name="is_agent"][value="0"]').checked = true; toggleAgent();
+            document.getElementById('order-no-code').checked = false; toggleCreditCode();
+            isJointExhibition = false; 
+
             document.getElementById('calc-booth').innerText = '-'; document.getElementById('calc-type').innerText = '-'; document.getElementById('calc-area').innerText = '-'; document.getElementById('calc-unit').innerText = '-'; document.getElementById('calc-standard-fee').innerText = '¥ 0'; document.getElementById('calc-final-total').innerText = '¥ 0'; document.getElementById('dynamic-strategy-display').classList.add('hidden'); currentStandardFee = 0; document.getElementById('discount-reason-container').classList.add('hidden');
             dynamicFees = []; renderDynamicFees();
         }
@@ -711,7 +776,11 @@
             calculateFinalTotal();
         }
 
-        function toggleAgent() { const box = document.getElementById('order-agent-name'); if(document.getElementById('order-is-agent').checked) { box.classList.remove('hidden'); } else { box.classList.add('hidden'); } }
+        function toggleAgent() { 
+            const isAgent = document.querySelector('input[name="is_agent"]:checked').value === '1';
+            const box = document.getElementById('order-agent-name'); 
+            if(isAgent) { box.classList.remove('hidden'); } else { box.classList.add('hidden'); } 
+        }
         function toggleCreditCode() { const input = document.getElementById('order-credit-code'); if(document.getElementById('order-no-code').checked) { input.placeholder = "无代码请输入护照号等"; input.classList.replace('bg-yellow-50', 'bg-gray-100'); } else { input.placeholder = "防止重复，请准确填写"; input.classList.replace('bg-gray-100', 'bg-yellow-50'); } }
 
         function autoFillBoothData(booth) {
@@ -740,6 +809,10 @@
             const contact = document.getElementById('order-contact').value.trim(); const phone = document.getElementById('order-phone').value.trim();
             const boothId = document.getElementById('selected-booth-id').value; 
             
+            const isAgent = document.querySelector('input[name="is_agent"]:checked').value === '1';
+            const agentName = document.getElementById('order-agent-name').value.trim();
+            if(isAgent && !agentName) return alert("请准确填写代理商公司名称！");
+
             let finalRegion = ''; const prov = document.getElementById('reg-prov').value;
             if(!prov) return alert("请选择所在地区！");
             if(prov === '国际') { const intl = document.getElementById('reg-intl').value.trim(); if(!intl) return alert("请输入国际详情！"); finalRegion = `国际 - ${intl}`; } 
@@ -770,7 +843,7 @@
                 }
                 const orderData = {
                     project_id: pid, company_name: company, credit_code: code, no_code_checked: document.getElementById('order-no-code').checked,
-                    main_business: document.getElementById('order-business').value.trim(), is_agent: document.getElementById('order-is-agent').checked, agent_name: document.getElementById('order-agent-name').value.trim(),
+                    main_business: document.getElementById('order-business').value.trim(), is_agent: isAgent, agent_name: agentName,
                     contact_person: contact, phone: phone, region: finalRegion, booth_id: boothId, area: booth.area, price_unit: booth.type === '光地' ? '平米' : '个', unit_price: booth.base_price > 0 ? booth.base_price : globalPrices[booth.type],
                     total_booth_fee: actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: actualBoothFee + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name
                 };
@@ -889,7 +962,7 @@
             document.getElementById('edit-dt-region').value = o.region || '';
             document.getElementById('edit-dt-business').value = o.main_business || '';
             document.getElementById('edit-dt-profile').value = o.profile || '';
-            document.getElementById('edit-dt-is-agent').checked = o.is_agent === 1;
+            document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true;
             document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
             toggleDtAgent();
 
@@ -898,7 +971,8 @@
         }
 
         function toggleDtAgent() {
-            if(document.getElementById('edit-dt-is-agent').checked) { document.getElementById('edit-dt-agent-name').classList.remove('hidden'); } 
+            const isAgent = document.querySelector('input[name="edit_is_agent"]:checked').value === '1';
+            if(isAgent) { document.getElementById('edit-dt-agent-name').classList.remove('hidden'); } 
             else { document.getElementById('edit-dt-agent-name').classList.add('hidden'); }
         }
 
@@ -918,6 +992,7 @@
 
         async function saveDetailEdit() {
             const pid = document.getElementById('global-project-select').value;
+            const isAgent = document.querySelector('input[name="edit_is_agent"]:checked').value === '1';
             const updatedData = {
                 project_id: pid,
                 order_id: currentViewOrder.id,
@@ -926,11 +1001,12 @@
                 region: document.getElementById('edit-dt-region').value.trim(),
                 main_business: document.getElementById('edit-dt-business').value.trim(),
                 profile: document.getElementById('edit-dt-profile').value.trim(),
-                is_agent: document.getElementById('edit-dt-is-agent').checked,
+                is_agent: isAgent,
                 agent_name: document.getElementById('edit-dt-agent-name').value.trim()
             };
 
             if(!updatedData.contact_person || !updatedData.phone) return alert("联系人和电话不能为空！");
+            if(isAgent && !updatedData.agent_name) return alert("请填写代理商名称！");
 
             try {
                 const res = await fetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
@@ -943,6 +1019,7 @@
                 } else { alert("修改失败，请重试。"); }
             } catch (e) { alert("错误：" + e.message); }
         }
+
 
         // --- 财务模态框 ---
         async function openFinanceModal(order, initialTab) {
