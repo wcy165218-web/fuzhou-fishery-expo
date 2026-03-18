@@ -19,10 +19,12 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
     try {
-      // ============ 🔥 全局接口鉴权拦截器 ============
-      // 排除不需要 token 的路由：登录和查看下载文件
+      // ============ 🔥 全局接口鉴权拦截器 (修复版) ============
       let currentUser = null;
-      if (url.pathname !== '/api/login' && !url.pathname.startsWith('/api/file/')) {
+      
+      // 【重点修复】：只有访问 /api/ 且不是登录、不是下载文件的请求，才需要校验 Token
+      // 这样普通的网页访问（如 /index.html）就会直接跳过拦截，下发到最底部的 env.ASSETS.fetch
+      if (url.pathname.startsWith('/api/') && url.pathname !== '/api/login' && !url.pathname.startsWith('/api/file/')) {
           const authHeader = request.headers.get('Authorization');
           if (!authHeader || !authHeader.startsWith('Bearer ')) {
               return new Response(JSON.stringify({ error: "非法请求：缺少身份凭证" }), { status: 401, headers: corsHeaders });
@@ -240,7 +242,7 @@ export default {
         const stmtUpdateBooth = env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id);
 
         try {
-            // 使用 batch 确保两条 SQL 语句同生共死（如果状态更新失败，订单也不会被创建）
+            // 使用 batch 确保两条 SQL 语句同生共死
             await env.DB.batch([stmtInsertOrder, stmtUpdateBooth]);
             return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         } catch (dbErr) {
@@ -372,6 +374,7 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
+      // 如果不是 /api/ 开头的请求，则下发前端静态文件
       return env.ASSETS.fetch(request);
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
