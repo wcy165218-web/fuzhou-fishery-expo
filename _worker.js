@@ -260,7 +260,7 @@ export default {
           o.other_income, o.fees_json, o.profile, o.total_amount, o.contract_url, o.sales_name, o.category
         );
 
-        const stmtUpdateBooth = env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ?").bind(o.booth_id, o.project_id);
+        const stmtUpdateBooth = env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')").bind(o.booth_id, o.project_id);
 
         try {
             // 使用 batch 确保两条 SQL 语句同生共死
@@ -342,12 +342,21 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/cancel-order' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
-        const { order_id, project_id, booth_id } = await request.json();
-        await env.DB.prepare("UPDATE Orders SET status = '已作废' WHERE id = ?").bind(order_id).run();
-        await env.DB.prepare("UPDATE Booths SET status = '可售' WHERE id = ? AND project_id = ?").bind(booth_id, project_id).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-      }
+     if (currentUser.role !== 'admin') return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
+     const { order_id, project_id, booth_id } = await request.json();
+
+     // 1. 先作废当前订单
+     await env.DB.prepare("UPDATE Orders SET status = '已作废' WHERE id = ?").bind(order_id).run();
+
+     // 2. 检查该展位是否还有其他联合参展的“正常”订单
+     const remaining = await env.DB.prepare("SELECT COUNT(*) as cnt FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常'").bind(project_id, booth_id).first();
+
+     // 3. 只有彻底没有正常订单了，才将展位释放为可售
+     if (remaining.cnt === 0) {
+         await env.DB.prepare("UPDATE Booths SET status = '可售' WHERE id = ? AND project_id = ?").bind(booth_id, project_id).run();
+     }
+     return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+   }
 
       // 11. 代付/返佣接口
       if (url.pathname === '/api/expenses' && request.method === 'GET') {
