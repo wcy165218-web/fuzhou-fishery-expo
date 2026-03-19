@@ -1,7 +1,6 @@
-// 移除第三方 jose 依赖，使用原生 Web Crypto API 实现零依赖高安全 JWT
 const JWT_SECRET_STR = 'your-256-bit-secret-fuzhou-expo'; 
 
-// ================== 原生 JWT 加解密引擎 ==================
+// ================== 原生 JWT 与 密码哈希引擎 ==================
 const base64UrlEncode = (source) => {
     let encoded = btoa(String.fromCharCode(...new Uint8Array(source)));
     return encoded.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -12,6 +11,14 @@ const base64UrlDecode = (str) => {
     return new Uint8Array(atob(encoded).split('').map(c => c.charCodeAt(0)));
 };
 const strToUint8 = (str) => new TextEncoder().encode(str);
+
+// 【新增】：原生 SHA-256 密码加密函数
+async function hashPassword(password) {
+    const msgBuffer = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 async function signJWT(payload, secretStr) {
     const header = { alg: 'HS256', typ: 'JWT' };
@@ -47,12 +54,10 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 👇👇👇 【核心修复：秒杀 404 白屏】 👇👇👇
-    // 如果不是请求后端 /api/ 接口，说明是在访问网页、JS 或 CSS，直接交还给 Cloudflare Pages 处理！
+    // 静态文件放行
     if (!url.pathname.startsWith('/api/')) {
         return env.ASSETS.fetch(request);
     }
-    // 👆👆👆 ============================== 👆👆👆
 
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -106,12 +111,14 @@ export default {
       // ================== 身份认证 ==================
       if (url.pathname === '/api/login' && request.method === 'POST') {
         const { username, password } = await request.json();
-        const user = await env.DB.prepare('SELECT * FROM Staff WHERE name = ? AND password = ?').bind(username, password).first();
+        
+        // 【核心修复】：将输入的明文密码加密后再去数据库比对
+        const hashedPassword = await hashPassword(password);
+        
+        const user = await env.DB.prepare('SELECT * FROM Staff WHERE name = ? AND password = ?').bind(username, hashedPassword).first();
         if (!user) return errorResponse('账号或密码错误', 401);
         
-        // 生成过期时间：24小时后
         const exp = Math.floor(Date.now() / 1000) + (24 * 60 * 60);
-        // 使用原生引擎签发令牌
         const token = await signJWT({ name: user.name, role: user.role, exp }, JWT_SECRET_STR);
         
         return new Response(JSON.stringify({ user: { name: user.name, role: user.role, token } }), { headers: corsHeaders });
@@ -119,9 +126,12 @@ export default {
 
       if (url.pathname === '/api/change-password' && request.method === 'POST') {
         const { staffName, oldPass, newPass } = await request.json();
-        const user = await env.DB.prepare('SELECT * FROM Staff WHERE name = ? AND password = ?').bind(staffName, oldPass).first();
+        const hashedOld = await hashPassword(oldPass);
+        const hashedNew = await hashPassword(newPass);
+        
+        const user = await env.DB.prepare('SELECT * FROM Staff WHERE name = ? AND password = ?').bind(staffName, hashedOld).first();
         if (!user) return errorResponse('原密码错误', 400);
-        await env.DB.prepare('UPDATE Staff SET password = ? WHERE name = ?').bind(newPass, staffName).run();
+        await env.DB.prepare('UPDATE Staff SET password = ? WHERE name = ?').bind(hashedNew, staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -155,7 +165,9 @@ export default {
           if (currentUser.role !== 'admin') return errorResponse('权限不足', 403);
           const { name, role } = await request.json();
           try {
-            await env.DB.prepare("INSERT INTO Staff (name, password, role) VALUES (?, '123456', ?)").bind(name, role).run();
+            // 新增员工时，默认密码 123456 也要加密存入
+            const defaultHash = await hashPassword('123456');
+            await env.DB.prepare("INSERT INTO Staff (name, password, role) VALUES (?, ?, ?)").bind(name, defaultHash, role).run();
             return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
           } catch (e) {
             return errorResponse('添加失败，可能姓名已存在');
@@ -332,13 +344,11 @@ export default {
         const o = await request.json();
         const stmts = [];
 
-        // 联合参展扣减面积
         const existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1").bind(o.project_id, o.booth_id).first();
         if (existingOrder) {
             stmts.push(env.DB.prepare("UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?").bind(o.area, existingOrder.id));
         }
 
-        // 插入订单 (+8 hours 北京时间)
         stmts.push(env.DB.prepare(`
           INSERT INTO Orders (
             project_id, company_name, credit_code, no_code_checked, category, main_business,
