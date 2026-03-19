@@ -80,3 +80,13 @@ window.toggleBtnLoading = function(btnId, isLoading, originalText = '') {
         btn.classList.remove('opacity-70', 'cursor-not-allowed');
     }
 }
+// 前端 XSS 防护：HTML 字符转义
+window.escapeHtml = function(text) {
+    if (!text) return "";
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
