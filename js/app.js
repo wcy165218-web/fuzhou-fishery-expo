@@ -1,12 +1,13 @@
 // ================= js/app.js =================
-// 等待 HTML 框架加载完毕后执行初始化验证
 document.addEventListener('DOMContentLoaded', () => {
-    // 页面刷新时重新附加 Navbar 事件监听
+    // 绑定基础事件
     document.getElementById('nav-change-pass')?.addEventListener('click', window.openPasswordModal);
     document.getElementById('logout-btn')?.addEventListener('click', window.handleLogout);
     
-    // 如果本地有令牌（说明之前登录过），则直接渲染后台
-    if (currentUser) { 
+    // 【核心修复】：从本地缓存恢复用户状态，并挂载到 window 全局对象上
+    const savedUser = localStorage.getItem('exhibition_user');
+    if (savedUser) { 
+        window.currentUser = JSON.parse(savedUser);
         window.enterMainView(); 
     } 
 });
