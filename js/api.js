@@ -59,6 +59,7 @@ window.apiFetch = async function(url, options = {}) {
     if (res.status === 401) {
         window.showToast("登录状态已过期或被管理员修改，请重新登录！", 'error');
         localStorage.removeItem('exhibition_user');
+        window.currentUser = null; // 彻底清除内存中的用户信息
         setTimeout(() => location.reload(), 1500);
         throw new Error("Unauthorized");
     }
