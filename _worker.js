@@ -1,6 +1,40 @@
-import { SignJWT, jwtVerify } from 'jose';
+// 移除第三方 jose 依赖，使用原生 Web Crypto API 实现零依赖高安全 JWT
+const JWT_SECRET_STR = 'your-256-bit-secret-fuzhou-expo'; 
 
-const JWT_SECRET = new TextEncoder().encode('your-256-bit-secret');
+// ================== 原生 JWT 加解密引擎 ==================
+const base64UrlEncode = (source) => {
+    let encoded = btoa(String.fromCharCode(...new Uint8Array(source)));
+    return encoded.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+};
+const base64UrlDecode = (str) => {
+    let encoded = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (encoded.length % 4) encoded += '=';
+    return new Uint8Array(atob(encoded).split('').map(c => c.charCodeAt(0)));
+};
+const strToUint8 = (str) => new TextEncoder().encode(str);
+
+async function signJWT(payload, secretStr) {
+    const header = { alg: 'HS256', typ: 'JWT' };
+    const encHeader = base64UrlEncode(strToUint8(JSON.stringify(header)));
+    const encPayload = base64UrlEncode(strToUint8(JSON.stringify(payload)));
+    const data = `${encHeader}.${encPayload}`;
+    const key = await crypto.subtle.importKey('raw', strToUint8(secretStr), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const signature = await crypto.subtle.sign('HMAC', key, strToUint8(data));
+    return `${data}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+async function verifyJWT(token, secretStr) {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Invalid token format');
+    const data = `${parts[0]}.${parts[1]}`;
+    const key = await crypto.subtle.importKey('raw', strToUint8(secretStr), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const isValid = await crypto.subtle.verify('HMAC', key, base64UrlDecode(parts[2]), strToUint8(data));
+    if (!isValid) throw new Error('Invalid signature');
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[1])));
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) throw new Error('Token expired');
+    return payload;
+}
+// =======================================================
 
 function errorResponse(msg, status = 400) {
     return new Response(JSON.stringify({ success: false, error: msg }), {
@@ -29,10 +63,10 @@ export default {
       }
       const token = authHeader.split(' ')[1];
       try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
-        currentUser = payload;
+        // 使用原生引擎解密验证
+        currentUser = await verifyJWT(token, JWT_SECRET_STR);
       } catch (err) {
-        return errorResponse('登录令牌无效', 401);
+        return errorResponse('登录状态已失效，请重新登录', 401);
       }
     }
 
@@ -67,10 +101,12 @@ export default {
         const { username, password } = await request.json();
         const user = await env.DB.prepare('SELECT * FROM Staff WHERE name = ? AND password = ?').bind(username, password).first();
         if (!user) return errorResponse('账号或密码错误', 401);
-        const token = await new SignJWT({ name: user.name, role: user.role })
-          .setProtectedHeader({ alg: 'HS256' })
-          .setExpirationTime('24h')
-          .sign(JWT_SECRET);
+        
+        // 生成过期时间：24小时后
+        const exp = Math.floor(Date.now() / 1000) + (24 * 60 * 60);
+        // 使用原生引擎签发令牌
+        const token = await signJWT({ name: user.name, role: user.role, exp }, JWT_SECRET_STR);
+        
         return new Response(JSON.stringify({ user: { name: user.name, role: user.role, token } }), { headers: corsHeaders });
       }
 
@@ -289,13 +325,11 @@ export default {
         const o = await request.json();
         const stmts = [];
 
-        // 【核心修复】：联合参展时，找到已存在的老订单并扣减分配出去的面积
         const existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1").bind(o.project_id, o.booth_id).first();
         if (existingOrder) {
             stmts.push(env.DB.prepare("UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?").bind(o.area, existingOrder.id));
         }
 
-        // 插入新订单 (注意 datetime('now', '+8 hours') 处理时区问题)
         stmts.push(env.DB.prepare(`
           INSERT INTO Orders (
             project_id, company_name, credit_code, no_code_checked, category, main_business,
@@ -335,7 +369,7 @@ export default {
       }
 
       if (url.pathname === '/api/cancel-order' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return errorResponse('权限不足：仅管理员可作废订单', 403);
+        if (currentUser.role !== 'admin') return errorResponse('权限不足：仅管理员可退订订单', 403);
         const { order_id, project_id, booth_id } = await request.json();
         
         await env.DB.prepare("UPDATE Orders SET status = '已退订' WHERE id = ?").bind(order_id).run();
@@ -429,7 +463,6 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 未匹配路由
       return errorResponse('接口不存在', 404);
 
     } catch (err) {
