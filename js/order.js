@@ -75,31 +75,38 @@ window.onCityChange = function() {
     } 
 }
 
-window.searchAndSelectBooth = function() {
+    window.searchAndSelectBooth = function() {
     const inp = document.getElementById('booth-search-inp').value.trim().toUpperCase(); 
     if(!inp) return window.showToast("请先输入展位号！", 'error');
     
     const booth = allBooths.find(b => b.id.toUpperCase() === inp); 
     if(!booth) return window.showToast(`未找到展位：${inp}`, 'error');
     
+    // 1. 临时锁定拦截
     if(booth.status === '已锁定') { 
         document.getElementById('booth-search-inp').value = ''; 
-        return window.showToast(`展位 [${inp}] 已被锁定！`, 'error'); 
+        return window.showToast(`展位 [${inp}] 已被他人临时锁定，暂不可操作！`, 'error'); 
     }
     
+    // 2. 联合参展（已占用）拦截与强力提示
     if(booth.status === '已预订' || booth.status === '已成交') {
-        if(!confirm(`⚠️ 展位状态为“${booth.status}”。是否为【联合参展】？`)) { 
+        const confirmMsg = `【展位占用提醒】\n\n展位 [${booth.id}] 当前状态为: ${booth.status}。\n\n该展位已有其他企业入驻，您是否确认要办理【联合参展】？\n\n(点击确定：允许录入平行订单 | 点击取消：放弃当前录入)`;
+        
+        if(!confirm(confirmMsg)) { 
             document.getElementById('booth-search-inp').value = ''; 
             return; 
         }
         isJointExhibition = true;
+        window.showToast(`已开启联合参展模式：${booth.id}`, 'info');
     } else { 
         isJointExhibition = false; 
     }
     
+    // 3. 【核心不可省略】：将选中的展位数据反填到前端隐藏域和UI面板中
     document.getElementById('selected-booth-id').value = booth.id; 
     document.getElementById('calc-booth').innerText = `${booth.hall} - ${booth.id}`; 
     window.autoFillBoothData(booth);
+    
     window.showToast(`已成功锁定展位：${booth.id}`);
 }
 
