@@ -73,7 +73,7 @@ export default {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
       if (url.pathname === '/api/staff' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return new Response('Forbidden', {status: 403});
+        if (currentUser.role !== 'admin') return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
         const s = await request.json();
         const hashedPassword = await hashPassword(s.password || '123456');
         try { await env.DB.prepare("INSERT INTO Staff (name, password, role) VALUES (?, ?, ?)").bind(s.name, hashedPassword, s.role).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
@@ -85,18 +85,18 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/update-staff-role' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return new Response('Forbidden', {status: 403});
+        if (currentUser.role !== 'admin') return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
         const { staffName, role } = await request.json(); if (staffName === 'admin') return new Response(JSON.stringify({ success: false }), { status: 400, headers: corsHeaders });
         await env.DB.prepare("UPDATE Staff SET role = ? WHERE name = ?").bind(role, staffName).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/delete-staff' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return new Response('Forbidden', {status: 403});
+        if (currentUser.role !== 'admin') return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
         const { staffName } = await request.json(); if (staffName === 'admin') return new Response(JSON.stringify({ success: false }), { status: 400, headers: corsHeaders });
         await env.DB.prepare("DELETE FROM Staff WHERE name = ?").bind(staffName).run(); await env.DB.prepare("DELETE FROM Project_Staff_Map WHERE staff_name = ?").bind(staffName).run(); return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
       if (url.pathname === '/api/change-password' && request.method === 'POST') {
         const { staffName, oldPass, newPass } = await request.json();
-        if (currentUser.name !== staffName) return new Response('Forbidden', {status: 403});
+        if (currentUser.name !== staffName) return new Response(JSON.stringify({ success: false, error: '权限不足' }), { status: 403, headers: corsHeaders });
         const hashedOld = await hashPassword(oldPass);
         const user = await env.DB.prepare("SELECT * FROM Staff WHERE name = ? AND password = ?").bind(staffName, hashedOld).first();
         if(!user) return new Response(JSON.stringify({ success: false, message: "原密码错误" }), { status: 400, headers: corsHeaders });
