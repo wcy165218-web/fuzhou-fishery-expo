@@ -37,10 +37,11 @@ window.renderOrderList = function() {
 
         const contractBtn = o.contract_url ? `<a href="/api/file/${o.contract_url}" target="_blank" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已传/预览</a>` : `<button onclick="window.triggerSilentUpload(${o.id})" class="text-red-500 hover:text-red-700 text-xs font-bold underline">未传/补传</button>`;
         
-        const safeCompany = o.company_name.replace(/'/g, "&#39;");
+        // 【优化】：防止恶意代码注入 (XSS)
+        const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name.replace(/'/g, "&#39;");
         const safeOrderObj = JSON.stringify(o).replace(/'/g, "&#39;");
 
-        // 【新增】：行首的复选框
+        // 行首的复选框
         const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}">`;
 
         tbody.innerHTML += `
@@ -68,7 +69,6 @@ window.renderOrderList = function() {
     });
 }
 
-// 勾选操作逻辑
 window.toggleAllOrderChecks = function(source) {
     document.querySelectorAll('.order-check').forEach(cb => cb.checked = source.checked);
 }
@@ -78,11 +78,9 @@ window.batchDownloadContracts = async function() {
     const checkedBoxes = document.querySelectorAll('.order-check:checked');
     if (checkedBoxes.length === 0) return window.showToast("请先勾选需要下载合同的订单", "error");
 
-    // 获取选中的订单对象
     const selectedIds = Array.from(checkedBoxes).map(cb => Number(cb.value));
     const selectedOrders = allOrders.filter(o => selectedIds.includes(o.id));
 
-    // 过滤出真正上传了合同的订单
     const ordersWithContracts = selectedOrders.filter(o => o.contract_url);
     if (ordersWithContracts.length === 0) {
         return window.showToast("您勾选的订单均未上传合同！", "error");
@@ -102,48 +100,37 @@ window.batchDownloadContracts = async function() {
 
     try {
         const zip = new JSZip();
-        // 创建一个文件夹
         const folder = zip.folder("参展企业合同打包");
 
-        // 并发拉取所有的 PDF 文件
-        const fetchPromises = ordersWithContracts.map(async (order) => {
-            try {
-                // 去 R2 存储桶拿文件
-                const response = await fetch(`/api/file/${order.contract_url}`);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    
-                    // 清理文件名中可能导致错误的特殊字符
-                    const safeCompanyName = order.company_name.replace(/[\\/:*?"<>|]/g, "_");
-                    const safeHall = order.hall.replace(/[\\/:*?"<>|馆号]/g, ""); // 去掉“馆”字保持纯数字更清晰
-                    
-                    // 【按要求命名】：馆号 企业名 参展合同.pdf
-                    const fileName = `${safeHall}馆 ${safeCompanyName} 参展合同.pdf`;
-                    
-                    // 将文件塞进压缩包
-                    folder.file(fileName, blob);
+        // 【优化】：增加并发限流，每次最多拉取5个，防止一次性拉取太多导致浏览器崩溃或被限流
+        const concurrency = 5;
+        for (let i = 0; i < ordersWithContracts.length; i += concurrency) {
+            const chunk = ordersWithContracts.slice(i, i + concurrency);
+            await Promise.all(chunk.map(async (order) => {
+                try {
+                    const response = await fetch(`/api/file/${order.contract_url}`);
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const safeCompanyName = order.company_name.replace(/[\\/:*?"<>|]/g, "_");
+                        const safeHall = order.hall.replace(/[\\/:*?"<>|馆号]/g, ""); 
+                        const fileName = `${safeHall}馆 ${safeCompanyName} 参展合同.pdf`;
+                        folder.file(fileName, blob);
+                    }
+                } catch (err) {
+                    console.error(`拉取合同失败: ${order.company_name}`, err);
                 }
-            } catch (err) {
-                console.error(`拉取合同失败: ${order.company_name}`, err);
-            }
-        });
+            }));
+        }
 
-        // 等待所有文件拉取完毕
-        await Promise.all(fetchPromises);
-
-        // 生成最终的 zip 压缩包 blob
         const content = await zip.generateAsync({ type: "blob" });
         
-        // 触发浏览器下载
         const url = window.URL.createObjectURL(content);
         const a = document.createElement("a");
         a.href = url;
-        // 压缩包命名加上当天的日期
         a.download = `展位合同批量打包_${new Date().toLocaleDateString().replace(/\//g, '-')}.zip`;
         document.body.appendChild(a);
         a.click();
         
-        // 扫尾清理
         window.URL.revokeObjectURL(url);
         a.remove();
         
@@ -157,8 +144,6 @@ window.batchDownloadContracts = async function() {
         btn.classList.remove('opacity-70', 'cursor-wait');
     }
 }
-
-// ---------------- 以下为原有的财务流水及明细相关逻辑 ----------------
 
 window.exportToExcel = function() {
     if(allOrders.length === 0) return window.showToast("当前无数据可导出", 'error');
@@ -190,6 +175,7 @@ window.triggerSilentUpload = function(orderId) {
     currentSilentOrderId = orderId;
     document.getElementById('silent-file-upload').click();
 }
+
 window.handleSilentUpload = async function(input) {
     if(!input.files[0] || !currentSilentOrderId) return;
     window.showToast("正在上传合同并更新单据...");
@@ -239,7 +225,9 @@ window.showOrderDetail = function(o) {
     document.getElementById('edit-dt-profile').value = o.profile || '';
     document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true;
     document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
-    window.toggleDtAgent();
+    
+    // 调用 agent 切换函数确保视图正确
+    if (window.toggleDtAgent) window.toggleDtAgent();
 
     window.toggleDetailEditMode(false); 
     document.getElementById('order-detail-modal').classList.remove('hidden');
@@ -343,33 +331,17 @@ window.openFinanceModal = async function(order, forcedTab = null) {
     document.getElementById('finance-modal').classList.remove('hidden');
 }
 
+// 【优化】：清理了多余的导航条样式控制代码，只保留核心逻辑
 window.switchFmTab = function(tab) {
     lastFmTab = tab; 
     const mainTitle = document.getElementById('fm-main-title');
-    if(tab === 'pay') mainTitle.innerText = "💰 收款流水管理";
-    if(tab === 'adj') mainTitle.innerText = "🛠️ 变更费用信息";
-    if(tab === 'exp') mainTitle.innerText = "📤 代付与返佣申请";
+    const titles = { 'pay': '💰 收款流水管理', 'adj': '🛠️ 变更费用信息', 'exp': '📤 代付与返佣申请' };
+    mainTitle.innerText = titles[tab] || titles['pay'];
 
     document.getElementById('fm-tab-pay').classList.add('hidden'); 
     document.getElementById('fm-tab-adj').classList.add('hidden');
     document.getElementById('fm-tab-exp').classList.add('hidden');
-    
-    document.getElementById('tab-pay').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
-    document.getElementById('tab-adjust').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
-    document.getElementById('tab-expense').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
-
-    if(tab === 'pay') {
-        document.getElementById('fm-tab-pay').classList.remove('hidden'); 
-        document.getElementById('tab-pay').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600';
-    }
-    else if(tab === 'adj') {
-        document.getElementById('fm-tab-adj').classList.remove('hidden'); 
-        document.getElementById('tab-adjust').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-orange-500 text-orange-600';
-    }
-    else {
-        document.getElementById('fm-tab-exp').classList.remove('hidden'); 
-        document.getElementById('tab-expense').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-purple-500 text-purple-600';
-    }
+    document.getElementById(`fm-tab-${tab}`).classList.remove('hidden');
 }
 
 window.loadPaymentHistory = async function(orderId) {
@@ -464,11 +436,13 @@ window.renderFmDynamicFees = function() {
     });
     window.calculateFmAdjustTotal();
 }
+
 window.calculateFmAdjustTotal = function() {
     const af = parseFloat(document.getElementById('adj-actual-fee').value) || 0;
     let ot = 0; fmDynamicFees.forEach(f => { ot += parseFloat(f.amount) || 0; });
     document.getElementById('fm-adjust-calc-total').innerText = `¥ ${(af + ot).toLocaleString()}`;
 }
+
 window.submitAdjustment = async function() {
     const pid = document.getElementById('global-project-select').value;
     const af = parseFloat(document.getElementById('adj-actual-fee').value);
@@ -570,10 +544,10 @@ window.printExpense = function(e) {
 
 window.cancelOrder = async function(orderId, boothId) {
     const pid = document.getElementById('global-project-select').value;
-    if(!confirm(`🚨 危险操作：确定要作废订单吗？\n作废后，展位 [${boothId}] 将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
+    if(!confirm(`🚨 危险操作：确定要作废订单吗？\n作废后，如果展位上没有其他订单，它将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
     try {
         const res = await window.apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
-        if(res.ok) { window.showToast("退单成功！展位已释放。"); window.loadOrderList(); } 
+        if(res.ok) { window.showToast("退单成功！"); window.loadOrderList(); } 
         else { const err = await res.json(); window.showToast(err.error || "作废失败", 'error'); }
     } catch (e) { /* handled */ }
 }
