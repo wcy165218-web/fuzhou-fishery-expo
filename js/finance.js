@@ -41,24 +41,26 @@ window.renderOrderList = function() {
 
         const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name;
 
-        // 【合同管理升级】：增加预览与重新上传功能
+        // 【核心优化】：合同状态 UI 升级，明确展示状态，仅保留预览和重新上传
         let contractBtn = '';
         if (o.contract_url) {
-            if (window.currentUser.role === 'admin') {
-                contractBtn = `
-                    <div class="flex items-center justify-center gap-1">
+            contractBtn = `
+                <div class="flex flex-col items-center justify-center gap-1.5">
+                    <span class="text-green-700 text-xs font-bold bg-green-100 px-2 py-0.5 rounded shadow-sm">✅ 已上传</span>
+                    <div class="flex items-center justify-center gap-1.5">
                         <button onclick="window.previewSingleContract('${o.contract_url}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">预览</button>
                         <span class="text-gray-300">|</span>
-                        <button onclick="window.downloadSingleContract('${o.contract_url}', '${safeCompany.replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">下载</button>
+                        <button onclick="window.triggerSilentUpload('${o.id}')" class="text-orange-500 hover:text-orange-700 text-xs font-bold underline">重新上传</button>
                     </div>
-                `;
-            } else {
-                contractBtn = `<div class="text-green-600 text-xs font-bold">已传(仅管理员)</div>`;
-            }
-            // 所有人都可以重新上传覆盖
-            contractBtn += `<div class="mt-1"><button onclick="window.triggerSilentUpload('${o.id}')" class="text-orange-500 hover:text-orange-700 text-xs font-bold underline">🔄 重新上传</button></div>`;
+                </div>
+            `;
         } else {
-            contractBtn = `<button onclick="window.triggerSilentUpload('${o.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold underline">未传/补传</button>`;
+            contractBtn = `
+                <div class="flex flex-col items-center justify-center gap-1.5">
+                    <span class="text-gray-500 text-xs font-bold bg-gray-100 px-2 py-0.5 rounded shadow-sm">❌ 暂未上传</span>
+                    <button onclick="window.triggerSilentUpload('${o.id}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">点击上传</button>
+                </div>
+            `;
         }
 
         const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}">`;
@@ -108,33 +110,18 @@ window.toggleAllOrderChecks = function(source) {
     document.querySelectorAll('.order-check').forEach(cb => cb.checked = source.checked);
 }
 
-// 【新增】：新标签页预览 PDF 文件
+// 预览合同 (新标签页打开)
 window.previewSingleContract = async function(fileKey) {
     try {
         window.showToast("正在获取云端合同，准备预览...", "info");
         const response = await window.apiFetch(`/api/file/${fileKey}`);
-        if (!response.ok) throw new Error("获取失败或无预览权限");
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "获取失败或无预览权限");
+        }
         const blob = await response.blob();
         const objectUrl = window.URL.createObjectURL(blob);
         window.open(objectUrl, '_blank');
-    } catch (e) { window.showToast(e.message, 'error'); }
-}
-
-window.downloadSingleContract = async function(fileKey, companyName) {
-    try {
-        window.showToast("正在请求云端合同，准备下载...", "info");
-        const response = await window.apiFetch(`/api/file/${fileKey}`);
-        if (!response.ok) throw new Error("获取失败或无下载权限");
-        const blob = await response.blob();
-        const objectUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objectUrl;
-        const safeCompanyName = companyName.replace(/[\\/:*?"<>|]/g, "_");
-        a.download = `${safeCompanyName}_参展合同.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(objectUrl);
-        a.remove();
     } catch (e) { window.showToast(e.message, 'error'); }
 }
 
@@ -221,15 +208,16 @@ window.handleSilentUpload = async function(input) {
     const formData = new FormData(); formData.append('file', input.files[0]);
     try {
         const upRes = await window.apiFetch('/api/upload', {method:'POST', body: formData});
+        if (!upRes.ok) throw new Error("云端存储失败");
         const upData = await upRes.json();
         const order = window.allOrders.find(o => String(o.id) === String(window.currentSilentOrderId));
         const data = { project_id: document.getElementById('global-project-select').value, order_id: window.currentSilentOrderId, contact_person: order.contact_person, phone: order.phone, region: order.region, main_business: order.main_business, profile: order.profile, category: order.category, is_agent: order.is_agent === 1, agent_name: order.agent_name, contract_url: upData.fileKey };
-        await window.apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
+        const updateRes = await window.apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
+        if (!updateRes.ok) throw new Error("数据库更新失败");
         window.showToast("合同处理成功！"); window.loadOrderList();
-    } catch (e) { window.showToast("上传失败", 'error'); } finally { input.value = ''; window.currentSilentOrderId = null; }
+    } catch (e) { window.showToast("上传失败: " + e.message, 'error'); } finally { input.value = ''; window.currentSilentOrderId = null; }
 }
 
-// 【修复联动逻辑】：代理商名字输入框切换
 window.toggleDtAgent = function() {
     const checkedRadio = document.querySelector('input[name="edit_is_agent"]:checked');
     if (!checkedRadio) return;
@@ -248,7 +236,6 @@ window.showOrderDetail = function(o) {
     document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true; 
     document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
     
-    // 强制绑定单选按钮事件并执行一次检查
     document.querySelectorAll('input[name="edit_is_agent"]').forEach(el => el.onchange = window.toggleDtAgent);
     window.toggleDtAgent();
     
@@ -269,8 +256,8 @@ window.saveDetailEdit = async function() {
     window.toggleBtnLoading('btn-save-detail', true);
     try {
         const res = await window.apiFetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
-        if(res.ok) { window.showToast("资料更新成功！"); Object.assign(window.currentViewOrder, updatedData); window.currentViewOrder.is_agent = updatedData.is_agent ? 1 : 0; window.showOrderDetail(window.currentViewOrder); window.loadOrderList(); } 
-        else window.showToast("修改失败，请重试。", 'error');
+        if(!res.ok) throw new Error("修改失败，请重试");
+        window.showToast("资料更新成功！"); Object.assign(window.currentViewOrder, updatedData); window.currentViewOrder.is_agent = updatedData.is_agent ? 1 : 0; window.showOrderDetail(window.currentViewOrder); window.loadOrderList();
     } catch (e) { window.showToast(e.message, 'error'); } finally { window.toggleBtnLoading('btn-save-detail', false); }
 }
 
@@ -341,7 +328,6 @@ window.switchFmTab = function(tab) {
     document.getElementById(`fm-tab-${tab}`).classList.remove('hidden');
 }
 
-// 【新增】：独立辅助函数，用于在不关闭窗口的情况下实时刷新金额
 window.refreshFinanceModalStats = function() {
     const updatedOrder = window.allOrders.find(o => String(o.id) === String(window.currentModalOrderId));
     if (updatedOrder) {
@@ -355,14 +341,16 @@ window.refreshFinanceModalStats = function() {
 window.loadPaymentHistory = async function(orderId) {
     const listDiv = document.getElementById('fm-pay-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
     try {
-        const response = await window.apiFetch(`/api/payments?orderId=${orderId}`); const pays = await response.json();
+        const response = await window.apiFetch(`/api/payments?orderId=${orderId}`); 
+        if(!response.ok) throw new Error("获取历史记录失败");
+        const pays = await response.json();
         if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
         listDiv.innerHTML = '';
         pays.forEach(p => {
             const safePayer = (p.payer_name || '').replace(/'/g, "\\'"); const safeBank = (p.bank_name || '').replace(/'/g, "\\'"); const safeRem = (p.remarks || '').replace(/'/g, "\\'");
             listDiv.innerHTML += `<div class="bg-white border rounded p-3 flex justify-between items-center hover:bg-gray-50 transition"><div><div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}</div><div class="text-xs text-gray-600 mt-1">👤 户名: ${p.payer_name}</div><div class="text-xs text-gray-500">🏦 途径: ${p.bank_name || '未填'} | 📝 备注: ${p.remarks || '无'}</div></div><div class="text-right flex flex-col justify-between h-full"><div class="text-xs font-bold text-gray-700 mb-2">📅 ${p.payment_time}</div><div><button onclick="window.openEditPaymentModal('${p.id}', ${p.amount}, '${safePayer}', '${safeBank}', '${safeRem}', '${p.payment_time}')" class="text-indigo-500 hover:text-indigo-700 text-xs font-bold mr-2">修改</button><button onclick="window.deletePayment('${p.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button></div></div></div>`;
         });
-    } catch (e) { listDiv.innerHTML = '<p class="text-red-500">加载失败</p>'; }
+    } catch (e) { listDiv.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 
 window.submitPayment = async function() {
@@ -370,18 +358,17 @@ window.submitPayment = async function() {
     if(!amt || amt <= 0) return window.showToast("请输入正确的收款金额", 'error'); if(!time || !payer) return window.showToast("时间和打款户名为必填项！", 'error'); if(!bank) return window.showToast("请选择途径！", 'error');
     window.toggleBtnLoading('btn-submit-payment', true);
     try { 
-        await window.apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) }); 
+        const res = await window.apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) }); 
+        if(!res.ok) { const err = await res.json(); throw new Error(err.error || "写入流水失败"); }
         window.showToast("收款入账成功！"); 
         
-        // 【核心修改】：不关闭主弹窗，就地刷新列表和金额
         await window.loadOrderList(); 
         await window.loadPaymentHistory(orderId);
         window.refreshFinanceModalStats();
         
-        // 清空输入框方便连续录单
         document.getElementById('pay-amount').value = '';
         document.getElementById('pay-remark').value = '';
-    } finally { window.toggleBtnLoading('btn-submit-payment', false); }
+    } catch (e) { window.showToast(e.message, 'error'); } finally { window.toggleBtnLoading('btn-submit-payment', false); }
 }
 
 window.openEditPaymentModal = function(id, amt, payer, bank, remark, time) { document.getElementById('ep-id').value = id; document.getElementById('ep-amount').value = amt; document.getElementById('ep-payer').value = payer; document.getElementById('ep-bank').value = bank; document.getElementById('ep-time').value = time; document.getElementById('ep-remark').value = remark; document.getElementById('edit-payment-modal').classList.remove('hidden'); }
@@ -391,24 +378,27 @@ window.submitEditPayment = async function() {
     if(!data.amount || !data.payer_name) return window.showToast("金额和户名必填", 'error');
     window.toggleBtnLoading('btn-save-payment', true); 
     try {
-        await window.apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) }); 
-        window.closeModal('edit-payment-modal'); // 仅关闭小的修改弹窗
+        const res = await window.apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) }); 
+        if(!res.ok) throw new Error("流水修改失败");
+        window.closeModal('edit-payment-modal'); 
         window.showToast("流水修改成功！"); 
         
-        // 就地刷新主面板的列表和金额
         await window.loadOrderList();
         await window.loadPaymentHistory(window.currentModalOrderId); 
         window.refreshFinanceModalStats();
-    } finally { window.toggleBtnLoading('btn-save-payment', false); }
+    } catch (e) { window.showToast(e.message, 'error'); } finally { window.toggleBtnLoading('btn-save-payment', false); }
 }
 
 window.deletePayment = async function(payId) { 
     if(!confirm("确定要删除这条收款记录吗？")) return; 
-    await window.apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: window.currentModalOrderId, payment_id: payId }) }); 
-    window.showToast("删除成功"); 
-    await window.loadOrderList();
-    await window.loadPaymentHistory(window.currentModalOrderId); 
-    window.refreshFinanceModalStats();
+    try {
+        const res = await window.apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: window.currentModalOrderId, payment_id: payId }) }); 
+        if(!res.ok) throw new Error("删除失败");
+        window.showToast("删除成功"); 
+        await window.loadOrderList();
+        await window.loadPaymentHistory(window.currentModalOrderId); 
+        window.refreshFinanceModalStats();
+    } catch (e) { window.showToast(e.message, 'error'); }
 }
 
 window.fmAddFeeRow = function() { window.fmDynamicFees.push({ name: '', amount: '' }); window.renderFmDynamicFees(); }
@@ -427,26 +417,28 @@ window.submitAdjustment = async function() {
     let ot = 0; let validFees = []; window.fmDynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { ot += parseFloat(f.amount); validFees.push(f); } });
     window.toggleBtnLoading('btn-submit-adj', true); 
     try {
-        await window.apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: window.currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) }); 
+        const res = await window.apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: window.currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) }); 
+        if(!res.ok) throw new Error("账单变更失败");
         window.showToast("账单变更成功！"); 
         
-        // 【核心修改】：不关闭主弹窗，就地刷新数据和金额
         await window.loadOrderList(); 
         window.refreshFinanceModalStats();
-    } finally { window.toggleBtnLoading('btn-submit-adj', false); }
+    } catch (e) { window.showToast(e.message, 'error'); } finally { window.toggleBtnLoading('btn-submit-adj', false); }
 }
 
 window.loadExpenseHistory = async function(orderId) {
     const listDiv = document.getElementById('fm-exp-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
     try {
-        const response = await window.apiFetch(`/api/expenses?orderId=${orderId}`); const exps = await response.json();
+        const response = await window.apiFetch(`/api/expenses?orderId=${orderId}`); 
+        if(!response.ok) throw new Error("拉取数据失败");
+        const exps = await response.json();
         if(exps.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付记录</p>'; return; }
         listDiv.innerHTML = '';
         exps.forEach(e => {
             const safeE = JSON.stringify(e).replace(/'/g, "&#39;");
             listDiv.innerHTML += `<div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50"><div><div class="font-bold text-purple-700">金额: ¥${e.amount} <span class="text-sm font-normal text-gray-500 ml-2">(${e.payee_name})</span></div><div class="text-xs text-gray-600 mt-1">📝 事由: <span class="font-bold">${e.reason || '无说明'}</span></div><div class="text-xs text-gray-400 mt-1">${e.created_at ? e.created_at.split(' ')[0] : ''} | 渠道: ${e.payee_channel || '转账'} | 申请人: ${e.applicant}</div></div><div class="text-right"><button onclick='window.printExpense(${safeE})' class="bg-gray-800 text-white hover:bg-black text-xs font-bold px-3 py-1.5 rounded mr-2">🖨️ 打印单据</button><button onclick="window.deleteExpense('${e.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">撤销</button></div></div>`;
         });
-    } catch (err) { listDiv.innerHTML = `<p class="text-red-500 font-bold">解析异常</p>`; }
+    } catch (err) { listDiv.innerHTML = `<p class="text-red-500 font-bold">解析异常: ${err.message}</p>`; }
 }
 
 window.submitExpense = async function() {
@@ -455,22 +447,23 @@ window.submitExpense = async function() {
     window.toggleBtnLoading('btn-submit-exp', true);
     try {
         const data = { project_id: pid, order_id: window.currentModalOrderId, fee_item_name: '总收款抵扣', payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, amount: amt, applicant: window.currentUser.name, reason: reason };
-        const res = await window.apiFetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) }); const resData = await res.json();
-        if(res.ok && resData.success) { 
-            window.showToast("支出申请已记录！"); 
-            document.getElementById('exp-reason').value = ''; document.getElementById('exp-payee').value = ''; document.getElementById('exp-amount').value = ''; 
-            
-            // 就地刷新代付历史记录
-            window.loadExpenseHistory(window.currentModalOrderId); 
-        } else throw new Error(resData.error || "写入失败");
+        const res = await window.apiFetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) }); 
+        if(!res.ok) { const err = await res.json(); throw new Error(err.error || "写入失败"); }
+        window.showToast("支出申请已记录！"); 
+        document.getElementById('exp-reason').value = ''; document.getElementById('exp-payee').value = ''; document.getElementById('exp-amount').value = ''; 
+        
+        window.loadExpenseHistory(window.currentModalOrderId); 
     } catch(err) { window.showToast(err.message, 'error'); } finally { window.toggleBtnLoading('btn-submit-exp', false); }
 }
 
 window.deleteExpense = async function(expId) { 
     if(!confirm("确定撤销该笔申请吗？")) return; 
-    await window.apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) }); 
-    window.showToast("撤销成功！"); 
-    window.loadExpenseHistory(window.currentModalOrderId); 
+    try {
+        const res = await window.apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) }); 
+        if(!res.ok) throw new Error("撤销失败");
+        window.showToast("撤销成功！"); 
+        window.loadExpenseHistory(window.currentModalOrderId); 
+    } catch (e) { window.showToast(e.message, 'error'); }
 }
 
 window.printExpense = function(e) {
