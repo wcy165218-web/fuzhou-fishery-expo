@@ -480,3 +480,14 @@ window.cancelOrder = async function(orderId, boothId) {
         else { const err = await res.json(); window.showToast(err.error || "作废失败", 'error'); }
     } catch (e) { /* handled */ }
 }
+// 【核心修复】：补充全景档案编辑模式下的代理商开关逻辑
+window.toggleDtAgent = function() {
+    const isAgent = document.querySelector('input[name="edit_is_agent"]:checked').value === '1';
+    const box = document.getElementById('edit-dt-agent-name');
+    if(isAgent) { 
+        box.classList.remove('hidden'); 
+    } else { 
+        box.classList.add('hidden'); 
+        box.value = ''; // 切换回直招时，顺手清空里面的值
+    }
+}
