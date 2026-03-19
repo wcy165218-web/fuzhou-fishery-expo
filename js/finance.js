@@ -245,23 +245,27 @@ window.openFinanceDirect = async function(order, tab) {
     try {
         const pid = document.getElementById('global-project-select').value;
         const res = await window.apiFetch(`/api/accounts?projectId=${pid}`);
-        window.projectAccounts = await res.json();
-        
+        const data = await res.json();
+
+        // 【终极防崩拦截】：不管后端报什么错，只要不是正常数组，就强制降级为空数组，绝不崩溃！
+        window.projectAccounts = Array.isArray(data) ? data : [];
+
         const sel = document.getElementById('pay-account-select'); 
         sel.innerHTML = '<option value="">-- 请选择收款方式 --</option>';
         
-        const group = document.createElement('optgroup'); 
-        group.label = "🏢 系统配置对公账户";
+        // 如果有拉取到对公账户，才渲染这一组
+        if (window.projectAccounts.length > 0) {
+            const group = document.createElement('optgroup'); 
+            group.label = "🏢 系统配置对公账户";
+            window.projectAccounts.forEach(a => { 
+                const textVal = `${a.account_name} - ${a.bank_name || ''}`;
+                const displayStr = `🏦 ${a.account_name} - ${a.bank_name || ''} (账号: ${a.account_no || '未配置'})`;
+                group.innerHTML += `<option value="${textVal}">${displayStr}</option>`; 
+            });
+            sel.appendChild(group); 
+        }
         
-        window.projectAccounts.forEach(a => { 
-            const textVal = `${a.account_name} - ${a.bank_name || ''}`;
-            const displayStr = `🏦 ${a.account_name} - ${a.bank_name || ''} (账号: ${a.account_no || '未配置'})`;
-            group.innerHTML += `<option value="${textVal}">${displayStr}</option>`; 
-        });
-        
-        sel.appendChild(group); 
-        
-        // 确保不会因为 += 而破坏 DOM 事件绑定
+        // 渲染基础打款方式
         const otherGroup = document.createElement('optgroup');
         otherGroup.label = "📱 其他常规方式";
         otherGroup.innerHTML = `<option value="微信">💬 微信</option><option value="支付宝">🔵 支付宝</option><option value="现金">💵 现金</option>`;
@@ -269,7 +273,10 @@ window.openFinanceDirect = async function(order, tab) {
         
         window.openFinanceModal(order, tab);
     } catch (e) {
-        window.showToast("拉取账户配置失败: " + e.message, "error");
+        // 即使网络彻底断了，也强行把面板打开，保证能用基础的微信/支付宝收款
+        console.error("拉取账户异常:", e);
+        window.showToast("拉取自定义账户失败，已启用基础收款模式", "info");
+        window.openFinanceModal(order, tab);
     }
 }
 
