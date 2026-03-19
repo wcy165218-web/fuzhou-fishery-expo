@@ -274,7 +274,6 @@ window.switchFmTab = function(tab) {
         document.getElementById('tab-expense').className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-purple-500 text-purple-600';
     }
 
-    document.querySelector('.border-b.border-gray-200.hidden')?.classList.remove('hidden');
 }
 
 // 财务流水明细加载与提交
