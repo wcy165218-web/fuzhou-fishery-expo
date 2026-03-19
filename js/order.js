@@ -1,4 +1,6 @@
 // ================= js/order.js =================
+window.currentAllocatedArea = 0; // 全局存储本次分配的展位面积
+
 window.initOrderForm = async function() {
     const pid = document.getElementById('global-project-select').value; if(!pid) return;
     const pRes = await window.apiFetch(`/api/prices?projectId=${pid}`); 
@@ -28,6 +30,7 @@ window.resetOrderForm = function() {
     window.toggleCreditCode();
     
     isJointExhibition = false; 
+    window.currentAllocatedArea = 0;
 
     document.getElementById('calc-booth').innerText = '-'; 
     document.getElementById('calc-type').innerText = '-'; 
@@ -75,39 +78,49 @@ window.onCityChange = function() {
     } 
 }
 
-    window.searchAndSelectBooth = function() {
+window.searchAndSelectBooth = function() {
     const inp = document.getElementById('booth-search-inp').value.trim().toUpperCase(); 
     if(!inp) return window.showToast("请先输入展位号！", 'error');
     
     const booth = allBooths.find(b => b.id.toUpperCase() === inp); 
     if(!booth) return window.showToast(`未找到展位：${inp}`, 'error');
     
-    // 1. 临时锁定拦截
     if(booth.status === '已锁定') { 
         document.getElementById('booth-search-inp').value = ''; 
         return window.showToast(`展位 [${inp}] 已被他人临时锁定，暂不可操作！`, 'error'); 
     }
     
-    // 2. 联合参展（已占用）拦截与强力提示
+    let allocatedArea = booth.area;
+
+    // 【核心修复】：联合参展面积分配逻辑
     if(booth.status === '已预订' || booth.status === '已成交') {
-        const confirmMsg = `【展位占用提醒】\n\n展位 [${booth.id}] 当前状态为: ${booth.status}。\n\n该展位已有其他企业入驻，您是否确认要办理【联合参展】？\n\n(点击确定：允许录入平行订单 | 点击取消：放弃当前录入)`;
+        const areaInput = prompt(`【联合参展提醒】\n\n展位 [${booth.id}] 已有企业入驻。\n\n请输入分配给【新企业】的展位面积（㎡）：\n(原总面积 ${booth.area}㎡，提交后系统将自动从原企业订单中扣除该面积)`, "9");
         
-        if(!confirm(confirmMsg)) { 
+        if(areaInput === null) { 
             document.getElementById('booth-search-inp').value = ''; 
             return; 
         }
+        
+        allocatedArea = parseFloat(areaInput);
+        if(isNaN(allocatedArea) || allocatedArea <= 0 || allocatedArea >= booth.area) {
+            window.showToast("输入的面积无效或大于等于总面积，已取消录入", "error");
+            document.getElementById('booth-search-inp').value = ''; 
+            return;
+        }
+
         isJointExhibition = true;
-        window.showToast(`已开启联合参展模式：${booth.id}`, 'info');
+        window.showToast(`已开启联合参展，分配面积：${allocatedArea}㎡`, 'info');
     } else { 
         isJointExhibition = false; 
     }
     
-    // 3. 【核心不可省略】：将选中的展位数据反填到前端隐藏域和UI面板中
     document.getElementById('selected-booth-id').value = booth.id; 
     document.getElementById('calc-booth').innerText = `${booth.hall} - ${booth.id}`; 
+    
+    window.currentAllocatedArea = allocatedArea; // 记录本次分配的面积
     window.autoFillBoothData(booth);
     
-    window.showToast(`已成功锁定展位：${booth.id}`);
+    if(!isJointExhibition) window.showToast(`已成功锁定展位：${booth.id}`);
 }
 
 window.addFeeRow = function() { dynamicFees.push({ name: '', amount: '' }); window.renderDynamicFees(); }
@@ -149,15 +162,16 @@ window.toggleCreditCode = function() {
 
 window.autoFillBoothData = function(booth) {
     document.getElementById('calc-type').innerText = booth.type; 
-    document.getElementById('calc-area').innerText = booth.area;
+    document.getElementById('calc-area').innerText = window.currentAllocatedArea; // 使用分配面积展示
     const priceUnit = booth.base_price > 0 ? booth.base_price : (globalPrices[booth.type] || 0);
     
+    // 原价计算根据分配的面积走
     if(booth.type === '光地') { 
         document.getElementById('calc-unit').innerText = `¥${priceUnit} /平米`; 
-        currentStandardFee = priceUnit * booth.area; 
+        currentStandardFee = priceUnit * window.currentAllocatedArea; 
     } else { 
         document.getElementById('calc-unit').innerText = `¥${priceUnit} /个(9㎡)`; 
-        currentStandardFee = priceUnit * (booth.area / 9); 
+        currentStandardFee = priceUnit * (window.currentAllocatedArea / 9); 
     }
     document.getElementById('calc-standard-fee').innerText = `¥ ${currentStandardFee.toLocaleString()}`; 
     document.getElementById('order-actual-fee').value = currentStandardFee; 
@@ -171,8 +185,9 @@ window.calculateFinalTotal = function() {
     
     if(boothId && !isNaN(actualBoothFee)) {
         const booth = allBooths.find(b => b.id === boothId);
-        if(booth && booth.area > 0) { 
-            let actualUnit = booth.type === '光地' ? actualBoothFee / booth.area : actualBoothFee / (booth.area / 9); 
+        if(booth && window.currentAllocatedArea > 0) { 
+            // 按照分配的面积反推单价
+            let actualUnit = booth.type === '光地' ? actualBoothFee / window.currentAllocatedArea : actualBoothFee / (window.currentAllocatedArea / 9); 
             dynamicStrategyDiv.innerText = `(反推实际单价：¥ ${actualUnit.toFixed(2)} /${booth.type === '光地'?'㎡':'个'})`; 
             dynamicStrategyDiv.classList.remove('hidden'); 
         }
@@ -260,7 +275,9 @@ window.submitOrderForm = async function() {
         const orderData = {
             project_id: pid, company_name: company, credit_code: code, no_code_checked: document.getElementById('order-no-code').checked,
             category: category, main_business: business, is_agent: isAgent, agent_name: agentName,
-            contact_person: contact, phone: phone, region: finalRegion, booth_id: boothId, area: booth.area, price_unit: booth.type === '光地' ? '平米' : '个', unit_price: booth.base_price > 0 ? booth.base_price : globalPrices[booth.type],
+            contact_person: contact, phone: phone, region: finalRegion, booth_id: boothId, 
+            area: window.currentAllocatedArea || booth.area, // 提交分配后面积
+            price_unit: booth.type === '光地' ? '平米' : '个', unit_price: booth.base_price > 0 ? booth.base_price : globalPrices[booth.type],
             total_booth_fee: actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: actualBoothFee + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name
         };
         const res = await window.apiFetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) });
