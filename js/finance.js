@@ -39,13 +39,12 @@ window.renderOrderList = function() {
         }
         if(o.paid_amount >= o.total_amount) payBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">🟢 已付全款</span>`;
 
-        const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name.replace(/'/g, "&#39;");
-        const safeOrderObj = JSON.stringify(o).replace(/'/g, "&#39;");
+        const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name;
 
         let contractBtn = '';
         if (o.contract_url) {
             if (currentUser.role === 'admin') {
-                contractBtn = `<button onclick="window.downloadSingleContract('${o.contract_url}', '${safeCompany}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已传/下载</button>`;
+                contractBtn = `<button onclick="window.downloadSingleContract('${o.contract_url}', '${safeCompany.replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已传/下载</button>`;
             } else {
                 contractBtn = `<span class="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded border border-green-200" title="您没有下载权限">已传(仅管理员)</span>`;
             }
@@ -55,13 +54,14 @@ window.renderOrderList = function() {
 
         const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}">`;
 
+        // 【核心修复】：不再把整个 JSON 塞进按钮，改为只传 o.id，彻底解决按钮失效问题
         tbody.innerHTML += `
             <tr class="border-b hover:bg-blue-50 transition">
                 <td class="p-3 text-center">${checkboxHtml}</td>
                 <td class="p-3 font-bold text-gray-600">${o.hall}</td>
                 <td class="p-3 font-bold text-blue-700 text-lg">${o.booth_id}</td>
                 <td class="p-3 text-xs text-gray-500 truncate max-w-[120px]" title="${o.region || '未填'}">${o.region || '未填'}</td>
-                <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[180px] truncate" onclick='window.showOrderDetail(${safeOrderObj})' title="点击查看详情与编辑">${safeCompany}</td>
+                <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[180px] truncate" onclick="window.showOrderDetailById(${o.id})" title="点击查看详情与编辑">${safeCompany}</td>
                 <td class="p-3">${o.area} ㎡</td>
                 <td class="p-3 text-xs text-gray-500">${o.booth_type}</td>
                 <td class="p-3 text-xs text-gray-600 font-bold">${o.sales_name}</td>
@@ -70,14 +70,26 @@ window.renderOrderList = function() {
                 <td class="p-3 text-center align-middle">${payBadge}</td>
                 <td class="p-3 text-center align-middle">${contractBtn}</td>
                 <td class="p-3 text-center whitespace-nowrap align-middle">
-                    <button onclick='window.openFinanceDirect(${safeOrderObj}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
-                    <button onclick='window.openFinanceDirect(${safeOrderObj}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
-                    <button onclick='window.openFinanceDirect(${safeOrderObj}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
+                    <button onclick="window.openFinanceDirectById(${o.id}, 'pay')" class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
+                    <button onclick="window.openFinanceDirectById(${o.id}, 'adj')" class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
+                    <button onclick="window.openFinanceDirectById(${o.id}, 'exp')" class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
                     ${currentUser.role==='admin' ? `<button onclick="window.cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">退订</button>` : ''}
                 </td>
             </tr>
         `;
     });
+}
+
+// 【新增】：根据ID查找订单并打开全景档案
+window.showOrderDetailById = function(id) {
+    const order = allOrders.find(o => o.id === id);
+    if (order) window.showOrderDetail(order);
+}
+
+// 【新增】：根据ID查找订单并打开财务面板
+window.openFinanceDirectById = function(id, tab) {
+    const order = allOrders.find(o => o.id === id);
+    if (order) window.openFinanceDirect(order, tab);
 }
 
 window.toggleAllOrderChecks = function(source) {
@@ -169,7 +181,9 @@ window.exportToExcel = function() {
     let csvContent = "\uFEFF内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,产品分类,主营业务/展品,业务员,总应收(元),已收(元),录入时间\n";
     allOrders.forEach(o => {
         let status = o.paid_amount >= o.total_amount ? '已付全款' : (o.paid_amount > 0 ? '已付定金' : '未付款');
-        if(o.status === '已退订') status = '已退订';
+        // 【兼容修复】：导出时将旧的已作废也识别为已退订
+        if(o.status === '已退订' || o.status === '已作废') status = '已退订';
+        
         const safeWrap = (val) => `"${(val || '').toString().replace(/"/g, '""')}"`;
         let row = [ status, o.hall, o.booth_id, o.area, o.booth_type, safeWrap(o.company_name), safeWrap(o.credit_code), safeWrap(o.region), safeWrap(o.contact_person), safeWrap(o.phone), safeWrap(o.category), safeWrap(o.main_business), o.sales_name, o.total_amount, o.paid_amount, o.created_at ].join(',');
         csvContent += row + "\n";
@@ -230,7 +244,6 @@ window.openFinanceDirect = async function(order, tab) {
     const sel = document.getElementById('pay-account-select'); sel.innerHTML = '<option value="">-- 请选择收款方式 --</option>';
     const group = document.createElement('optgroup'); group.label = "🏢 系统配置对公账户";
     
-    // 【核心修复】：在选择里增加账号显示，传值依旧干净
     projectAccounts.forEach(a => { 
         const textVal = `${a.account_name} - ${a.bank_name || ''}`;
         const displayStr = `🏦 ${a.account_name} - ${a.bank_name || ''} (账号: ${a.account_no || '未配置'})`;
@@ -335,7 +348,6 @@ window.printExpense = function(e) {
     document.getElementById('print-content').innerHTML = content; document.getElementById('print-modal').classList.remove('hidden');
 }
 
-// 【退订逻辑替换】
 window.cancelOrder = async function(orderId, boothId) {
     const pid = document.getElementById('global-project-select').value;
     if(!confirm(`🚨 危险操作：确定要退订订单吗？\n如果该展位没有其他正常订单，它将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
