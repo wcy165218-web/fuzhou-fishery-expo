@@ -46,6 +46,14 @@ function errorResponse(msg, status = 400) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // 👇👇👇 【核心修复：秒杀 404 白屏】 👇👇👇
+    // 如果不是请求后端 /api/ 接口，说明是在访问网页、JS 或 CSS，直接交还给 Cloudflare Pages 处理！
+    if (!url.pathname.startsWith('/api/')) {
+        return env.ASSETS.fetch(request);
+    }
+    // 👆👆👆 ============================== 👆👆👆
+
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
@@ -56,14 +64,13 @@ export default {
 
     let currentUser = null;
 
-    if (url.pathname.startsWith('/api/') && url.pathname !== '/api/login') {
+    if (url.pathname !== '/api/login') {
       const authHeader = request.headers.get('Authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
           return errorResponse('未登录或登录已过期', 401);
       }
       const token = authHeader.split(' ')[1];
       try {
-        // 使用原生引擎解密验证
         currentUser = await verifyJWT(token, JWT_SECRET_STR);
       } catch (err) {
         return errorResponse('登录状态已失效，请重新登录', 401);
@@ -325,11 +332,13 @@ export default {
         const o = await request.json();
         const stmts = [];
 
+        // 联合参展扣减面积
         const existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1").bind(o.project_id, o.booth_id).first();
         if (existingOrder) {
             stmts.push(env.DB.prepare("UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?").bind(o.area, existingOrder.id));
         }
 
+        // 插入订单 (+8 hours 北京时间)
         stmts.push(env.DB.prepare(`
           INSERT INTO Orders (
             project_id, company_name, credit_code, no_code_checked, category, main_business,
