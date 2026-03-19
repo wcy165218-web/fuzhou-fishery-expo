@@ -327,17 +327,32 @@ export default {
         const role = urlObj.searchParams.get('role');
         const sName = urlObj.searchParams.get('salesName');
         
+        // 【核心修复】：兼容旧的“已作废”和新的“已退订”，让它们都不出现在大盘里
         let query = `
           SELECT o.*, b.hall, b.type as booth_type 
           FROM Orders o 
           LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id 
-          WHERE o.project_id = ? AND o.status != '已退订'
+          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废')
         `;
         let params = [pid];
         if (role !== 'admin') { query += ` AND o.sales_name = ?`; params.push(sName); }
         query += ` ORDER BY o.created_at DESC`;
         const results = await env.DB.prepare(query).bind(...params).all();
         return new Response(JSON.stringify(results.results), { headers: corsHeaders });
+      }
+
+      if (url.pathname === '/api/booths' && request.method === 'GET') {
+          const pid = new URL(request.url).searchParams.get('projectId');
+          // 【核心修复】：展位库的金额加总也要排除掉“已作废”
+          const query = `
+            SELECT b.*, SUM(o.total_booth_fee) as total_booth_fee 
+            FROM Booths b 
+            LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status NOT IN ('已退订', '已作废')
+            WHERE b.project_id = ? 
+            GROUP BY b.id
+          `;
+          const results = await env.DB.prepare(query).bind(pid).all();
+          return new Response(JSON.stringify(results.results), { headers: corsHeaders });
       }
 
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
