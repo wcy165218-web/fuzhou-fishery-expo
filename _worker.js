@@ -200,13 +200,24 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 6. 客户资料编辑
+      // 6. 客户资料编辑 (及合同补传)
       if (url.pathname === '/api/update-customer-info' && request.method === 'POST') {
         const d = await request.json();
-        await env.DB.prepare(`
-            UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ?, category = ? 
-            WHERE id = ? AND project_id = ?
-        `).bind(d.contact_person, d.phone, d.region, d.main_business, d.profile, d.is_agent ? 1 : 0, d.agent_name, d.category, d.order_id, d.project_id).run();
+        
+        // 基础更新字段
+        let query = `UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ?, category = ?`;
+        let params = [d.contact_person, d.phone, d.region, d.main_business, d.profile, d.is_agent ? 1 : 0, d.agent_name, d.category];
+
+        // 【核心修复】：如果前端传了 contract_url（说明是补传合同操作），则追加更新合同字段
+        if (d.contract_url !== undefined) {
+            query += `, contract_url = ?`;
+            params.push(d.contract_url);
+        }
+
+        query += ` WHERE id = ? AND project_id = ?`;
+        params.push(d.order_id, d.project_id);
+
+        await env.DB.prepare(query).bind(...params).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
