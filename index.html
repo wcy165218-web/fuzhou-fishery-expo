@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>展位销售与财务管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         .page-section { display: none; }
         .page-section.active { display: block; }
@@ -484,7 +485,7 @@
                     </div>
                 </section>
 
-                <section id="sec-order-list" class="page-section">
+                    <section id="sec-order-list" class="page-section">
                     <div class="bg-white p-6 rounded shadow border-t-4 border-yellow-500">
                         <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">📁 订单与财务管理大盘</h3>
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-gray-50 p-3 rounded border">
@@ -499,6 +500,9 @@
                             </div>
                             <div class="flex items-center gap-3">
                                 <div class="text-sm text-gray-500 font-bold" id="order-total-stats">共 0 笔订单</div>
+                                <button onclick="window.batchDownloadContracts()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow transition flex items-center gap-1">
+                                    📦 批量打包合同
+                                </button>
                                 <button onclick="window.exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow transition flex items-center gap-1">
                                     ⬇️ 导出大盘数据
                                 </button>
@@ -509,6 +513,7 @@
                             <table class="w-full text-sm text-left whitespace-nowrap">
                                 <thead class="bg-gray-100 border-b">
                                     <tr>
+                                        <th class="p-3 w-10"><input type="checkbox" id="check-all-orders" onchange="window.toggleAllOrderChecks(this)"></th>
                                         <th class="p-3">馆号</th>
                                         <th class="p-3">展位号</th>
                                         <th class="p-3">地区情况</th>
