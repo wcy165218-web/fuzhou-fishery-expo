@@ -2,7 +2,6 @@ import { SignJWT, jwtVerify } from 'jose';
 
 const JWT_SECRET = new TextEncoder().encode('your-256-bit-secret');
 
-// 统一的错误响应生成器 (将纯文本拦截变为 JSON，防止前端报错)
 function errorResponse(msg, status = 400) {
     return new Response(JSON.stringify({ success: false, error: msg }), {
         status: status,
@@ -23,7 +22,6 @@ export default {
 
     let currentUser = null;
 
-    // 【安全修复 1】：移除文件的免登录特权，所有 /api/ 路由（除 login 外）必须验证 JWT
     if (url.pathname.startsWith('/api/') && url.pathname !== '/api/login') {
       const authHeader = request.headers.get('Authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -51,7 +49,6 @@ export default {
       }
 
       if (url.pathname.startsWith('/api/file/')) {
-        // 【安全修复 2】：仅允许管理员下载和预览合同文件
         if (!currentUser || currentUser.role !== 'admin') {
             return errorResponse('权限不足：仅管理员可下载或预览合同', 403);
         }
@@ -208,11 +205,10 @@ export default {
       if (url.pathname === '/api/booths') {
         if (request.method === 'GET') {
           const pid = new URL(request.url).searchParams.get('projectId');
-          // 关联查询展位的实际订单成交金额，利用 GROUP BY 处理联合参展
           const query = `
             SELECT b.*, SUM(o.total_booth_fee) as total_booth_fee 
             FROM Booths b 
-            LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status != '已作废'
+            LEFT JOIN Orders o ON b.id = o.booth_id AND b.project_id = o.project_id AND o.status != '已退订'
             WHERE b.project_id = ? 
             GROUP BY b.id
           `;
@@ -280,7 +276,7 @@ export default {
           SELECT o.*, b.hall, b.type as booth_type 
           FROM Orders o 
           LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id 
-          WHERE o.project_id = ? AND o.status != '已作废'
+          WHERE o.project_id = ? AND o.status != '已退订'
         `;
         let params = [pid];
         if (role !== 'admin') { query += ` AND o.sales_name = ?`; params.push(sName); }
@@ -291,26 +287,34 @@ export default {
 
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
-        const stmtOrder = env.DB.prepare(`
+        const stmts = [];
+
+        // 【核心修复】：联合参展时，找到已存在的老订单并扣减分配出去的面积
+        const existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1").bind(o.project_id, o.booth_id).first();
+        if (existingOrder) {
+            stmts.push(env.DB.prepare("UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?").bind(o.area, existingOrder.id));
+        }
+
+        // 插入新订单 (注意 datetime('now', '+8 hours') 处理时区问题)
+        stmts.push(env.DB.prepare(`
           INSERT INTO Orders (
             project_id, company_name, credit_code, no_code_checked, category, main_business,
             is_agent, agent_name, contact_person, phone, region, booth_id, area, price_unit, unit_price,
             total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, paid_amount,
             contract_url, sales_name, status, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
         `).bind(
           o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.category, o.main_business,
           o.is_agent ? 1 : 0, o.agent_name, o.contact_person, o.phone, o.region, o.booth_id, o.area, o.price_unit, o.unit_price,
           o.total_booth_fee, o.discount_reason, o.other_income, o.fees_json, o.profile, o.total_amount, 0,
           o.contract_url || null, o.sales_name, '正常'
-        );
+        ));
 
-        // 【安全修复 3】：展位状态精确更新，避免覆盖“已成交”状态
-        const stmtUpdateBooth = env.DB.prepare(
+        stmts.push(env.DB.prepare(
           "UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')"
-        ).bind(o.booth_id, o.project_id);
+        ).bind(o.booth_id, o.project_id));
 
-        await env.DB.batch([stmtOrder, stmtUpdateBooth]);
+        await env.DB.batch(stmts);
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -319,7 +323,6 @@ export default {
         let query = `UPDATE Orders SET contact_person = ?, phone = ?, region = ?, main_business = ?, profile = ?, is_agent = ?, agent_name = ?, category = ?`;
         let params = [d.contact_person, d.phone, d.region, d.main_business, d.profile, d.is_agent ? 1 : 0, d.agent_name, d.category];
         
-        // 动态支持合同上传
         if (d.contract_url !== undefined) {
             query += `, contract_url = ?`;
             params.push(d.contract_url);
@@ -335,17 +338,12 @@ export default {
         if (currentUser.role !== 'admin') return errorResponse('权限不足：仅管理员可作废订单', 403);
         const { order_id, project_id, booth_id } = await request.json();
         
-        // 1. 作废订单本身
-        await env.DB.prepare("UPDATE Orders SET status = '已作废' WHERE id = ?").bind(order_id).run();
+        await env.DB.prepare("UPDATE Orders SET status = '已退订' WHERE id = ?").bind(order_id).run();
         
-        // 【安全修复 4】：防误伤退单 - 检查展位上是否还有联合参展的“正常”订单
         const remaining = await env.DB.prepare("SELECT COUNT(*) as cnt FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常'").bind(project_id, booth_id).first();
-        
-        // 2. 若完全没订单了，将展位释放为“可售”
         if (remaining.cnt === 0) {
             await env.DB.prepare("UPDATE Booths SET status = '可售' WHERE id = ? AND project_id = ?").bind(booth_id, project_id).run();
         }
-        // 注意：基于财务严谨性，作废订单的 paid_amount、Payments 流水保留归档，财务对账时按“已作废”过滤处理即可。
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -363,7 +361,6 @@ export default {
         const stmtUpdatePaid = env.DB.prepare('UPDATE Orders SET paid_amount = paid_amount + ? WHERE id = ?').bind(p.amount, p.order_id);
         await env.DB.batch([stmtPayment, stmtUpdatePaid]);
         
-        // 更新展位状态判定
         const order = await env.DB.prepare('SELECT booth_id, total_amount, paid_amount FROM Orders WHERE id = ?').bind(p.order_id).first();
         if (order && order.paid_amount >= order.total_amount) {
             await env.DB.prepare("UPDATE Booths SET status = '已成交' WHERE id = ? AND project_id = ?").bind(order.booth_id, p.project_id).run();
@@ -420,7 +417,7 @@ export default {
         const ex = await request.json();
         await env.DB.prepare(`
           INSERT INTO Expenses (project_id, order_id, payee_name, payee_channel, payee_bank, payee_account, amount, applicant, reason, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
         `).bind(ex.project_id, ex.order_id, ex.payee_name, ex.payee_channel, ex.payee_bank, ex.payee_account, ex.amount, ex.applicant, ex.reason).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
