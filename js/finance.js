@@ -10,7 +10,6 @@ window.renderOrderList = function() {
     const searchTxt = document.getElementById('order-search').value.toLowerCase();
     const statusFilter = document.getElementById('order-status-filter').value;
     
-    // 【权限隔离】：普通业务员隐藏“批量打包合同”按钮
     const batchBtn = document.querySelector('button[onclick="window.batchDownloadContracts()"]');
     if(batchBtn) {
         batchBtn.style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
@@ -40,11 +39,9 @@ window.renderOrderList = function() {
         }
         if(o.paid_amount >= o.total_amount) payBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">🟢 已付全款</span>`;
 
-        // 【安全修复】：防 XSS 攻击
         const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name.replace(/'/g, "&#39;");
         const safeOrderObj = JSON.stringify(o).replace(/'/g, "&#39;");
 
-        // 【权限隔离】：合同下载按钮渲染
         let contractBtn = '';
         if (o.contract_url) {
             if (currentUser.role === 'admin') {
@@ -76,7 +73,7 @@ window.renderOrderList = function() {
                     <button onclick='window.openFinanceDirect(${safeOrderObj}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
                     <button onclick='window.openFinanceDirect(${safeOrderObj}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
                     <button onclick='window.openFinanceDirect(${safeOrderObj}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
-                    ${currentUser.role==='admin' ? `<button onclick="window.cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">作废</button>` : ''}
+                    ${currentUser.role==='admin' ? `<button onclick="window.cancelOrder(${o.id}, '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">退订</button>` : ''}
                 </td>
             </tr>
         `;
@@ -87,7 +84,6 @@ window.toggleAllOrderChecks = function(source) {
     document.querySelectorAll('.order-check').forEach(cb => cb.checked = source.checked);
 }
 
-// ============ 单文件安全下载 ============
 window.downloadSingleContract = async function(fileKey, companyName) {
     try {
         window.showToast("正在请求云端合同，请稍候...", "info");
@@ -109,7 +105,6 @@ window.downloadSingleContract = async function(fileKey, companyName) {
     } catch (e) { window.showToast(e.message, 'error'); }
 }
 
-// ============ 批量打包合同 (带并发限流) ============
 window.batchDownloadContracts = async function() {
     const checkedBoxes = document.querySelectorAll('.order-check:checked');
     if (checkedBoxes.length === 0) return window.showToast("请先勾选需要下载合同的订单", "error");
@@ -174,7 +169,7 @@ window.exportToExcel = function() {
     let csvContent = "\uFEFF内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,产品分类,主营业务/展品,业务员,总应收(元),已收(元),录入时间\n";
     allOrders.forEach(o => {
         let status = o.paid_amount >= o.total_amount ? '已付全款' : (o.paid_amount > 0 ? '已付定金' : '未付款');
-        if(o.status === '已作废') status = '已作废';
+        if(o.status === '已退订') status = '已退订';
         const safeWrap = (val) => `"${(val || '').toString().replace(/"/g, '""')}"`;
         let row = [ status, o.hall, o.booth_id, o.area, o.booth_type, safeWrap(o.company_name), safeWrap(o.credit_code), safeWrap(o.region), safeWrap(o.contact_person), safeWrap(o.phone), safeWrap(o.category), safeWrap(o.main_business), o.sales_name, o.total_amount, o.paid_amount, o.created_at ].join(',');
         csvContent += row + "\n";
@@ -234,7 +229,14 @@ window.openFinanceDirect = async function(order, tab) {
     projectAccounts = await res.json();
     const sel = document.getElementById('pay-account-select'); sel.innerHTML = '<option value="">-- 请选择收款方式 --</option>';
     const group = document.createElement('optgroup'); group.label = "🏢 系统配置对公账户";
-    projectAccounts.forEach(a => { group.innerHTML += `<option value="${a.account_name} - ${a.bank_name || ''}">🏦 ${a.account_name} - ${a.bank_name || ''}</option>`; });
+    
+    // 【核心修复】：在选择里增加账号显示，传值依旧干净
+    projectAccounts.forEach(a => { 
+        const textVal = `${a.account_name} - ${a.bank_name || ''}`;
+        const displayStr = `🏦 ${a.account_name} - ${a.bank_name || ''} (账号: ${a.account_no || '未配置'})`;
+        group.innerHTML += `<option value="${textVal}">${displayStr}</option>`; 
+    });
+    
     sel.appendChild(group); sel.innerHTML += `<optgroup label="📱 其他常规方式"><option value="微信">💬 微信</option><option value="支付宝">🔵 支付宝</option><option value="现金">💵 现金</option></optgroup>`;
     window.openFinanceModal(order, tab);
 }
@@ -333,12 +335,13 @@ window.printExpense = function(e) {
     document.getElementById('print-content').innerHTML = content; document.getElementById('print-modal').classList.remove('hidden');
 }
 
+// 【退订逻辑替换】
 window.cancelOrder = async function(orderId, boothId) {
     const pid = document.getElementById('global-project-select').value;
-    if(!confirm(`🚨 危险操作：确定要作废订单吗？\n如果该展位没有其他正常订单，它将被释放回可售状态！`)) return;
+    if(!confirm(`🚨 危险操作：确定要退订订单吗？\n如果该展位没有其他正常订单，它将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
     try {
         const res = await window.apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
-        if(res.ok) { window.showToast("退单成功！"); window.loadOrderList(); } 
-        else { const err = await res.json(); window.showToast(err.error || "作废失败", 'error'); }
+        if(res.ok) { window.showToast("退订成功！"); window.loadOrderList(); } 
+        else { const err = await res.json(); window.showToast(err.error || "退订失败", 'error'); }
     } catch (e) { /* handled */ }
 }
