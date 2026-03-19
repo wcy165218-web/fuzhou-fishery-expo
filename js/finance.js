@@ -41,20 +41,28 @@ window.renderOrderList = function() {
 
         const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name;
 
+        // 【合同管理升级】：增加预览与重新上传功能
         let contractBtn = '';
         if (o.contract_url) {
             if (window.currentUser.role === 'admin') {
-                contractBtn = `<button onclick="window.downloadSingleContract('${o.contract_url}', '${safeCompany.replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">已传/下载</button>`;
+                contractBtn = `
+                    <div class="flex items-center justify-center gap-1">
+                        <button onclick="window.previewSingleContract('${o.contract_url}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">预览</button>
+                        <span class="text-gray-300">|</span>
+                        <button onclick="window.downloadSingleContract('${o.contract_url}', '${safeCompany.replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">下载</button>
+                    </div>
+                `;
             } else {
-                contractBtn = `<span class="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded border border-green-200" title="您没有下载权限">已传(仅管理员)</span>`;
+                contractBtn = `<div class="text-green-600 text-xs font-bold">已传(仅管理员)</div>`;
             }
+            // 所有人都可以重新上传覆盖
+            contractBtn += `<div class="mt-1"><button onclick="window.triggerSilentUpload('${o.id}')" class="text-orange-500 hover:text-orange-700 text-xs font-bold underline">🔄 重新上传</button></div>`;
         } else {
             contractBtn = `<button onclick="window.triggerSilentUpload('${o.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold underline">未传/补传</button>`;
         }
 
         const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}">`;
 
-        // 【核心保护】：将所有 ${o.id} 用单引号包裹，防止数字溢出或解析错误
         tbody.innerHTML += `
             <tr class="border-b hover:bg-blue-50 transition">
                 <td class="p-3 text-center">${checkboxHtml}</td>
@@ -80,7 +88,6 @@ window.renderOrderList = function() {
     });
 }
 
-// ============ 防静默崩溃拦截器 ============
 window.showOrderDetailById = function(id) {
     try {
         const order = window.allOrders.find(o => String(o.id) === String(id));
@@ -96,20 +103,28 @@ window.openFinanceDirectById = function(id, tab) {
         else window.showToast('找不到对应的订单数据', 'error');
     } catch (e) { window.showToast("打开面板出错: " + e.message, 'error'); }
 }
-// ===========================================
 
 window.toggleAllOrderChecks = function(source) {
     document.querySelectorAll('.order-check').forEach(cb => cb.checked = source.checked);
 }
 
+// 【新增】：新标签页预览 PDF 文件
+window.previewSingleContract = async function(fileKey) {
+    try {
+        window.showToast("正在获取云端合同，准备预览...", "info");
+        const response = await window.apiFetch(`/api/file/${fileKey}`);
+        if (!response.ok) throw new Error("获取失败或无预览权限");
+        const blob = await response.blob();
+        const objectUrl = window.URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank');
+    } catch (e) { window.showToast(e.message, 'error'); }
+}
+
 window.downloadSingleContract = async function(fileKey, companyName) {
     try {
-        window.showToast("正在请求云端合同，请稍候...", "info");
+        window.showToast("正在请求云端合同，准备下载...", "info");
         const response = await window.apiFetch(`/api/file/${fileKey}`);
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || "获取失败或无下载权限");
-        }
+        if (!response.ok) throw new Error("获取失败或无下载权限");
         const blob = await response.blob();
         const objectUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -210,15 +225,33 @@ window.handleSilentUpload = async function(input) {
         const order = window.allOrders.find(o => String(o.id) === String(window.currentSilentOrderId));
         const data = { project_id: document.getElementById('global-project-select').value, order_id: window.currentSilentOrderId, contact_person: order.contact_person, phone: order.phone, region: order.region, main_business: order.main_business, profile: order.profile, category: order.category, is_agent: order.is_agent === 1, agent_name: order.agent_name, contract_url: upData.fileKey };
         await window.apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
-        window.showToast("合同补传成功！"); window.loadOrderList();
+        window.showToast("合同处理成功！"); window.loadOrderList();
     } catch (e) { window.showToast("上传失败", 'error'); } finally { input.value = ''; window.currentSilentOrderId = null; }
+}
+
+// 【修复联动逻辑】：代理商名字输入框切换
+window.toggleDtAgent = function() {
+    const checkedRadio = document.querySelector('input[name="edit_is_agent"]:checked');
+    if (!checkedRadio) return;
+    const isAgent = checkedRadio.value === '1';
+    const box = document.getElementById('edit-dt-agent-name');
+    if (box) {
+        if (isAgent) { box.classList.remove('hidden'); } 
+        else { box.classList.add('hidden'); box.value = ''; }
+    }
 }
 
 window.showOrderDetail = function(o) {
     window.currentViewOrder = o; 
     document.getElementById('dt-company').innerText = o.company_name; document.getElementById('dt-code').innerText = o.no_code_checked ? `无代码 (代号: ${o.credit_code})` : o.credit_code; document.getElementById('dt-booth').innerText = `${o.hall} - ${o.booth_id}`; document.getElementById('dt-sales').innerText = o.sales_name; document.getElementById('dt-time').innerText = o.created_at || '未知'; document.getElementById('dt-region').innerText = o.region || '未填'; document.getElementById('dt-contact').innerText = o.contact_person; document.getElementById('dt-phone').innerText = o.phone; document.getElementById('dt-category').innerText = o.category || '未填'; document.getElementById('dt-business').innerText = o.main_business || '未填'; document.getElementById('dt-profile').innerText = o.profile || '暂无简介'; document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直招入驻';
-    document.getElementById('edit-dt-contact').value = o.contact_person; document.getElementById('edit-dt-phone').value = o.phone; document.getElementById('edit-dt-region').value = o.region || ''; document.getElementById('edit-dt-category').value = o.category || ''; document.getElementById('edit-dt-business').value = o.main_business || ''; document.getElementById('edit-dt-profile').value = o.profile || ''; document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true; document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
-    if (window.toggleDtAgent) window.toggleDtAgent();
+    document.getElementById('edit-dt-contact').value = o.contact_person; document.getElementById('edit-dt-phone').value = o.phone; document.getElementById('edit-dt-region').value = o.region || ''; document.getElementById('edit-dt-category').value = o.category || ''; document.getElementById('edit-dt-business').value = o.main_business || ''; document.getElementById('edit-dt-profile').value = o.profile || ''; 
+    document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true; 
+    document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
+    
+    // 强制绑定单选按钮事件并执行一次检查
+    document.querySelectorAll('input[name="edit_is_agent"]').forEach(el => el.onchange = window.toggleDtAgent);
+    window.toggleDtAgent();
+    
     window.toggleDetailEditMode(false); document.getElementById('order-detail-modal').classList.remove('hidden');
 }
 
@@ -246,14 +279,11 @@ window.openFinanceDirect = async function(order, tab) {
         const pid = document.getElementById('global-project-select').value;
         const res = await window.apiFetch(`/api/accounts?projectId=${pid}`);
         const data = await res.json();
-
-        // 【终极防崩拦截】：不管后端报什么错，只要不是正常数组，就强制降级为空数组，绝不崩溃！
         window.projectAccounts = Array.isArray(data) ? data : [];
-
+        
         const sel = document.getElementById('pay-account-select'); 
         sel.innerHTML = '<option value="">-- 请选择收款方式 --</option>';
         
-        // 如果有拉取到对公账户，才渲染这一组
         if (window.projectAccounts.length > 0) {
             const group = document.createElement('optgroup'); 
             group.label = "🏢 系统配置对公账户";
@@ -265,7 +295,6 @@ window.openFinanceDirect = async function(order, tab) {
             sel.appendChild(group); 
         }
         
-        // 渲染基础打款方式
         const otherGroup = document.createElement('optgroup');
         otherGroup.label = "📱 其他常规方式";
         otherGroup.innerHTML = `<option value="微信">💬 微信</option><option value="支付宝">🔵 支付宝</option><option value="现金">💵 现金</option>`;
@@ -273,8 +302,6 @@ window.openFinanceDirect = async function(order, tab) {
         
         window.openFinanceModal(order, tab);
     } catch (e) {
-        // 即使网络彻底断了，也强行把面板打开，保证能用基础的微信/支付宝收款
-        console.error("拉取账户异常:", e);
         window.showToast("拉取自定义账户失败，已启用基础收款模式", "info");
         window.openFinanceModal(order, tab);
     }
@@ -285,7 +312,9 @@ window.openFinanceModal = async function(order, forcedTab = null) {
     const targetTab = forcedTab || window.lastFmTab || 'pay';
     
     document.getElementById('fm-order-title').innerText = `当前客户：${order.company_name} (展位: ${order.booth_id})`;
-    document.getElementById('fm-total').innerText = `¥${order.total_amount}`; document.getElementById('fm-paid').innerText = `¥${order.paid_amount}`; document.getElementById('fm-unpaid').innerText = `¥${order.total_amount - order.paid_amount}`;
+    document.getElementById('fm-total').innerText = `¥${order.total_amount}`; 
+    document.getElementById('fm-paid').innerText = `¥${order.paid_amount}`; 
+    document.getElementById('fm-unpaid').innerText = `¥${order.total_amount - order.paid_amount}`;
     document.getElementById('fm-order-id').value = order.id; 
     
     document.getElementById('pay-amount').value = ''; document.getElementById('pay-time').value = new Date().toISOString().split('T')[0]; document.getElementById('pay-payer').value = order.company_name; document.getElementById('pay-remark').value = ''; document.getElementById('pay-account-select').value = '';
@@ -312,6 +341,17 @@ window.switchFmTab = function(tab) {
     document.getElementById(`fm-tab-${tab}`).classList.remove('hidden');
 }
 
+// 【新增】：独立辅助函数，用于在不关闭窗口的情况下实时刷新金额
+window.refreshFinanceModalStats = function() {
+    const updatedOrder = window.allOrders.find(o => String(o.id) === String(window.currentModalOrderId));
+    if (updatedOrder) {
+        document.getElementById('fm-total').innerText = `¥${updatedOrder.total_amount}`;
+        document.getElementById('fm-paid').innerText = `¥${updatedOrder.paid_amount}`;
+        document.getElementById('fm-unpaid').innerText = `¥${updatedOrder.total_amount - updatedOrder.paid_amount}`;
+        document.getElementById('exp-total-paid-display').innerText = `¥${updatedOrder.paid_amount.toLocaleString()}`;
+    }
+}
+
 window.loadPaymentHistory = async function(orderId) {
     const listDiv = document.getElementById('fm-pay-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
     try {
@@ -324,19 +364,52 @@ window.loadPaymentHistory = async function(orderId) {
         });
     } catch (e) { listDiv.innerHTML = '<p class="text-red-500">加载失败</p>'; }
 }
+
 window.submitPayment = async function() {
     const pid = document.getElementById('global-project-select').value; const amt = parseFloat(document.getElementById('pay-amount').value); const time = document.getElementById('pay-time').value; const payer = document.getElementById('pay-payer').value.trim(); const bank = document.getElementById('pay-account-select').value; const orderId = document.getElementById('fm-order-id').value;
     if(!amt || amt <= 0) return window.showToast("请输入正确的收款金额", 'error'); if(!time || !payer) return window.showToast("时间和打款户名为必填项！", 'error'); if(!bank) return window.showToast("请选择途径！", 'error');
     window.toggleBtnLoading('btn-submit-payment', true);
-    try { await window.apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) }); window.showToast("收款入账成功！"); window.closeModal('finance-modal'); window.loadOrderList(); } finally { window.toggleBtnLoading('btn-submit-payment', false); }
+    try { 
+        await window.apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) }); 
+        window.showToast("收款入账成功！"); 
+        
+        // 【核心修改】：不关闭主弹窗，就地刷新列表和金额
+        await window.loadOrderList(); 
+        await window.loadPaymentHistory(orderId);
+        window.refreshFinanceModalStats();
+        
+        // 清空输入框方便连续录单
+        document.getElementById('pay-amount').value = '';
+        document.getElementById('pay-remark').value = '';
+    } finally { window.toggleBtnLoading('btn-submit-payment', false); }
 }
+
 window.openEditPaymentModal = function(id, amt, payer, bank, remark, time) { document.getElementById('ep-id').value = id; document.getElementById('ep-amount').value = amt; document.getElementById('ep-payer').value = payer; document.getElementById('ep-bank').value = bank; document.getElementById('ep-time').value = time; document.getElementById('ep-remark').value = remark; document.getElementById('edit-payment-modal').classList.remove('hidden'); }
+
 window.submitEditPayment = async function() {
     const pid = document.getElementById('global-project-select').value; const data = { project_id: pid, order_id: window.currentModalOrderId, payment_id: document.getElementById('ep-id').value, amount: parseFloat(document.getElementById('ep-amount').value), payer_name: document.getElementById('ep-payer').value.trim(), bank_name: document.getElementById('ep-bank').value, payment_time: document.getElementById('ep-time').value, remarks: document.getElementById('ep-remark').value };
     if(!data.amount || !data.payer_name) return window.showToast("金额和户名必填", 'error');
-    window.toggleBtnLoading('btn-save-payment', true); await window.apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) }); window.closeModal('edit-payment-modal'); window.showToast("修改成功！"); window.loadPaymentHistory(window.currentModalOrderId); window.loadOrderList(); window.toggleBtnLoading('btn-save-payment', false);
+    window.toggleBtnLoading('btn-save-payment', true); 
+    try {
+        await window.apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) }); 
+        window.closeModal('edit-payment-modal'); // 仅关闭小的修改弹窗
+        window.showToast("流水修改成功！"); 
+        
+        // 就地刷新主面板的列表和金额
+        await window.loadOrderList();
+        await window.loadPaymentHistory(window.currentModalOrderId); 
+        window.refreshFinanceModalStats();
+    } finally { window.toggleBtnLoading('btn-save-payment', false); }
 }
-window.deletePayment = async function(payId) { if(!confirm("确定要删除这条收款记录吗？")) return; await window.apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: window.currentModalOrderId, payment_id: payId }) }); window.showToast("删除成功"); window.loadPaymentHistory(window.currentModalOrderId); window.loadOrderList(); }
+
+window.deletePayment = async function(payId) { 
+    if(!confirm("确定要删除这条收款记录吗？")) return; 
+    await window.apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: window.currentModalOrderId, payment_id: payId }) }); 
+    window.showToast("删除成功"); 
+    await window.loadOrderList();
+    await window.loadPaymentHistory(window.currentModalOrderId); 
+    window.refreshFinanceModalStats();
+}
 
 window.fmAddFeeRow = function() { window.fmDynamicFees.push({ name: '', amount: '' }); window.renderFmDynamicFees(); }
 window.fmRemoveFeeRow = function(idx) { window.fmDynamicFees.splice(idx, 1); window.renderFmDynamicFees(); }
@@ -347,11 +420,20 @@ window.renderFmDynamicFees = function() {
     window.calculateFmAdjustTotal();
 }
 window.calculateFmAdjustTotal = function() { const af = parseFloat(document.getElementById('adj-actual-fee').value) || 0; let ot = 0; window.fmDynamicFees.forEach(f => { ot += parseFloat(f.amount) || 0; }); document.getElementById('fm-adjust-calc-total').innerText = `¥ ${(af + ot).toLocaleString()}`; }
+
 window.submitAdjustment = async function() {
     const pid = document.getElementById('global-project-select').value; const af = parseFloat(document.getElementById('adj-actual-fee').value); const r = document.getElementById('adj-reason').value.trim();
     if(isNaN(af)) return window.showToast("金额错误", 'error'); if(!r) return window.showToast("必须填写原因！", 'error');
     let ot = 0; let validFees = []; window.fmDynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { ot += parseFloat(f.amount); validFees.push(f); } });
-    window.toggleBtnLoading('btn-submit-adj', true); await window.apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: window.currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) }); window.showToast("变更成功！"); window.closeModal('finance-modal'); window.loadOrderList(); window.toggleBtnLoading('btn-submit-adj', false);
+    window.toggleBtnLoading('btn-submit-adj', true); 
+    try {
+        await window.apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: window.currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) }); 
+        window.showToast("账单变更成功！"); 
+        
+        // 【核心修改】：不关闭主弹窗，就地刷新数据和金额
+        await window.loadOrderList(); 
+        window.refreshFinanceModalStats();
+    } finally { window.toggleBtnLoading('btn-submit-adj', false); }
 }
 
 window.loadExpenseHistory = async function(orderId) {
@@ -366,6 +448,7 @@ window.loadExpenseHistory = async function(orderId) {
         });
     } catch (err) { listDiv.innerHTML = `<p class="text-red-500 font-bold">解析异常</p>`; }
 }
+
 window.submitExpense = async function() {
     const pid = document.getElementById('global-project-select').value; const channel = document.getElementById('exp-channel').value; const payee = document.getElementById('exp-payee').value.trim(); const bank = document.getElementById('exp-bank').value.trim(); const acc = document.getElementById('exp-account').value.trim(); const amt = parseFloat(document.getElementById('exp-amount').value); const reason = document.getElementById('exp-reason').value.trim(); 
     if(!payee || !amt || amt <= 0 || !reason) return window.showToast("事由、收款方和金额为必填！", 'error');
@@ -373,10 +456,22 @@ window.submitExpense = async function() {
     try {
         const data = { project_id: pid, order_id: window.currentModalOrderId, fee_item_name: '总收款抵扣', payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, amount: amt, applicant: window.currentUser.name, reason: reason };
         const res = await window.apiFetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) }); const resData = await res.json();
-        if(res.ok && resData.success) { window.showToast("申请已记录！"); document.getElementById('exp-reason').value = ''; document.getElementById('exp-payee').value = ''; document.getElementById('exp-amount').value = ''; window.loadExpenseHistory(window.currentModalOrderId); } else throw new Error(resData.error || "写入失败");
+        if(res.ok && resData.success) { 
+            window.showToast("支出申请已记录！"); 
+            document.getElementById('exp-reason').value = ''; document.getElementById('exp-payee').value = ''; document.getElementById('exp-amount').value = ''; 
+            
+            // 就地刷新代付历史记录
+            window.loadExpenseHistory(window.currentModalOrderId); 
+        } else throw new Error(resData.error || "写入失败");
     } catch(err) { window.showToast(err.message, 'error'); } finally { window.toggleBtnLoading('btn-submit-exp', false); }
 }
-window.deleteExpense = async function(expId) { if(!confirm("确定撤销该笔申请吗？")) return; await window.apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) }); window.showToast("撤销成功！"); window.loadExpenseHistory(window.currentModalOrderId); }
+
+window.deleteExpense = async function(expId) { 
+    if(!confirm("确定撤销该笔申请吗？")) return; 
+    await window.apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) }); 
+    window.showToast("撤销成功！"); 
+    window.loadExpenseHistory(window.currentModalOrderId); 
+}
 
 window.printExpense = function(e) {
     const order = window.allOrders.find(o => String(o.id) === String(e.order_id));
