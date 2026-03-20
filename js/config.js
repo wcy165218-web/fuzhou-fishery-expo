@@ -154,3 +154,82 @@ window.resetStaffPassword = async function(name) {
         window.showToast(e.message, 'error');
     }
 }
+// ====== 替换/追加到 js/config.js 最底部 ======
+
+// 1. 修复后的员工列表渲染（加上了重置密码按钮）
+window.renderStaffList = function() {
+    const tbody = document.getElementById('staff-list-tbody');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    window.projectStaff.forEach(s => {
+        const roleText = s.role === 'admin' ? '🔴 管理员' : '🟢 业务员';
+        tbody.innerHTML += `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-2 font-bold">${s.name}</td>
+                <td class="p-2">${roleText}</td>
+                <td class="p-2 text-blue-600 font-bold cursor-pointer" onclick="window.setTarget('${s.name}', '${s.target||0}')">¥ ${s.target || 0} ✏️</td>
+                <td class="p-2 text-right">
+                    ${s.name !== 'admin' ? `
+                        <button onclick="window.resetStaffPassword('${s.name}')" class="text-orange-500 hover:text-orange-700 text-xs font-bold mr-3">重置密码</button>
+                        <button onclick="window.deleteStaff('${s.name}')" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button>
+                    ` : '<span class="text-gray-400 text-xs">-</span>'}
+                </td>
+            </tr>
+        `;
+    });
+}
+
+// 2. 新增的重置密码执行函数
+window.resetStaffPassword = async function(name) {
+    if(!confirm(`🚨 确定要将业务员 [${name}] 的密码重置为默认的 123456 吗？`)) return;
+    try {
+        const res = await window.apiFetch('/api/reset-password', {
+            method: 'POST',
+            body: JSON.stringify({ staffName: name })
+        });
+        if(!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || "重置失败");
+        }
+        window.showToast(`✅ 已成功将 [${name}] 的密码重置为 123456`);
+    } catch (e) {
+        window.showToast(e.message, 'error');
+    }
+}
+
+// 3. 修复后的产品分类加载（既能下拉，又能手打）
+window.loadIndustries = async function() {
+    try {
+        const pid = document.getElementById('global-project-select').value;
+        if (!pid) return;
+        const res = await window.apiFetch(`/api/industries?projectId=${pid}`);
+        window.projectIndustries = await res.json();
+        
+        const tbody = document.getElementById('industry-list-tbody');
+        if(tbody) {
+            tbody.innerHTML = '';
+            window.projectIndustries.forEach(ind => {
+                tbody.innerHTML += `
+                    <tr class="border-b">
+                        <td class="p-2">${ind.industry_name}</td>
+                        <td class="p-2 text-right">
+                            <button onclick="window.deleteIndustry(${ind.id})" class="text-red-500 text-xs font-bold">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        const datalist = document.getElementById('category-datalist');
+        if (datalist) {
+            datalist.innerHTML = '';
+            window.projectIndustries.forEach(ind => {
+                const option = document.createElement('option');
+                option.value = ind.industry_name;
+                datalist.appendChild(option);
+            });
+        }
+    } catch (e) {
+        console.error("加载产品分类失败:", e);
+    }
+}
