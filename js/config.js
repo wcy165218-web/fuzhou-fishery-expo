@@ -81,7 +81,12 @@ window.loadIndustries = async function() {
     const datalist = document.getElementById('industry-list'); datalist.innerHTML = '';
     
     projectIndustries.forEach(ind => {
-        if(tbody) tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-gray-700">${ind.industry_name}</td><td class="p-2 text-right"><button onclick="window.deleteIndustry(${ind.id})" class="text-red-500 hover:underline text-xs">删除</button></td></tr>`;
+        if(tbody) tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-gray-700">${ind.industry_name}</td><td class="p-2 text-right">
+    ${s.name !== 'admin' ? `
+        <button onclick="window.resetStaffPassword('${s.name}')" class="text-orange-500 hover:text-orange-700 text-xs font-bold mr-3">重置密码</button>
+        <button onclick="window.deleteStaff('${s.name}')" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button>
+    ` : '<span class="text-gray-400 text-xs">-</span>'}
+</td></tr>`;
         datalist.innerHTML += `<option value="${ind.industry_name}">`;
     });
 }
