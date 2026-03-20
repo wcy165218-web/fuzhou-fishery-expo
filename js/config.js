@@ -132,3 +132,20 @@ window.deleteAccount = async function(id) {
     window.showToast("删除成功");
     window.loadAccounts();
 }
+window.resetStaffPassword = async function(name) {
+    if(!confirm(`🚨 确定要将业务员 [${name}] 的密码重置为默认的 123456 吗？`)) return;
+    
+    try {
+        const res = await window.apiFetch('/api/reset-password', { 
+            method: 'POST', 
+            body: JSON.stringify({ staffName: name }) 
+        });
+        if(!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || "重置失败");
+        }
+        window.showToast(`✅ 已成功将 [${name}] 的密码重置为 123456`);
+    } catch (e) {
+        window.showToast(e.message, 'error');
+    }
+}
