@@ -90,7 +90,6 @@ export default {
       }
 
       if (url.pathname.startsWith('/api/file/')) {
-        // 【权限放宽】：允许所有人预览已上传的文件，取消 admin 强制限制
         const key = url.pathname.replace('/api/file/', '');
         const object = await env.BUCKET.get(key);
         if (!object) return errorResponse('文件不存在', 404);
@@ -173,24 +172,20 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // ========== 新增：重置业务员密码 ==========
-      if (url.pathname === '/api/reset-password' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return errorResponse('权限不足', 403);
-        const { staffName } = await request.json();
-        
-        if (staffName === 'admin') return errorResponse('不能重置超级管理员的密码，请使用修改密码功能', 400);
-        
-        // 强制重置为默认哈希密码 (123456)
-        const defaultHash = await hashPassword('123456');
-        await env.DB.prepare('UPDATE Staff SET password = ? WHERE name = ?').bind(defaultHash, staffName).run();
-        
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-      }
-        
       if (url.pathname === '/api/set-target' && request.method === 'POST') {
         if (currentUser.role !== 'admin') return errorResponse('权限不足', 403);
         const { staffName, target } = await request.json();
         await env.DB.prepare('UPDATE Staff SET target = ? WHERE name = ?').bind(target, staffName).run();
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 【新增】：重置密码接口
+      if (url.pathname === '/api/reset-password' && request.method === 'POST') {
+        if (currentUser.role !== 'admin') return errorResponse('权限不足', 403);
+        const { staffName } = await request.json();
+        if (staffName === 'admin') return errorResponse('不能重置超级管理员的密码', 400);
+        const defaultHash = await hashPassword('123456');
+        await env.DB.prepare('UPDATE Staff SET password = ? WHERE name = ?').bind(defaultHash, staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -393,7 +388,6 @@ export default {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 【核心防崩拦截】：财务流水接口全加上 try catch，向前端抛出真实数据库死因
       if (url.pathname === '/api/payments' && request.method === 'GET') {
         try {
             const orderId = new URL(request.url).searchParams.get('orderId');
