@@ -1,0 +1,15 @@
+{
+  "name": "fuzhou-fishery-expo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cloudflare Workers + D1 + R2 expo management app",
+  "scripts": {
+    "check": "node --check _worker.js",
+    "dev": "HOME=$PWD/.wrangler-home wrangler dev",
+    "dev:remote": "HOME=$PWD/.wrangler-home wrangler dev --remote",
+    "deploy": "HOME=$PWD/.wrangler-home wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.75.0"
+  }
+}

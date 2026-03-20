@@ -1,0 +1,9 @@
+_worker.js
+README.md
+docs/
+migrations/
+node_modules/
+package-lock.json
+package.json
+wrangler.toml
+wrangler.toml.example

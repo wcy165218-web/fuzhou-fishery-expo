@@ -1,0 +1,9 @@
+.DS_Store
+.wrangler/
+.wrangler-home/
+node_modules/
+coverage/
+dist/
+.env
+.env.*
+!.env.example

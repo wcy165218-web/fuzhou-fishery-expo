@@ -65,6 +65,9 @@
 
 * **初始密码**：系统默认密码为 `123456`，管理员应要求业务员首次登录后立即通过侧边栏修改。
 * **数据一致性**：由于采用强关联查询逻辑，建议不要在数据库后端直接物理删除已成交订单关联的展位记录。
+* **协作工作流**：接管后的协作方式见 [docs/WORKFLOW.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/WORKFLOW.md)。
+* **首次 Git 提交**：第一次把本地项目接入 GitHub 的流程见 [docs/GIT-FIRST-COMMIT.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/GIT-FIRST-COMMIT.md)。
+* **D1 变更留档**：以后所有数据库改动统一存放在 [migrations/README.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/migrations/README.md) 对应的 `migrations/` 目录。
 
 ---
 
