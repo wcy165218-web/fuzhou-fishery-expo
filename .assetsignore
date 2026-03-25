@@ -1,4 +1,7 @@
 _worker.js
+.git/
+.wrangler/
+.wrangler-home/
 README.md
 docs/
 migrations/

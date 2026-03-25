@@ -2,10 +2,22 @@
 const navConfig = [
     { id: 'home', label: '📊 首页看板', roles: ['admin', 'user'] }, 
     { id: 'order-entry', label: '✍️ 订单信息录入', roles: ['admin', 'user'] }, 
-    { id: 'order-list', label: '📁 订单与财务大盘', roles: ['admin', 'user'] }, 
+    { id: 'order-list', label: '📁 订单与财务管理', roles: ['admin', 'user'] }, 
     { id: 'booth', label: '🎪 展位库管理', roles: ['admin'] }, 
-    { id: 'config', label: '⚙️ 系统与人员配置', roles: ['admin'] }
+    { id: 'config', label: '⚙️ 系统与人员配置', roles: ['admin'], superAdminOnly: true }
 ];
+
+window.isSuperAdmin = function(user = window.currentUser) {
+    return !!user && user.role === 'admin' && user.name === 'admin';
+}
+
+window.canAccessSection = function(sectionId, user = window.currentUser) {
+    const section = navConfig.find((item) => item.id === sectionId);
+    if (!section || !user) return false;
+    if (!section.roles.includes(user.role)) return false;
+    if (section.superAdminOnly && !window.isSuperAdmin(user)) return false;
+    return true;
+}
 
 window.handleLogin = async function() { 
     const u = document.getElementById('login-user').value; 
@@ -25,7 +37,12 @@ window.handleLogin = async function() {
             window.showToast('登录成功！');
             window.enterMainView(); 
         } else { 
-            window.showToast('登录失败，账号或密码错误', 'error'); 
+            let errorMessage = '登录失败，账号或密码错误';
+            try {
+                const err = await res.json();
+                errorMessage = err.error || errorMessage;
+            } catch (e) { /* ignore */ }
+            window.showToast(errorMessage, 'error'); 
         } 
     } catch(e) {
         window.showToast('网络请求失败', 'error');
@@ -42,25 +59,38 @@ window.handleLogout = function() {
 window.enterMainView = function() { 
     document.getElementById('login-view').classList.add('hidden'); 
     document.getElementById('main-view').classList.remove('hidden'); 
-    document.getElementById('user-info').innerText = `${currentUser.name} (${currentUser.role === 'admin' ? '管理员' : '业务员'})`; 
+    const roleLabel = window.isSuperAdmin(currentUser)
+        ? '超级管理员'
+        : (currentUser.role === 'admin' ? '管理员' : '业务员');
+    document.getElementById('user-info').innerText = `${currentUser.name} (${roleLabel})`; 
     window.renderNav(); 
+    window.openSection('home', '📊 首页看板');
     window.loadProjects(); 
+}
+
+window.openSection = function(sectionId, label) {
+    if (!window.canAccessSection(sectionId)) {
+        window.showToast('该页面仅超级管理员可访问', 'error');
+        return;
+    }
+    document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+    document.getElementById(`sec-${sectionId}`).classList.add('active');
+    document.getElementById('current-page-title').innerText = label.substring(3);
+
+    if(sectionId === 'home' && window.loadHomeDashboard) window.loadHomeDashboard();
+    if(sectionId === 'config') { window.loadStaff(); window.loadAccounts(); window.loadIndustries(); window.loadErpConfig?.(); }
+    if(sectionId === 'booth') { window.loadPrices(); window.loadBooths(); }
+    if(sectionId === 'order-entry') window.initOrderForm();
+    if(sectionId === 'order-list') window.loadOrderList();
 }
 
 window.renderNav = function() {
     const container = document.getElementById('nav-buttons'); container.innerHTML = '';
     navConfig.forEach(item => {
-        if (item.roles.includes(currentUser.role)) {
+        if (window.canAccessSection(item.id)) {
             const btn = document.createElement('button'); btn.className = "w-full text-left px-4 py-3 rounded text-slate-300 hover:bg-blue-600 transition text-sm mb-1"; btn.innerText = item.label;
             btn.onclick = () => { 
-                document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active')); 
-                document.getElementById(`sec-${item.id}`).classList.add('active'); 
-                document.getElementById('current-page-title').innerText = item.label.substring(3);
-                
-                if(item.id === 'config') { window.loadStaff(); window.loadAccounts(); window.loadIndustries(); } 
-                if(item.id === 'booth') { window.loadPrices(); window.loadBooths(); } 
-                if(item.id === 'order-entry') window.initOrderForm(); 
-                if(item.id === 'order-list') window.loadOrderList();
+                window.openSection(item.id, item.label);
             }; 
             container.appendChild(btn);
         }

@@ -1,8 +1,156 @@
 // ================= js/finance.js =================
+window.isOwnOrder = function(order) {
+    return order && order.sales_name === window.currentUser.name;
+}
+
+window.canManageOrder = function(order) {
+    return !!order && (window.currentUser.role === 'admin' || Number(order.can_manage) === 1);
+}
+
+window.getSelectedSalesFilter = function() {
+    const select = document.getElementById('order-sales-filter');
+    if (!select || window.currentUser.role !== 'admin') return '';
+    return select.value;
+}
+
+window.loadOrderSalesFilterOptions = async function() {
+    const select = document.getElementById('order-sales-filter');
+    if (!select) return;
+
+    if (window.currentUser.role !== 'admin') {
+        select.classList.add('hidden');
+        return;
+    }
+
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
+
+    const previousValue = select.value;
+    const staff = await (await window.apiFetch(`/api/staff?projectId=${pid}`)).json();
+    select.innerHTML = '<option value="">全部业务员</option>';
+    staff.forEach((member) => {
+        const option = document.createElement('option');
+        option.value = member.name;
+        option.textContent = member.name;
+        select.appendChild(option);
+    });
+    select.value = staff.some((member) => member.name === previousValue) ? previousValue : '';
+    select.classList.remove('hidden');
+}
+
+window.renderOrderDashboardStats = function(stats) {
+    const panel = document.getElementById('order-dashboard-panel');
+    if (!panel) return;
+
+    const fmtMoney = (value) => `¥${Number(value || 0).toLocaleString()}`;
+    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
+    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const clampPercent = (value) => Math.max(0, Math.min(Number(value || 0), 100));
+    const renderProgressBar = (value, colorClass) => `
+        <div class="mt-2 h-2.5 rounded-full bg-white/80 overflow-hidden">
+            <div class="h-full rounded-full ${colorClass}" style="width: ${clampPercent(value)}%"></div>
+        </div>
+    `;
+    const receivableTotal = Number(stats.receivable_total || 0);
+    const unpaidTotal = Number(stats.unpaid_total || 0);
+    const depositBooths = Number(stats.deposit_booth_count || 0);
+    const fullPaidBooths = Number(stats.full_paid_booth_count || 0);
+    const advancedRate = Number(stats.target_total || 0) > 0 ? ((depositBooths + fullPaidBooths) / Number(stats.target_total || 0)) * 100 : 0;
+
+    panel.innerHTML = `
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 border border-blue-100 rounded-2xl shadow-sm md:col-span-2 xl:col-span-2">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <div class="text-xs tracking-wide text-blue-500 font-bold">目标展位推进</div>
+                    <div class="text-3xl font-black text-blue-800 mt-2">${fmtCount(depositBooths + fullPaidBooths)} 个</div>
+                    <div class="text-xs text-gray-500 mt-1">已进入定金或全款阶段的展位数</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-gray-500">推进比例</div>
+                    <div class="text-2xl font-black text-indigo-700 mt-1">${fmtPercent(advancedRate)}</div>
+                </div>
+            </div>
+            ${renderProgressBar(advancedRate, 'bg-gradient-to-r from-blue-500 to-indigo-500')}
+            <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 text-sm text-gray-700 mt-4">
+                <div class="bg-white/80 rounded-xl p-3 border border-blue-100">
+                    <div class="text-xs text-gray-500">目标展位数</div>
+                    <div class="text-xl font-bold text-blue-700 mt-1">${fmtCount(stats.target_total)}</div>
+                </div>
+                <div class="bg-white/80 rounded-xl p-3 border border-blue-100">
+                    <div class="text-xs text-gray-500">已付定金展位数</div>
+                    <div class="text-xl font-bold text-amber-600 mt-1">${fmtCount(depositBooths)}</div>
+                </div>
+                <div class="bg-white/80 rounded-xl p-3 border border-blue-100">
+                    <div class="text-xs text-gray-500">全款展位数</div>
+                    <div class="text-xl font-bold text-emerald-700 mt-1">${fmtCount(fullPaidBooths)}</div>
+                </div>
+                <div class="bg-white/80 rounded-xl p-3 border border-blue-100">
+                    <div class="text-xs text-gray-500">剩余目标数</div>
+                    <div class="text-xl font-bold text-orange-600 mt-1">${fmtCount(stats.remaining_target)}</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gradient-to-br from-rose-50 to-emerald-50 p-5 border border-rose-100 rounded-2xl shadow-sm md:col-span-2 xl:col-span-2">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <div class="text-xs tracking-wide text-rose-500 font-bold">应收费用与未收情况</div>
+                    <div class="text-3xl font-black text-rose-800 mt-2">${fmtMoney(receivableTotal)}</div>
+                    <div class="text-xs text-gray-500 mt-1">总计应收费用</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-gray-500">已收费用占比</div>
+                    <div class="text-2xl font-black text-emerald-700 mt-1">${fmtPercent(stats.collection_rate)}</div>
+                </div>
+            </div>
+            ${renderProgressBar(stats.collection_rate, 'bg-gradient-to-r from-emerald-400 to-emerald-600')}
+            <div class="grid grid-cols-2 xl:grid-cols-3 gap-3 text-sm text-gray-700 mt-4">
+                <div class="bg-white/85 rounded-xl p-3 border border-rose-100">
+                    <div class="text-xs text-gray-500">总计应收费用</div>
+                    <div class="text-lg font-bold text-rose-700 mt-1">${fmtMoney(receivableTotal)}</div>
+                </div>
+                <div class="bg-white/85 rounded-xl p-3 border border-rose-100">
+                    <div class="text-xs text-gray-500">应收展位费</div>
+                    <div class="text-lg font-bold text-rose-700 mt-1">${fmtMoney(stats.receivable_booth_fee)}</div>
+                </div>
+                <div class="bg-white/85 rounded-xl p-3 border border-rose-100">
+                    <div class="text-xs text-gray-500">应收其他费用</div>
+                    <div class="text-lg font-bold text-rose-700 mt-1">${fmtMoney(stats.receivable_other_fee)}</div>
+                </div>
+                <div class="bg-white/85 rounded-xl p-3 border border-emerald-100">
+                    <div class="text-xs text-gray-500">已收费用总计</div>
+                    <div class="text-lg font-bold text-emerald-700 mt-1">${fmtMoney(stats.received_total)}</div>
+                </div>
+                <div class="bg-white/85 rounded-xl p-3 border border-red-100">
+                    <div class="text-xs text-gray-500">剩余未收费用</div>
+                    <div class="text-lg font-bold text-red-600 mt-1">${fmtMoney(unpaidTotal)}</div>
+                </div>
+                <div class="bg-white/85 rounded-xl p-3 border border-red-100">
+                    <div class="text-xs text-gray-500">已收费用占比</div>
+                    <div class="text-lg font-bold text-emerald-700 mt-1">${fmtPercent(stats.collection_rate)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.loadOrderDashboardStats = async function() {
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
+    const salesName = window.getSelectedSalesFilter();
+    const query = salesName ? `&salesName=${encodeURIComponent(salesName)}` : '';
+    const res = await window.apiFetch(`/api/order-dashboard-stats?projectId=${pid}${query}`);
+    const stats = await res.json();
+    window.renderOrderDashboardStats(stats);
+}
+
 window.loadOrderList = async function() {
     const pid = document.getElementById('global-project-select').value; if(!pid) return;
-    const res = await window.apiFetch(`/api/orders?projectId=${pid}&role=${window.currentUser.role}&salesName=${window.currentUser.name}`);
+    await window.loadOrderSalesFilterOptions();
+    const salesName = window.getSelectedSalesFilter();
+    const query = salesName ? `&salesName=${encodeURIComponent(salesName)}` : '';
+    const res = await window.apiFetch(`/api/orders?projectId=${pid}${query}`);
     window.allOrders = await res.json();
+    await window.loadOrderDashboardStats();
     window.renderOrderList();
 }
 
@@ -22,15 +170,22 @@ window.renderOrderList = function() {
         if(o.paid_amount >= o.total_amount) payStatus = '全款';
         if(statusFilter && payStatus !== statusFilter) return false;
         return true;
+    }).sort((a, b) => {
+        const ownDiff = Number(window.isOwnOrder(b)) - Number(window.isOwnOrder(a));
+        if (ownDiff !== 0) return ownDiff;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     });
 
-    document.getElementById('order-total-stats').innerText = `共 ${filtered.length} 笔订单`;
+    const ownCount = filtered.filter((order) => window.isOwnOrder(order)).length;
+    document.getElementById('order-total-stats').innerText = `共 ${filtered.length} 笔订单，本人录入 ${ownCount} 笔`;
     const tbody = document.getElementById('order-list-tbody'); tbody.innerHTML = '';
     
     const checkAllBox = document.getElementById('check-all-orders');
     if(checkAllBox) checkAllBox.checked = false;
 
     filtered.forEach(o => {
+        const canManage = window.canManageOrder(o);
+        const isOwn = window.isOwnOrder(o);
         let payBadge = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">🔴 未付款</span>`;
         if(o.paid_amount > 0 && o.paid_amount < o.total_amount) {
             let ratio = ((o.paid_amount / o.total_amount) * 100).toFixed(1);
@@ -40,51 +195,72 @@ window.renderOrderList = function() {
         if(o.paid_amount >= o.total_amount) payBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">🟢 已付全款</span>`;
 
         const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name;
+        const safeHall = window.escapeHtml(o.hall || '');
+        const safeBoothId = window.escapeHtml(o.booth_id || '');
+        const safeRegion = window.escapeHtml(o.region || '未填');
+        const safeBoothType = window.escapeHtml(o.booth_type || '');
+        const safeSalesName = window.escapeHtml(o.sales_name || '');
 
         // 【核心优化】：合同状态 UI 升级，明确展示状态，仅保留预览和重新上传
         let contractBtn = '';
-        if (o.contract_url) {
+        if (canManage && o.contract_url) {
             contractBtn = `
                 <div class="flex flex-col items-center justify-center gap-1.5">
                     <span class="text-green-700 text-xs font-bold bg-green-100 px-2 py-0.5 rounded shadow-sm">✅ 已上传</span>
                     <div class="flex items-center justify-center gap-1.5">
-                        <button onclick="window.previewSingleContract('${o.contract_url}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">预览</button>
+                        <button onclick='window.previewSingleContract(${JSON.stringify(String(o.contract_url))}, ${JSON.stringify(String(o.id))})' class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">预览</button>
                         <span class="text-gray-300">|</span>
-                        <button onclick="window.triggerSilentUpload('${o.id}')" class="text-orange-500 hover:text-orange-700 text-xs font-bold underline">重新上传</button>
+                        <button onclick='window.triggerSilentUpload(${JSON.stringify(String(o.id))})' class="text-orange-500 hover:text-orange-700 text-xs font-bold underline">重新上传</button>
                     </div>
+                </div>
+            `;
+        } else if (canManage) {
+            contractBtn = `
+                <div class="flex flex-col items-center justify-center gap-1.5">
+                    <span class="text-gray-500 text-xs font-bold bg-gray-100 px-2 py-0.5 rounded shadow-sm">❌ 暂未上传</span>
+                    <button onclick='window.triggerSilentUpload(${JSON.stringify(String(o.id))})' class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">点击上传</button>
                 </div>
             `;
         } else {
             contractBtn = `
                 <div class="flex flex-col items-center justify-center gap-1.5">
-                    <span class="text-gray-500 text-xs font-bold bg-gray-100 px-2 py-0.5 rounded shadow-sm">❌ 暂未上传</span>
-                    <button onclick="window.triggerSilentUpload('${o.id}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">点击上传</button>
+                    <span class="text-gray-500 text-xs font-bold bg-gray-100 px-2 py-0.5 rounded shadow-sm">${Number(o.has_contract) === 1 ? '✅ 已上传' : '❌ 暂未上传'}</span>
+                    <span class="text-gray-300 text-xs font-bold">${Number(o.has_contract) === 1 ? '预览受限' : '无权限查看'}</span>
                 </div>
             `;
         }
 
-        const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}">`;
+        const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}" ${canManage ? '' : 'disabled'}>`;
+        const companyLabel = isOwn ? '<span class="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">本人录入</span>' : '<span class="ml-2 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">他人录入</span>';
+        const stickyActionCellClass = 'p-3 text-center whitespace-nowrap align-middle sticky right-0 bg-white shadow-[-10px_0_14px_-14px_rgba(15,23,42,0.5)]';
+        const actionHtml = canManage
+            ? `
+                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "pay")' class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
+                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "adj")' class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
+                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "exp")' class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
+                ${window.currentUser.role==='admin' ? `<button onclick='window.cancelOrder(${JSON.stringify(String(o.id))}, ${JSON.stringify(String(o.booth_id))})' class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">退订</button>` : ''}
+            `
+            : `
+                <button class="bg-gray-200 text-gray-400 px-2 py-1.5 rounded text-xs font-bold cursor-not-allowed">💰 收款</button>
+                <button class="bg-gray-200 text-gray-400 px-2 py-1.5 rounded text-xs font-bold cursor-not-allowed mx-1">🛠️ 变更</button>
+                <button class="bg-gray-200 text-gray-400 px-2 py-1.5 rounded text-xs font-bold cursor-not-allowed mr-2">📤 代付</button>
+            `;
 
         tbody.innerHTML += `
             <tr class="border-b hover:bg-blue-50 transition">
                 <td class="p-3 text-center">${checkboxHtml}</td>
-                <td class="p-3 font-bold text-gray-600">${o.hall}</td>
-                <td class="p-3 font-bold text-blue-700 text-lg">${o.booth_id}</td>
-                <td class="p-3 text-xs text-gray-500 truncate max-w-[120px]" title="${o.region || '未填'}">${o.region || '未填'}</td>
-                <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[180px] truncate" onclick="window.showOrderDetailById('${o.id}')" title="点击查看详情与编辑">${safeCompany}</td>
+                <td class="p-3 text-center align-middle">${payBadge}</td>
+                <td class="p-3 font-bold text-gray-600">${safeHall}</td>
+                <td class="p-3 font-bold text-blue-700 text-lg">${safeBoothId}</td>
+                <td class="p-3 text-xs text-gray-500 truncate max-w-[120px]" title="${safeRegion}">${safeRegion}</td>
+                <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[220px] truncate" onclick='window.showOrderDetailById(${JSON.stringify(String(o.id))})' title="点击查看详情">${safeCompany}${companyLabel}</td>
                 <td class="p-3">${o.area} ㎡</td>
-                <td class="p-3 text-xs text-gray-500">${o.booth_type}</td>
-                <td class="p-3 text-xs text-gray-600 font-bold">${o.sales_name}</td>
+                <td class="p-3 text-xs text-gray-500">${safeBoothType}</td>
+                <td class="p-3 text-xs text-gray-600 font-bold">${safeSalesName}</td>
                 <td class="p-3 text-right font-bold text-gray-800">¥${o.total_amount}</td>
                 <td class="p-3 text-right font-bold text-green-600">¥${o.paid_amount}</td>
-                <td class="p-3 text-center align-middle">${payBadge}</td>
                 <td class="p-3 text-center align-middle">${contractBtn}</td>
-                <td class="p-3 text-center whitespace-nowrap align-middle">
-                    <button onclick="window.openFinanceDirectById('${o.id}', 'pay')" class="bg-blue-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-blue-700 shadow-sm">💰 收款</button>
-                    <button onclick="window.openFinanceDirectById('${o.id}', 'adj')" class="bg-orange-500 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-orange-600 shadow-sm mx-1">🛠️ 变更</button>
-                    <button onclick="window.openFinanceDirectById('${o.id}', 'exp')" class="bg-purple-600 text-white px-2 py-1.5 rounded text-xs font-bold hover:bg-purple-700 shadow-sm mr-2">📤 代付</button>
-                    ${window.currentUser.role==='admin' ? `<button onclick="window.cancelOrder('${o.id}', '${o.booth_id}')" class="text-red-500 hover:text-red-700 text-xs border border-red-200 px-2 py-1.5 rounded bg-white font-bold shadow-sm">退订</button>` : ''}
-                </td>
+                <td class="${stickyActionCellClass}">${actionHtml}</td>
             </tr>
         `;
     });
@@ -111,10 +287,10 @@ window.toggleAllOrderChecks = function(source) {
 }
 
 // 预览合同 (新标签页打开)
-window.previewSingleContract = async function(fileKey) {
+window.previewSingleContract = async function(fileKey, orderId) {
     try {
         window.showToast("正在获取云端合同，准备预览...", "info");
-        const response = await window.apiFetch(`/api/file/${fileKey}`);
+        const response = await window.apiFetch(`/api/file/${fileKey}?orderId=${encodeURIComponent(orderId)}`);
         if (!response.ok) {
             const errData = await response.json();
             throw new Error(errData.error || "获取失败或无预览权限");
@@ -155,7 +331,7 @@ window.batchDownloadContracts = async function() {
             const chunk = ordersWithContracts.slice(i, i + concurrency);
             await Promise.all(chunk.map(async (order) => {
                 try {
-                    const response = await window.apiFetch(`/api/file/${order.contract_url}`);
+                    const response = await window.apiFetch(`/api/file/${order.contract_url}?orderId=${encodeURIComponent(order.id)}`);
                     if (response.ok) {
                         const blob = await response.blob();
                         const safeCompanyName = order.company_name.replace(/[\\/:*?"<>|]/g, "_");
@@ -184,24 +360,114 @@ window.batchDownloadContracts = async function() {
     }
 }
 
-window.exportToExcel = function() {
+window.exportToExcel = async function() {
     if(!window.allOrders || window.allOrders.length === 0) return window.showToast("当前无数据可导出", 'error');
-    let csvContent = "\uFEFF内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,产品分类,主营业务/展品,业务员,总应收(元),已收(元),录入时间\n";
-    window.allOrders.forEach(o => {
-        let status = o.paid_amount >= o.total_amount ? '已付全款' : (o.paid_amount > 0 ? '已付定金' : '未付款');
-        if(o.status === '已退订' || o.status === '已作废') status = '已退订';
-        const safeWrap = (val) => `"${(val || '').toString().replace(/"/g, '""')}"`;
-        let row = [ status, o.hall, o.booth_id, o.area, o.booth_type, safeWrap(o.company_name), safeWrap(o.credit_code), safeWrap(o.region), safeWrap(o.contact_person), safeWrap(o.phone), safeWrap(o.category), safeWrap(o.main_business), o.sales_name, o.total_amount, o.paid_amount, o.created_at ].join(',');
-        csvContent += row + "\n";
-    });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-    link.download = `展位订单大盘导出_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-    link.click();
-    window.showToast("数据大盘导出成功！");
+
+    const safeWrap = (val) => `"${(val ?? '').toString().replace(/"/g, '""')}"`;
+    const fmtMoney = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
+    const parseFeeDetails = (feesJson) => {
+        try {
+            const items = JSON.parse(feesJson || '[]');
+            if (!Array.isArray(items) || items.length === 0) return '';
+            return items
+                .map((item) => `${item.name || '未命名收费'}: ¥${fmtMoney(item.amount)}`)
+                .join('；');
+        } catch (e) {
+            return '';
+        }
+    };
+
+    const buildPaymentSummary = (payments) => (payments || []).map((payment) => {
+        const pieces = [
+            `金额¥${fmtMoney(payment.amount)}`,
+            `时间${payment.payment_time || ''}`,
+            `付款人${payment.payer_name || '未填'}`,
+            `收款银行${payment.bank_name || '未填'}`
+        ];
+        if (payment.remarks) pieces.push(`备注${payment.remarks}`);
+        if (payment.source) pieces.push(`来源${payment.source}`);
+        return pieces.join(' / ');
+    }).join('；');
+
+    const buildExpenseSummary = (expenses) => (expenses || []).map((expense) => {
+        const pieces = [
+            `事由${expense.reason || '未填'}`,
+            `渠道${expense.payee_channel || '未填'}`,
+            `收款人/供应商${expense.payee_name || '未填'}`,
+            `金额¥${fmtMoney(expense.amount)}`,
+            `账号${expense.payee_account || '未填'}`,
+            `开户行${expense.payee_bank || '未填'}`,
+            `申请人${expense.applicant || '未填'}`
+        ];
+        if (expense.created_at) pieces.push(`时间${expense.created_at}`);
+        return pieces.join(' / ');
+    }).join('；');
+
+    window.showToast("正在整理导出数据，请稍候...", "info");
+
+    try {
+        const detailRows = await Promise.all(window.allOrders.map(async (order) => {
+            const [paymentRes, expenseRes] = await Promise.all([
+                window.apiFetch(`/api/payments?orderId=${encodeURIComponent(order.id)}`),
+                window.apiFetch(`/api/expenses?orderId=${encodeURIComponent(order.id)}`)
+            ]);
+
+            const payments = paymentRes.ok ? await paymentRes.json() : [];
+            const expenses = expenseRes.ok ? await expenseRes.json() : [];
+            const otherFeeDetails = parseFeeDetails(order.fees_json);
+            let status = order.paid_amount >= order.total_amount ? '已付全款' : (order.paid_amount > 0 ? '已付定金' : '未付款');
+            if(order.status === '已退订' || order.status === '已作废') status = '已退订';
+
+            return [
+                status,
+                order.hall || '',
+                order.booth_id || '',
+                order.area || '',
+                order.booth_type || '',
+                order.company_name || '',
+                order.credit_code || '',
+                order.region || '',
+                order.contact_person || '',
+                order.phone || '',
+                order.category || '',
+                order.main_business || '',
+                order.profile || '',
+                order.sales_name || '',
+                order.total_booth_fee || 0,
+                order.other_income || 0,
+                otherFeeDetails,
+                order.total_amount || 0,
+                order.paid_amount || 0,
+                payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+                buildPaymentSummary(payments),
+                expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0),
+                buildExpenseSummary(expenses),
+                order.created_at || ''
+            ];
+        }));
+
+        let csvContent = "\uFEFF内部状态,馆号,展位号,展位面积,类型,客户名称,信用代码/代号,地区,联系人,电话,产品分类,主营业务/展品,企业简介,业务员,应收展位费,应收其他费用,其他收费明细,总计应收金额,订单已收金额,收款流水总额,收款流水明细,代付/返佣总额,代付/返佣明细,录入时间\n";
+        detailRows.forEach((row) => {
+            csvContent += row.map((value) => safeWrap(value)).join(',') + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `展位订单大盘导出_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+        link.click();
+        window.showToast("数据大盘导出成功！");
+    } catch (e) {
+        window.showToast(`导出失败: ${e.message}`, 'error');
+    }
 }
 
-window.triggerSilentUpload = function(orderId) { window.currentSilentOrderId = orderId; document.getElementById('silent-file-upload').click(); }
+window.triggerSilentUpload = function(orderId) {
+    const order = window.allOrders.find(o => String(o.id) === String(orderId));
+    if (!window.canManageOrder(order)) return window.showToast('权限不足：不能上传他人合同', 'error');
+    window.currentSilentOrderId = orderId;
+    document.getElementById('silent-file-upload').click();
+}
 window.handleSilentUpload = async function(input) {
     if(!input.files[0] || !window.currentSilentOrderId) return;
     window.showToast("正在上传合同并更新单据...");
@@ -230,24 +496,34 @@ window.toggleDtAgent = function() {
 }
 
 window.showOrderDetail = function(o) {
+    const canManage = window.canManageOrder(o);
     window.currentViewOrder = o; 
     document.getElementById('dt-company').innerText = o.company_name; document.getElementById('dt-code').innerText = o.no_code_checked ? `无代码 (代号: ${o.credit_code})` : o.credit_code; document.getElementById('dt-booth').innerText = `${o.hall} - ${o.booth_id}`; document.getElementById('dt-sales').innerText = o.sales_name; document.getElementById('dt-time').innerText = o.created_at || '未知'; document.getElementById('dt-region').innerText = o.region || '未填'; document.getElementById('dt-contact').innerText = o.contact_person; document.getElementById('dt-phone').innerText = o.phone; document.getElementById('dt-category').innerText = o.category || '未填'; document.getElementById('dt-business').innerText = o.main_business || '未填'; document.getElementById('dt-profile').innerText = o.profile || '暂无简介'; document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直招入驻';
-    document.getElementById('edit-dt-contact').value = o.contact_person; document.getElementById('edit-dt-phone').value = o.phone; document.getElementById('edit-dt-region').value = o.region || ''; document.getElementById('edit-dt-category').value = o.category || ''; document.getElementById('edit-dt-business').value = o.main_business || ''; document.getElementById('edit-dt-profile').value = o.profile || ''; 
+    document.getElementById('edit-dt-contact').value = o.contact_person; document.getElementById('edit-dt-phone').value = o.phone; document.getElementById('edit-dt-region').value = o.region || ''; if (window.renderCategorySelect) { window.renderCategorySelect('edit-dt-category', o.category || '', true); } document.getElementById('edit-dt-business').value = o.main_business || ''; document.getElementById('edit-dt-profile').value = o.profile || ''; 
     document.querySelector(`input[name="edit_is_agent"][value="${o.is_agent ? 1 : 0}"]`).checked = true; 
     document.getElementById('edit-dt-agent-name').value = o.agent_name || '';
     
     document.querySelectorAll('input[name="edit_is_agent"]').forEach(el => el.onchange = window.toggleDtAgent);
     window.toggleDtAgent();
-    
+
+    const actionView = document.getElementById('dt-action-view');
+    if (canManage) {
+        actionView.innerHTML = '<button onclick="window.toggleDetailEditMode(true)" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded font-bold hover:bg-gray-100 shadow-sm flex items-center gap-2">✏️ 进入编辑模式</button>';
+    } else {
+        actionView.innerHTML = '<span class="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded font-bold">非本人录入，仅可查看受限信息</span>';
+    }
+
     window.toggleDetailEditMode(false); document.getElementById('order-detail-modal').classList.remove('hidden');
 }
 
 window.toggleDetailEditMode = function(isEditing) {
+    if (isEditing && !window.canManageOrder(window.currentViewOrder)) return window.showToast('权限不足：不能修改他人客户资料', 'error');
     if(isEditing) { document.getElementById('dt-view-mode').classList.add('hidden'); document.getElementById('dt-action-view').classList.add('hidden'); document.getElementById('dt-edit-mode').classList.remove('hidden'); document.getElementById('dt-action-edit').classList.remove('hidden'); } 
     else { document.getElementById('dt-edit-mode').classList.add('hidden'); document.getElementById('dt-action-edit').classList.add('hidden'); document.getElementById('dt-view-mode').classList.remove('hidden'); document.getElementById('dt-action-view').classList.remove('hidden'); }
 }
 
 window.saveDetailEdit = async function() {
+    if (!window.canManageOrder(window.currentViewOrder)) return window.showToast('权限不足：不能修改他人客户资料', 'error');
     const pid = document.getElementById('global-project-select').value;
     const isAgent = document.querySelector('input[name="edit_is_agent"]:checked').value === '1';
     const updatedData = { project_id: pid, order_id: window.currentViewOrder.id, contact_person: document.getElementById('edit-dt-contact').value.trim(), phone: document.getElementById('edit-dt-phone').value.trim(), region: document.getElementById('edit-dt-region').value.trim(), category: document.getElementById('edit-dt-category').value.trim(), main_business: document.getElementById('edit-dt-business').value.trim(), profile: document.getElementById('edit-dt-profile').value.trim(), is_agent: isAgent, agent_name: document.getElementById('edit-dt-agent-name').value.trim() };
@@ -262,6 +538,7 @@ window.saveDetailEdit = async function() {
 }
 
 window.openFinanceDirect = async function(order, tab) {
+    if (!window.canManageOrder(order)) return window.showToast('权限不足：不能办理他人订单财务', 'error');
     try {
         const pid = document.getElementById('global-project-select').value;
         const res = await window.apiFetch(`/api/accounts?projectId=${pid}`);
@@ -275,9 +552,10 @@ window.openFinanceDirect = async function(order, tab) {
             const group = document.createElement('optgroup'); 
             group.label = "🏢 系统配置对公账户";
             window.projectAccounts.forEach(a => { 
-                const textVal = `${a.account_name} - ${a.bank_name || ''}`;
-                const displayStr = `🏦 ${a.account_name} - ${a.bank_name || ''} (账号: ${a.account_no || '未配置'})`;
-                group.innerHTML += `<option value="${textVal}">${displayStr}</option>`; 
+                const option = document.createElement('option');
+                option.value = `${a.account_name} - ${a.bank_name || ''}`;
+                option.textContent = `🏦 ${a.account_name} - ${a.bank_name || ''} (账号: ${a.account_no || '未配置'})`;
+                group.appendChild(option);
             });
             sel.appendChild(group); 
         }
@@ -347,8 +625,20 @@ window.loadPaymentHistory = async function(orderId) {
         if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
         listDiv.innerHTML = '';
         pays.forEach(p => {
-            const safePayer = (p.payer_name || '').replace(/'/g, "\\'"); const safeBank = (p.bank_name || '').replace(/'/g, "\\'"); const safeRem = (p.remarks || '').replace(/'/g, "\\'");
-            listDiv.innerHTML += `<div class="bg-white border rounded p-3 flex justify-between items-center hover:bg-gray-50 transition"><div><div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}</div><div class="text-xs text-gray-600 mt-1">👤 户名: ${p.payer_name}</div><div class="text-xs text-gray-500">🏦 途径: ${p.bank_name || '未填'} | 📝 备注: ${p.remarks || '无'}</div></div><div class="text-right flex flex-col justify-between h-full"><div class="text-xs font-bold text-gray-700 mb-2">📅 ${p.payment_time}</div><div><button onclick="window.openEditPaymentModal('${p.id}', ${p.amount}, '${safePayer}', '${safeBank}', '${safeRem}', '${p.payment_time}')" class="text-indigo-500 hover:text-indigo-700 text-xs font-bold mr-2">修改</button><button onclick="window.deletePayment('${p.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button></div></div></div>`;
+            const safePayer = String(p.payer_name || '').replace(/'/g, "\\'");
+            const safeBank = String(p.bank_name || '').replace(/'/g, "\\'");
+            const safeRem = String(p.remarks || '').replace(/'/g, "\\'");
+            const safePayerText = window.escapeHtml(p.payer_name || '');
+            const safeBankText = window.escapeHtml(p.bank_name || '未填');
+            const safeRemarkText = window.escapeHtml(p.remarks || '无');
+            const isErpSync = p.source === 'ERP_SYNC';
+            const actionHtml = isErpSync
+                ? `<span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">ERP 同步只读</span>`
+                : `<div><button onclick="window.openEditPaymentModal('${p.id}', ${p.amount}, '${safePayer}', '${safeBank}', '${safeRem}', '${p.payment_time}')" class="text-indigo-500 hover:text-indigo-700 text-xs font-bold mr-2">修改</button><button onclick="window.deletePayment('${p.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button></div>`;
+            const sourceBadge = isErpSync
+                ? '<span class="ml-2 text-[11px] font-bold text-cyan-700 bg-cyan-100 px-2 py-0.5 rounded-full">ERP同步</span>'
+                : '';
+            listDiv.innerHTML += `<div class="bg-white border rounded p-3 flex justify-between items-center hover:bg-gray-50 transition"><div><div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}${sourceBadge}</div><div class="text-xs text-gray-600 mt-1">👤 户名: ${safePayerText}</div><div class="text-xs text-gray-500">🏦 途径: ${safeBankText} | 📝 备注: ${safeRemarkText}</div></div><div class="text-right flex flex-col justify-between h-full"><div class="text-xs font-bold text-gray-700 mb-2">📅 ${window.escapeHtml(p.payment_time)}</div>${actionHtml}</div></div>`;
         });
     } catch (e) { listDiv.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
@@ -436,7 +726,12 @@ window.loadExpenseHistory = async function(orderId) {
         listDiv.innerHTML = '';
         exps.forEach(e => {
             const safeE = JSON.stringify(e).replace(/'/g, "&#39;");
-            listDiv.innerHTML += `<div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50"><div><div class="font-bold text-purple-700">金额: ¥${e.amount} <span class="text-sm font-normal text-gray-500 ml-2">(${e.payee_name})</span></div><div class="text-xs text-gray-600 mt-1">📝 事由: <span class="font-bold">${e.reason || '无说明'}</span></div><div class="text-xs text-gray-400 mt-1">${e.created_at ? e.created_at.split(' ')[0] : ''} | 渠道: ${e.payee_channel || '转账'} | 申请人: ${e.applicant}</div></div><div class="text-right"><button onclick='window.printExpense(${safeE})' class="bg-gray-800 text-white hover:bg-black text-xs font-bold px-3 py-1.5 rounded mr-2">🖨️ 打印单据</button><button onclick="window.deleteExpense('${e.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">撤销</button></div></div>`;
+            const safePayeeName = window.escapeHtml(e.payee_name || '');
+            const safeReason = window.escapeHtml(e.reason || '无说明');
+            const safeCreatedAt = window.escapeHtml(e.created_at ? e.created_at.split(' ')[0] : '');
+            const safeChannel = window.escapeHtml(e.payee_channel || '转账');
+            const safeApplicant = window.escapeHtml(e.applicant || '');
+            listDiv.innerHTML += `<div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50"><div><div class="font-bold text-purple-700">金额: ¥${e.amount} <span class="text-sm font-normal text-gray-500 ml-2">(${safePayeeName})</span></div><div class="text-xs text-gray-600 mt-1">📝 事由: <span class="font-bold">${safeReason}</span></div><div class="text-xs text-gray-400 mt-1">${safeCreatedAt} | 渠道: ${safeChannel} | 申请人: ${safeApplicant}</div></div><div class="text-right"><button onclick='window.printExpense(${safeE})' class="bg-gray-800 text-white hover:bg-black text-xs font-bold px-3 py-1.5 rounded mr-2">🖨️ 打印单据</button><button onclick="window.deleteExpense('${e.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">撤销</button></div></div>`;
         });
     } catch (err) { listDiv.innerHTML = `<p class="text-red-500 font-bold">解析异常: ${err.message}</p>`; }
 }
@@ -468,7 +763,7 @@ window.deleteExpense = async function(expId) {
 
 window.printExpense = function(e) {
     const order = window.allOrders.find(o => String(o.id) === String(e.order_id));
-    const content = `<div class="text-center mb-6"><h2 class="text-2xl font-bold tracking-widest border-b-2 border-black pb-2 inline-block">项目款项支付/返佣申请单</h2></div><div class="flex justify-between text-sm mb-2 font-bold"><span>单据编号：EXP-${e.id}-${Date.now().toString().slice(-4)}</span><span>申请日期：${e.created_at ? e.created_at.split(' ')[0] : '即日'}</span></div><table class="w-full text-left border-collapse border border-black mb-6 text-sm"><tr><th class="border border-black p-3 bg-gray-100 w-1/4">项目名称</th><td class="border border-black p-3 font-bold" colspan="3">${document.getElementById('global-project-select').options[document.getElementById('global-project-select').selectedIndex].text}</td></tr><tr><th class="border border-black p-3 bg-gray-100">关联展商/展位</th><td class="border border-black p-3 font-bold text-blue-800" colspan="3">${order.company_name} (展位: ${order.booth_id})</td></tr><tr><th class="border border-black p-3 bg-gray-100">代付/返佣事由</th><td class="border border-black p-3 font-bold text-purple-800" colspan="3">${e.reason || '无说明'}</td></tr><tr><th class="border border-black p-3 bg-gray-100">申请支付金额</th><td class="border border-black p-3 font-bold text-xl text-red-600" colspan="3">¥ ${e.amount.toLocaleString()}</td></tr><tr><th class="border border-black p-3 bg-gray-100">收款单位全称</th><td class="border border-black p-3 font-bold" colspan="3">${e.payee_name} <span class="text-gray-500 font-normal">(${e.payee_channel || '转账'})</span></td></tr><tr><th class="border border-black p-3 bg-gray-100">收款账号</th><td class="border border-black p-3 tracking-widest font-bold" colspan="3">${e.payee_account || '未提供'}</td></tr><tr><th class="border border-black p-3 bg-gray-100">开户行详情</th><td class="border border-black p-3" colspan="3">${e.payee_bank || '未提供'}</td></tr></table><div class="grid grid-cols-2 gap-4 text-center mt-12 pt-8 text-sm"><div>申请人签字：<span class="font-bold border-b border-black px-6">${e.applicant}</span></div><div>上级审批签字：__________________</div></div>`;
+    const content = `<div class="text-center mb-6"><h2 class="text-2xl font-bold tracking-widest border-b-2 border-black pb-2 inline-block">支出确认单</h2></div><div class="flex justify-between text-sm mb-2 font-bold"><span>单据编号：EXP-${e.id}-${Date.now().toString().slice(-4)}</span><span>申请日期：${e.created_at ? e.created_at.split(' ')[0] : '即日'}</span></div><table class="w-full text-left border-collapse border border-black mb-6 text-sm"><tr><th class="border border-black p-3 bg-gray-100 w-1/4">项目名称</th><td class="border border-black p-3 font-bold" colspan="3">${document.getElementById('global-project-select').options[document.getElementById('global-project-select').selectedIndex].text}</td></tr><tr><th class="border border-black p-3 bg-gray-100">关联展商/展位</th><td class="border border-black p-3 font-bold text-blue-800" colspan="3">${order.company_name} (展位: ${order.booth_id})</td></tr><tr><th class="border border-black p-3 bg-gray-100">代付/返佣事由</th><td class="border border-black p-3 font-bold text-purple-800" colspan="3">${e.reason || '无说明'}</td></tr><tr><th class="border border-black p-3 bg-gray-100">申请支付金额</th><td class="border border-black p-3 font-bold text-xl text-red-600" colspan="3">¥ ${e.amount.toLocaleString()}</td></tr><tr><th class="border border-black p-3 bg-gray-100">收款单位全称</th><td class="border border-black p-3 font-bold" colspan="3">${e.payee_name} <span class="text-gray-500 font-normal">(${e.payee_channel || '转账'})</span></td></tr><tr><th class="border border-black p-3 bg-gray-100">收款账号</th><td class="border border-black p-3 tracking-widest font-bold" colspan="3">${e.payee_account || '未提供'}</td></tr><tr><th class="border border-black p-3 bg-gray-100">开户行详情</th><td class="border border-black p-3" colspan="3">${e.payee_bank || '未提供'}</td></tr></table><div class="text-sm font-bold mt-10 pt-6">申请人：${e.applicant || ''}</div>`;
     document.getElementById('print-content').innerHTML = content; document.getElementById('print-modal').classList.remove('hidden');
 }
 

@@ -5,7 +5,12 @@
   "description": "Cloudflare Workers + D1 + R2 expo management app",
   "scripts": {
     "check": "node --check _worker.js",
-    "dev": "HOME=$PWD/.wrangler-home wrangler dev",
+    "test:erp-sync": "node tests/erp-sync-core.test.mjs",
+    "cf:login": "HOME=$PWD/.wrangler-home wrangler login --callback-host 127.0.0.1",
+    "cf:whoami": "HOME=$PWD/.wrangler-home wrangler whoami",
+    "db:init:local": "HOME=$PWD/.wrangler-home wrangler d1 execute exhibition_db --local --file ./migrations/20260320-1200-local-test-bootstrap.sql",
+    "dev": "HOME=$PWD/.wrangler-home wrangler dev --ip 127.0.0.1",
+    "dev:preview": "HOME=$PWD/.wrangler-home wrangler dev --config wrangler.preview.toml --ip 127.0.0.1",
     "dev:remote": "HOME=$PWD/.wrangler-home wrangler dev --remote",
     "deploy": "HOME=$PWD/.wrangler-home wrangler deploy"
   },

@@ -58,6 +58,30 @@
 npm run check
 ```
 
+### B. 本地人工测试
+
+现在最稳定的测试方式是本地测试模式。
+
+先初始化本地测试库：
+
+```bash
+npm run db:init:local
+```
+
+再启动本地网页：
+
+```bash
+npm run dev -- --port 8788
+```
+
+浏览器打开：
+
+```text
+http://127.0.0.1:8788
+```
+
+本地测试账号说明见 [docs/LOCAL-TESTING.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/LOCAL-TESTING.md)。
+
 ### B. 联调测试
 
 如果要测试登录、D1 查询、R2 上传、订单流程这种真实业务，就需要 Cloudflare 绑定齐全。
@@ -70,6 +94,40 @@ npm run dev
 
 本地打开 Wrangler 给出的地址测试。
 
+注意：`npm run dev` 默认连接的是本地模拟 D1 / R2。
+
+如果本地测试库还是空的，登录会失败，这是正常现象，不代表线上代码坏了。
+
+### C. 预发布人工验收
+
+如果你要先打开“本地网页”人工审核，但又希望页面连到真实的 Cloudflare 数据，可以用：
+
+```bash
+npm run cf:login
+npm run dev:preview
+```
+
+第一次使用 `dev:preview` 前，建议先执行一次：
+
+```bash
+npm run dev:preview
+```
+
+这个模式下：
+
+- 页面仍然在你本地打开
+- Worker 代码仍然是你本地刚改过的代码
+- 但 D1 / R2 会连接 Cloudflare 上的真实资源
+
+这最适合“我改完一轮，你先人工验收，再决定是否正式推送”。
+
+注意：
+
+- 这个模式下如果你新增、修改、删除数据，会影响真实云端数据
+- 所以更推荐把它当成预发布验收环境，而不是随便做脏数据测试
+- 如果浏览器提示无法打开 `localhost:8976`，先改用 `npm run cf:login`
+- `cf:login` 已经固定使用 `127.0.0.1` 作为回调地址，比 `localhost` 更稳定
+
 如果你要连真实的 Cloudflare 资源联调，可以用：
 
 ```bash
@@ -79,6 +137,7 @@ npm run dev:remote
 注意：
 
 - `npm run dev` 更适合本地预览代码改动
+- `npm run dev:preview` 更适合上线前人工验收
 - `npm run dev:remote` 会更接近真实环境，但要更谨慎，避免误操作真实数据
 
 ## 5. D1 / R2 改动以后怎么做

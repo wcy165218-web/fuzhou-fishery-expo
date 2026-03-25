@@ -1,4 +1,4 @@
-name = "fuzhou-fishery-expo"
+name = "fuzhou-fishery-expo-preview"
 main = "./_worker.js"
 compatibility_date = "2026-03-20"
 
@@ -11,7 +11,9 @@ run_worker_first = ["/api/*"]
 binding = "DB"
 database_name = "exhibition_db"
 database_id = "c190ca96-3fa2-48bf-aade-0b995f4f02bd"
+remote = true
 
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "expo-contracts"
+remote = true

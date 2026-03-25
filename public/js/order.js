@@ -258,7 +258,10 @@ window.submitOrderForm = async function() {
     const business = document.getElementById('order-business').value.trim();
     const profile = document.getElementById('order-profile').value.trim(); 
     const booth = allBooths.find(b => b.id === boothId);
-    
+    if (!category) return window.showToast("请选择产品分类", 'error');
+    if (!business) return window.showToast("请填写主营业务/详细展品", 'error');
+    if (!profile) return window.showToast("请填写企业简介", 'error');
+
     window.toggleBtnLoading('submit-btn', true, '✅ 确认无误，生成订单并锁定展位');
 
     let uploadedFileKey = '';

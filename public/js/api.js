@@ -15,6 +15,7 @@ var projectAccounts = [];
 var projectIndustries = []; 
 var lastFmTab = 'pay';
 var currentSilentOrderId = null; 
+var projectErpConfig = null;
 
 // 通用弹窗关闭函数
 window.closeModal = function(id) { 
@@ -25,11 +26,17 @@ window.closeModal = function(id) {
 window.showToast = function(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
+    const iconEl = document.createElement('span');
+    const textEl = document.createElement('span');
     const bgColor = type === 'success' ? 'bg-green-500' : (type === 'error' ? 'bg-red-500' : 'bg-blue-500');
     const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
     
     toast.className = `toast-enter text-white px-6 py-3 rounded shadow-lg flex items-center gap-2 ${bgColor}`;
-    toast.innerHTML = `<span>${icon}</span><span class="font-bold">${message}</span>`;
+    iconEl.innerText = icon;
+    textEl.className = 'font-bold';
+    textEl.innerText = String(message || '');
+    toast.appendChild(iconEl);
+    toast.appendChild(textEl);
     container.appendChild(toast);
 
     requestAnimationFrame(() => {
@@ -90,4 +97,8 @@ window.escapeHtml = function(text) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+window.escapeAttr = function(text) {
+    return window.escapeHtml(text).replace(/`/g, '&#096;');
 }

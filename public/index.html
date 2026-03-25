@@ -70,7 +70,7 @@
                     <div><label class="block text-gray-700 font-bold mb-1">联系人</label><input type="text" id="edit-dt-contact" class="w-full border p-2 rounded"></div>
                     <div><label class="block text-gray-700 font-bold mb-1">联系电话</label><input type="text" id="edit-dt-phone" class="w-full border p-2 rounded"></div>
                     <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">所在地区 (可手动输入覆盖)</label><input type="text" id="edit-dt-region" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-gray-700 font-bold mb-1">产品分类 (支持下拉或手填)</label><input type="text" id="order-category" list="category-datalist" placeholder="请下拉选择或输入新分类" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                    <div><label class="block text-gray-700 font-bold mb-1">产品分类</label><select id="edit-dt-category" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"><option value="">-- 请选择产品分类 --</option></select></div>
                     <div><label class="block text-gray-700 font-bold mb-1">详细展品</label><input type="text" id="edit-dt-business" class="w-full border p-2 rounded"></div>
                     <div class="col-span-2"><label class="block text-gray-700 font-bold mb-1">企业简介</label><textarea id="edit-dt-profile" rows="3" class="w-full border p-2 rounded"></textarea></div>
                     
@@ -244,11 +244,9 @@
         </div>
     </div>
 
-    <datalist id="industry-list"></datalist>
-
     <div id="login-view" class="flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
-            <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">系统登录</h2>
+            <h2 class="text-2xl font-bold text-center mb-6 text-blue-800">展览四部筹展系统登录</h2>
             <input type="text" id="login-user" placeholder="姓名" class="w-full border p-3 rounded mb-4 focus:outline-blue-500">
             <input type="password" id="login-pass" placeholder="密码" class="w-full border p-3 rounded mb-6 focus:outline-blue-500" onkeypress="if(event.key==='Enter') window.handleLogin()">
             <button id="login-btn" onclick="window.handleLogin()" class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700 transition-colors">登 录</button>
@@ -270,9 +268,25 @@
         </aside>
 
         <main class="flex-1 flex flex-col bg-gray-50 h-screen overflow-hidden">
-            <header class="bg-white h-16 shadow-sm flex items-center justify-between px-6 shrink-0 z-0">
-                <h2 id="current-page-title" class="text-lg font-bold text-gray-700">首页看板</h2>
-                <div class="flex items-center gap-3">
+            <header class="bg-white shadow-sm flex flex-wrap xl:flex-nowrap items-center gap-4 px-6 py-3 shrink-0 z-0">
+                <h2 id="current-page-title" class="text-lg font-bold text-gray-700 shrink-0">首页看板</h2>
+                <div class="hidden lg:flex items-center gap-2 flex-1 min-w-0">
+                    <div class="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
+                        <div class="text-[10px] tracking-[0.18em] text-slate-400 font-bold">今日日期</div>
+                        <div id="home-today-date" class="text-sm font-black text-slate-800 mt-1 whitespace-nowrap">--</div>
+                    </div>
+                    <div class="px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4 min-w-0 flex-1 max-w-[640px]">
+                        <div class="min-w-0">
+                            <div class="text-[10px] tracking-[0.18em] text-slate-400 font-bold">倒计时</div>
+                            <div id="home-countdown-value" class="text-sm xl:text-base font-black text-blue-800 mt-1 truncate">--</div>
+                        </div>
+                        <div class="text-right shrink-0">
+                            <div id="home-countdown-desc" class="text-[12px] font-bold text-slate-600 whitespace-nowrap">--</div>
+                            <div id="home-project-name" class="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">--</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
                     <span class="text-sm text-gray-500 font-bold">当前操作项目：</span>
                     <select id="global-project-select" onchange="window.onProjectChange()" class="border-2 border-blue-500 text-blue-700 font-bold p-2 rounded bg-blue-50 focus:outline-none min-w-[200px]"></select>
                 </div>
@@ -281,14 +295,75 @@
             <div class="flex-1 overflow-y-auto p-6">
                 
                 <section id="sec-home" class="page-section">
-                    <div class="bg-white p-6 rounded shadow border-l-4 border-blue-500"><h3 class="text-lg font-bold text-gray-700">欢迎工作！</h3><p class="text-gray-500 mt-2">数据图表大盘正在开发中...</p></div>
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-3xl shadow border border-slate-200 overflow-hidden">
+                            <div class="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                    <div>
+                                        <div class="text-xs tracking-wide text-slate-500 font-bold">HOME TABS</div>
+                                        <h3 class="text-xl font-black text-slate-800 mt-2">首页分项看板</h3>
+                                    </div>
+                                    <div id="home-tabs" class="flex flex-wrap gap-2"></div>
+                                </div>
+                            </div>
+                            <div class="p-6">
+                                <div id="home-tab-sales-summary" class="home-tab-panel hidden">
+                                    <div class="flex items-center justify-between gap-3 mb-5">
+                                        <div>
+                                            <div class="text-xs tracking-wide text-slate-500 font-bold">人员销售全景</div>
+                                            <h3 class="text-xl font-black text-slate-800 mt-2">目标与收款概览</h3>
+                                        </div>
+                                        <div class="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full">自动按权限显示</div>
+                                    </div>
+                                    <div id="home-sales-summary" class="mt-5"></div>
+                                </div>
+
+                                <div id="home-tab-sales-list" class="home-tab-panel hidden">
+                                    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+                                        <div>
+                                            <div class="text-xs tracking-wide text-slate-500 font-bold">人员销售情况</div>
+                                            <h3 class="text-xl font-black text-slate-800 mt-2">业务员销售情况全景</h3>
+                                        </div>
+                                        <p class="text-xs text-gray-500">该板块所有账号都可查看全部业务员信息。</p>
+                                    </div>
+                                    <div id="home-sales-list" class="mt-5"></div>
+                                </div>
+
+                                <div id="home-tab-hall" class="home-tab-panel hidden">
+                                    <div id="home-hall-section" class="bg-white">
+                                        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+                                            <div>
+                                                <div class="text-xs tracking-wide text-slate-500 font-bold">馆别经营看板</div>
+                                                <h3 class="text-xl font-black text-slate-800 mt-2">按馆号统计经营情况</h3>
+                                            </div>
+                                            <div class="text-xs text-gray-500">仅超级管理员、管理员可查看全部馆号经营情况。</div>
+                                        </div>
+                                        <div id="home-hall-table" class="overflow-x-auto"></div>
+                                    </div>
+                                </div>
+
+                                <div id="home-tab-region-table" class="home-tab-panel hidden">
+                                    <div class="bg-white">
+                                        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-5">
+                                            <div>
+                                                <div class="text-xs tracking-wide text-slate-500 font-bold">地区分布表格</div>
+                                                <h3 class="text-xl font-black text-slate-800 mt-2">成交企业地区分布全景</h3>
+                                            </div>
+                                            <div id="home-region-scope-note" class="text-xs text-gray-500">管理员看全部，业务员仅看本人名下企业。</div>
+                                        </div>
+                                        <div id="home-region-table" class="space-y-5"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
                 
                 <section id="sec-config" class="page-section">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white p-6 rounded shadow border-t-4 border-indigo-500"><h3 class="text-lg font-bold mb-4">📂 展会项目管理</h3><div class="bg-gray-50 p-4 rounded border mb-6"><input type="text" id="new-proj-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm mb-2"><input type="number" id="new-proj-year" placeholder="归属年份" class="w-full border p-2 rounded text-sm mb-2"><div class="flex gap-2 mb-3 text-sm text-gray-600">开展: <input type="date" id="new-proj-start" class="border p-1 rounded flex-1">撤展: <input type="date" id="new-proj-end" class="border p-1 rounded flex-1"></div><button id="btn-create-proj" onclick="window.createProject()" class="w-full bg-indigo-600 text-white p-2 rounded text-sm font-bold hover:bg-indigo-700 transition">保存新项目</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">项目名称</th><th class="p-2">展期</th><th class="p-2 text-right">操作</th></tr></thead><tbody id="project-list-tbody" class="divide-y"></tbody></table></div>
                         
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500"><h3 class="text-lg font-bold mb-4 flex justify-between items-center"><span>👥 业务员与目标管理</span></h3><div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2"><input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1"><select id="new-staff-role" class="border p-2 rounded text-sm w-28"><option value="user">业务员</option><option value="admin">管理员</option></select><button id="btn-add-staff" onclick="window.createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700 transition">添加</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标</th><th class="p-2">操作</th></tr></thead><tbody id="staff-list-tbody" class="divide-y"></tbody></table></div>
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-emerald-500"><h3 class="text-lg font-bold mb-4 flex justify-between items-center"><span>👥 业务员与目标管理</span></h3><div class="bg-emerald-50 text-emerald-800 text-xs font-bold px-3 py-2 rounded border border-emerald-200 mb-4">本项目目标按展位数填写，换算口径为 9㎡ = 1 个展位。</div><div class="bg-gray-50 p-4 rounded border mb-6 flex gap-2"><input type="text" id="new-staff-name" placeholder="员工姓名" class="border p-2 rounded text-sm flex-1"><select id="new-staff-role" class="border p-2 rounded text-sm w-28"><option value="user">业务员</option><option value="admin">管理员</option></select><button id="btn-add-staff" onclick="window.createStaff()" class="bg-emerald-600 text-white px-4 rounded text-sm font-bold hover:bg-emerald-700 transition">添加</button></div><table class="w-full text-sm text-left border"><thead class="bg-gray-100 border-b"><tr><th class="p-2">姓名</th><th class="p-2">角色</th><th class="p-2">本项目目标（展位数）</th><th class="p-2">操作</th></tr></thead><tbody id="staff-list-tbody" class="divide-y"></tbody></table></div>
                         
                         <div class="bg-white p-6 rounded shadow border-t-4 border-blue-500">
                             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">💳 项目专属收款账户配置</h3>
@@ -307,7 +382,7 @@
 
                         <div class="bg-white p-6 rounded shadow border-t-4 border-purple-500">
                             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">🏷️ 产品分类下拉配置</h3>
-                            <p class="text-xs text-gray-500 mb-4">配置后，业务员录入订单时可在“产品分类”下拉框统一选择（业务员仍可手动输入新分类）。</p>
+                            <p class="text-xs text-gray-500 mb-4">配置后，业务员录入订单时只能从这里维护的产品分类中固定选择。</p>
                             <div class="flex gap-2 mb-4">
                                 <input type="text" id="new-industry-name" placeholder="如：水产海鲜 / 智能制造" class="w-full border p-2 rounded text-sm">
                                 <button id="btn-add-ind" onclick="window.createIndustry()" class="bg-purple-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-purple-700 transition whitespace-nowrap">新增分类</button>
@@ -319,18 +394,66 @@
                                 </table>
                             </div>
                         </div>
+
+                        <div class="bg-white p-6 rounded shadow border-t-4 border-cyan-500 lg:col-span-2">
+                            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                                <div>
+                                    <h3 class="text-lg font-bold flex items-center gap-2">🔄 ERP 收款同步配置</h3>
+                                    <p class="text-xs text-gray-500 mt-1">用于把外部 ERP 已认领收款，自动同步到当前项目的收款流水中。建议先预检查，再正式同步。</p>
+                                </div>
+                                <label class="inline-flex items-center gap-2 text-sm font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-3 py-2 rounded-lg">
+                                    <input type="checkbox" id="erp-enabled" class="accent-cyan-600">
+                                    启用 ERP 同步
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">ERP 接口地址</label>
+                                    <input type="text" id="erp-endpoint-url" placeholder="http://expo.hyfairs.com/hyDailyWaterSubController.do" class="w-full border p-2 rounded text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">waterId</label>
+                                    <input type="text" id="erp-water-id" placeholder="填写 ERP 的 waterId" class="w-full border p-2 rounded text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">ERP 项目名称</label>
+                                    <input type="text" id="erp-expected-project" placeholder="如：福州渔博会 2026" class="w-full border p-2 rounded text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">JSESSIONID / Cookie</label>
+                                    <input type="text" id="erp-session-cookie" placeholder="可直接粘贴 JSESSIONID=xxxx 或完整 Cookie" class="w-full border p-2 rounded text-sm">
+                                    <p class="text-[11px] text-gray-500 mt-1 leading-5">这里保存到当前项目的数据库配置中，不是写到代码文件里。ERP 登录失效后，只需要重新到浏览器开发者工具复制最新 Cookie，再回到这里覆盖保存即可。</p>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <button id="btn-save-erp-config" onclick="window.saveErpConfig()" class="bg-cyan-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-cyan-700 transition">保存 ERP 配置</button>
+                                <button id="btn-preview-erp-sync" onclick="window.previewErpSync()" class="bg-white text-cyan-700 border border-cyan-300 px-4 py-2 rounded text-sm font-bold hover:bg-cyan-50 transition">先做预检查</button>
+                                <button id="btn-run-erp-sync" onclick="window.runErpSync()" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-emerald-700 transition">正式同步入账</button>
+                            </div>
+                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                    <div class="text-xs tracking-wide text-slate-500 font-bold">上次同步时间</div>
+                                    <div id="erp-last-sync-at" class="text-lg font-black text-slate-800 mt-2">未同步</div>
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                                    <div class="text-xs tracking-wide text-slate-500 font-bold">最近一次同步摘要</div>
+                                    <div id="erp-last-sync-summary" class="text-sm text-slate-700 mt-2 leading-6">暂无记录</div>
+                                </div>
+                            </div>
+                            <div id="erp-sync-result" class="mt-4 hidden bg-slate-950 text-slate-100 rounded-2xl p-4 text-sm whitespace-pre-wrap leading-6"></div>
+                        </div>
                     </div>
                 </section>
                 
                 <section id="sec-booth" class="page-section">
                     <div class="bg-white p-4 rounded shadow border-l-4 border-red-500 mb-4 flex flex-wrap items-center justify-between gap-4"><div class="flex items-center gap-2"><span class="font-bold text-gray-700">💰 全局单价策略:</span></div><div class="flex gap-4 text-sm items-center"><div class="flex items-center bg-gray-50 p-1 rounded border">标摊 <input type="number" id="price-bt" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">豪标 <input type="number" id="price-hb" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">光地 <input type="number" id="price-gd" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/㎡</div><button id="btn-save-prices" onclick="window.savePrices()" class="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-1.5 rounded font-bold border border-red-300 transition">保存策略</button></div></div>
                     
-                    <div class="bg-white p-4 rounded shadow border-t-4 border-blue-500 mb-4 relative overflow-hidden">
-                        <div class="flex justify-between items-center mb-3">
-                            <h3 class="text-sm font-bold text-blue-800 flex items-center gap-2">📊 展位动态大盘 <span class="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded">(随下方列表筛选条件实时联动)</span></h3>
+                        <div class="bg-white p-4 rounded shadow border-t-4 border-blue-500 mb-4 relative overflow-hidden">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 id="stats-title" class="text-sm font-bold text-blue-800 flex items-center gap-2">📊 总体展位动态大盘 <span class="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded">随下方馆号筛选实时联动</span></h3>
+                            </div>
+                            <div id="stats-panel" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4 text-sm"></div>
                         </div>
-                        <div id="stats-panel" class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm"></div>
-                    </div>
 
                     <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
                         <div class="mb-6 border rounded border-orange-200"><button onclick="window.toggleEntrySection()" class="w-full bg-orange-50 text-orange-800 p-3 font-bold text-left flex justify-between items-center rounded-t hover:bg-orange-100"><span>➕ 展开【单条新增】与【Excel批量导入】面板</span><span id="entry-arrow">▼</span></button><div id="entry-section" class="hidden p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white rounded-b"><div class="col-span-1 border-r pr-6 space-y-3"><h4 class="font-bold text-gray-700 mb-2 border-b pb-1">手动新增单条</h4><input type="text" id="s-id" placeholder="展位号 (如 1A01)" class="w-full border p-2 rounded text-sm font-bold"><div class="flex items-center"><input type="number" id="s-hall-num" placeholder="展馆数字 (如 1)" class="w-full border p-2 rounded-l text-sm"><span class="bg-gray-200 border border-l-0 p-2 rounded-r text-sm text-gray-700 shrink-0 whitespace-nowrap">号馆</span></div><select id="s-type" class="w-full border p-2 rounded text-sm font-bold text-blue-700"><option>标摊</option><option>豪标</option><option>光地</option></select><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 shrink-0 whitespace-nowrap">总面积(㎡)</span><input type="number" id="s-area" placeholder="录入实际面积" class="w-full border p-2 rounded-r text-sm"></div><button id="btn-add-booth" onclick="window.addSingleBooth()" class="w-full bg-gray-800 text-white p-2 rounded text-sm font-bold hover:bg-black mt-2">存入库中</button></div><div class="col-span-2 relative pl-2"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-700">Excel批量导入</h4><button onclick="window.downloadTemplate()" class="text-blue-600 hover:underline text-xs">下载模板</button></div><textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded text-sm font-mono bg-orange-50/30" placeholder="复制Excel包含4列：展位号 | 馆号(数字) | 类型 | 总面积(㎡)"></textarea><button id="btn-import-booth" onclick="window.parseAndImportBooths()" class="absolute bottom-2 right-2 bg-orange-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-orange-700 shadow-md transition-colors">解析导入</button></div></div></div>
@@ -339,9 +462,9 @@
                                 <input type="text" id="filter-search" placeholder="🔍 搜展位号..." class="border p-1.5 rounded text-sm w-32" onkeyup="window.renderBooths()">
                                 <select id="filter-hall" class="border p-1.5 rounded text-sm text-gray-600 font-bold" onchange="window.renderBooths()"><option value="">🏢 所有展馆</option></select>
                                 <select id="filter-type" class="border p-1.5 rounded text-sm text-gray-600" onchange="window.renderBooths()"><option value="">所有类型</option><option value="标摊">标摊</option><option value="豪标">豪标</option><option value="光地">光地</option></select>
-                                <select id="filter-status" class="border p-1.5 rounded text-sm text-gray-600" onchange="window.renderBooths()"><option value="">所有状态</option><option>可售</option><option>已锁定</option><option>已预订</option><option>已成交</option></select>
+                                <select id="filter-status" class="border p-1.5 rounded text-sm text-gray-600" onchange="window.renderBooths()"><option value="">所有状态</option><option value="可售">未售</option><option>已锁定</option><option>已预订</option><option>已成交</option></select>
                             </div>
-                            <div class="flex items-center gap-2"><select id="batch-status-select" class="border p-1.5 rounded text-sm border-blue-400 text-blue-700 font-bold"><option value="可售">置为: 可售</option><option value="已锁定">置为: 锁定</option></select><button onclick="window.batchUpdateStatus()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded text-sm font-bold">批量改状态</button><button onclick="window.batchDelete()" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded text-sm font-bold border border-red-300">🗑️ 批量删除</button></div>
+                            <div class="flex items-center gap-2"><select id="batch-status-select" class="border p-1.5 rounded text-sm border-blue-400 text-blue-700 font-bold"><option value="可售">置为: 未售</option><option value="已锁定">置为: 锁定</option></select><button onclick="window.batchUpdateStatus()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded text-sm font-bold">批量改状态</button><button onclick="window.batchDelete()" class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded text-sm font-bold border border-red-300">🗑️ 批量删除</button></div>
                         </div>
                         <div class="overflow-y-auto max-h-[600px] border rounded bg-white relative">
                             <table class="w-full text-sm text-left">
@@ -365,8 +488,8 @@
                             <div class="col-span-1 md:col-span-2 bg-blue-50 p-4 rounded border border-blue-200 mb-6">
                                 <label class="block text-blue-900 font-bold mb-2">本单招展渠道分类 <span class="text-red-500">*</span></label>
                                 <div class="flex items-center gap-6 mb-2">
-                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="0" checked onchange="window.toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 否，直招</label>
-                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="1" onchange="window.toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 是，代理商招展</label>
+                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="0" checked onchange="window.toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 直招</label>
+                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="1" onchange="window.toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 代理商招展</label>
                                 </div>
                                 <input type="text" id="order-agent-name" class="w-full border-2 border-blue-300 p-2 rounded hidden focus:border-blue-500 bg-white" placeholder="请输入具体代理商公司名称 (必填)">
                             </div>
@@ -434,15 +557,17 @@
                                 </div>
                                 
                                 <div class="col-span-1">
-                                    <label class="block text-gray-800 font-bold mb-1">产品分类</label>
-                                    <input type="text" id="order-category" list="category-datalist" placeholder="请下拉选择或输入新分类" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <label class="block text-gray-800 font-bold mb-1">产品分类 <span class="text-red-500">*</span></label>
+                                    <select id="order-category" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                        <option value="">-- 请选择产品分类 --</option>
+                                    </select>
                                 </div>
                                 <div class="col-span-1">
-                                    <label class="block text-gray-800 font-bold mb-1">主营业务/详细展品</label>
-                                    <input type="text" id="order-business" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请自由填写详细展品">
+                                    <label class="block text-gray-800 font-bold mb-1">主营业务/详细展品 <span class="text-red-500">*</span></label>
+                                    <input type="text" id="order-business" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请填写主营业务或详细展品">
                                 </div>
 
-                                <div class="col-span-1 md:col-span-2"><label class="block text-gray-800 font-bold mb-1">企业简介 <span class="text-gray-400 font-normal text-xs">(200字以内)</span></label><textarea id="order-profile" rows="3" maxlength="200" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="简要介绍企业规模、核心产品等..."></textarea></div>
+                                <div class="col-span-1 md:col-span-2"><label class="block text-gray-800 font-bold mb-1">企业简介 <span class="text-red-500">*</span> <span class="text-gray-400 font-normal text-xs">(200字以内)</span></label><textarea id="order-profile" rows="3" maxlength="200" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请填写企业简介"></textarea></div>
                             </div>
                         </div>
 
@@ -487,7 +612,8 @@
 
                     <section id="sec-order-list" class="page-section">
                     <div class="bg-white p-6 rounded shadow border-t-4 border-yellow-500">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">📁 订单与财务管理大盘</h3>
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">📁 订单与财务管理</h3>
+                        <div id="order-dashboard-panel" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4"></div>
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-gray-50 p-3 rounded border">
                             <div class="flex items-center gap-2">
                                 <input type="text" id="order-search" placeholder="🔍 搜公司/展位号..." class="border p-2 rounded text-sm w-48" onkeyup="window.renderOrderList()">
@@ -496,6 +622,9 @@
                                     <option value="未付">🔴 未付款</option>
                                     <option value="定金">🟡 已付定金</option>
                                     <option value="全款">🟢 已付全款</option>
+                                </select>
+                                <select id="order-sales-filter" class="border p-2 rounded text-sm hidden" onchange="window.loadOrderList()">
+                                    <option value="">全部业务员</option>
                                 </select>
                             </div>
                             <div class="flex items-center gap-3">
@@ -514,6 +643,7 @@
                                 <thead class="bg-gray-100 border-b">
                                     <tr>
                                         <th class="p-3 w-10"><input type="checkbox" id="check-all-orders" onchange="window.toggleAllOrderChecks(this)"></th>
+                                        <th class="p-3 text-center">状态</th>
                                         <th class="p-3">馆号</th>
                                         <th class="p-3">展位号</th>
                                         <th class="p-3">地区情况</th>
@@ -523,9 +653,8 @@
                                         <th class="p-3">业务员</th> 
                                         <th class="p-3 text-right">总应收(元)</th>
                                         <th class="p-3 text-right text-green-600">已收(元)</th>
-                                        <th class="p-3 text-center">状态</th>
                                         <th class="p-3 text-center">合同情况</th>
-                                        <th class="p-3 text-center">操作与财务办理</th>
+                                        <th class="p-3 text-center sticky right-0 bg-gray-100 z-10 min-w-[260px] shadow-[-10px_0_14px_-14px_rgba(15,23,42,0.5)]">操作与财务办理</th>
                                     </tr>
                                 </thead>
                                 <tbody id="order-list-tbody" class="divide-y"></tbody>
@@ -544,7 +673,7 @@
     <script src="./js/booth.js"></script>
     <script src="./js/order.js"></script>
     <script src="./js/finance.js"></script>
+    <script src="./js/home.js"></script>
     <script src="./js/app.js"></script>
-    <datalist id="category-datalist"></datalist>
 </body>
 </html>
