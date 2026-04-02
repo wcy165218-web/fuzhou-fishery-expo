@@ -1,4 +1,48 @@
 // ================= js/config.js =================
+window.currentConfigPanel = window.currentConfigPanel || 'basic';
+window.orderFieldDefinitions = [
+    { key: 'is_agent', label: '招展渠道分类', desc: '控制直招/代理商招展切换，核心字段，始终显示。', immutable: true },
+    { key: 'agent_name', label: '代理商公司名称', desc: '仅当选择“代理商招展”时显示输入框。' },
+    { key: 'company_name', label: '参展企业全称', desc: '订单企业主体名称。' },
+    { key: 'credit_code', label: '统一社会信用代码', desc: '包含“无代码”勾选逻辑。' },
+    { key: 'contact_person', label: '联系人', desc: '企业联系人字段。' },
+    { key: 'phone', label: '联系电话', desc: '企业联系电话字段。' },
+    { key: 'region', label: '所在地区', desc: '省/市/区三级地区选择。' },
+    { key: 'category', label: '产品分类', desc: '从项目产品分类下拉中选择。' },
+    { key: 'main_business', label: '主营业务/详细展品', desc: '录入主营业务或展品说明。' },
+    { key: 'profile', label: '企业简介', desc: '用于会刊/企业介绍。' },
+    { key: 'booth_selection', label: '展位选定与锁定', desc: '订单核心流程字段，始终显示。', immutable: true },
+    { key: 'actual_booth_fee', label: '最终成交展位费', desc: '实际成交展位金额。' },
+    { key: 'extra_fees', label: '其他代收/杂费明细', desc: '可录入搭建费、广告费等附加费用。' },
+    { key: 'contract_upload', label: '合同附件上传', desc: '控制第三步合同 PDF 上传。' }
+];
+
+window.renderConfigSubnav = function() {
+    ['basic', 'staff', 'order-fields'].forEach((panelKey) => {
+        const btn = document.getElementById(`config-tab-${panelKey}`);
+        const panel = document.getElementById(`config-panel-${panelKey}`);
+        const active = window.currentConfigPanel === panelKey;
+        if (btn) {
+            btn.className = `config-subnav-btn w-full text-left rounded-xl px-4 py-3 text-sm font-bold transition ${active ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200'}`;
+        }
+        if (panel) {
+            panel.classList.toggle('hidden', !active);
+        }
+    });
+};
+
+window.openConfigPanel = function(panelKey) {
+    window.currentConfigPanel = panelKey || 'basic';
+    window.renderConfigSubnav();
+    window.renderNav?.();
+    if (window.currentConfigPanel === 'staff') {
+        window.loadStaff();
+    }
+    if (window.currentConfigPanel === 'order-fields') {
+        window.loadOrderFieldSettings?.();
+    }
+};
+
 // -- 项目管理 --
 window.loadProjects = async function() {
     allProjects = await (await window.apiFetch('/api/projects')).json();
@@ -14,7 +58,7 @@ window.loadProjects = async function() {
             sel.innerHTML += `<option value="${p.id}">${safeName}</option>`;
         }
         if (tbody) {
-            tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-blue-600">${safeName}</td><td class="p-2 text-gray-500">${safeDateText}</td><td class="p-2 text-right"><button onclick="window.openEditProjectModalById(${Number(p.id)})" class="text-indigo-600 hover:underline text-xs">编辑</button></td></tr>`;
+            tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-blue-600">${safeName}</td><td class="p-2 text-gray-500">${safeDateText}</td><td class="p-2 text-right"><button onclick="window.openEditProjectModalById(${Number(p.id)})" class="btn-soft-primary px-3 py-1 text-xs">编辑</button></td></tr>`;
         }
     });
 
@@ -30,6 +74,7 @@ window.onProjectChange = function() {
         window.loadAccounts();
         window.loadIndustries();
         window.loadErpConfig?.();
+        window.loadOrderFieldSettings?.();
     }
     if (document.getElementById('sec-booth')?.classList.contains('active')) {
         window.loadPrices();
@@ -116,18 +161,68 @@ window.loadStaff = async function() {
     staff.forEach((member) => {
         const isSuperAdmin = member.name === 'admin';
         const safeMemberName = window.escapeHtml(member.name);
+        const sortControls = isSuperAdmin
+            ? '<span class="badge-readonly">固定首位</span>'
+            : `<div class="inline-flex items-center gap-1">
+                    <button onclick='window.moveStaffOrder(${JSON.stringify(member.name)}, "up")' class="btn-outline px-2 py-1 text-xs leading-none">上移</button>
+                    <button onclick='window.moveStaffOrder(${JSON.stringify(member.name)}, "down")' class="btn-outline px-2 py-1 text-xs leading-none">下移</button>
+               </div>`;
         const targetHtml = member.target > 0
-            ? `<button onclick='window.setTarget(${JSON.stringify(member.name)}, ${JSON.stringify(String(member.target))})' class="text-blue-600 font-bold hover:underline">${member.target} 个</button>`
-            : `<button onclick='window.setTarget(${JSON.stringify(member.name)}, "100")' class="text-gray-400 hover:underline">未设</button>`;
+            ? `<button onclick='window.setTarget(${JSON.stringify(member.name)}, ${JSON.stringify(String(member.target))})' class="btn-soft-primary px-3 py-1 text-xs">${member.target} 个</button>`
+            : `<button onclick='window.setTarget(${JSON.stringify(member.name)}, "100")' class="btn-outline px-3 py-1 text-xs text-slate-500">未设</button>`;
         const roleHtml = isSuperAdmin
-            ? '<span class="text-red-600 font-bold text-xs bg-red-100 px-2 py-1 rounded">超级管理员</span>'
+            ? '<span class="badge-danger">超级管理员</span>'
             : `<select onchange='window.updateStaffRole(${JSON.stringify(member.name)}, this.value)' class="border border-gray-300 p-1 text-xs rounded bg-white text-gray-700"><option value="user" ${member.role === 'user' ? 'selected' : ''}>业务员</option><option value="admin" ${member.role === 'admin' ? 'selected' : ''}>管理员</option></select>`;
+        const salesRankingHtml = `<label class="inline-flex items-center gap-2 text-xs font-bold ${Number(member.exclude_from_sales_ranking || 0) ? 'text-slate-400' : 'text-emerald-700'}">
+                <input type="checkbox" ${Number(member.exclude_from_sales_ranking || 0) ? '' : 'checked'} onchange='window.updateStaffSalesRanking(${JSON.stringify(member.name)}, this.checked)' class="accent-emerald-600">
+                <span>${Number(member.exclude_from_sales_ranking || 0) ? '不参与' : '参与'}</span>
+           </label>`;
         const actionHtml = isSuperAdmin
-            ? '<span class="text-gray-300 text-xs">系统保护</span>'
-            : `<button onclick='window.resetStaffPassword(${JSON.stringify(member.name)})' class="text-orange-500 hover:text-orange-700 text-xs font-bold mr-2">重置密码</button><button onclick='window.deleteStaff(${JSON.stringify(member.name)})' class="text-red-500 hover:text-red-700 text-xs font-bold">删除</button>`;
+            ? '<span class="badge-readonly">系统保护</span>'
+            : `<button onclick='window.resetStaffPassword(${JSON.stringify(member.name)})' class="btn-soft-amber px-3 py-1 text-xs mr-2">重置密码</button><button onclick='window.deleteStaff(${JSON.stringify(member.name)})' class="btn-soft-danger px-3 py-1 text-xs">删除</button>`;
 
-        tbody.innerHTML += `<tr class="hover:bg-gray-50 border-b transition"><td class="p-2 font-bold text-gray-700">${safeMemberName}</td><td class="p-2">${roleHtml}</td><td class="p-2">${targetHtml}</td><td class="p-2 text-right">${actionHtml}</td></tr>`;
+        tbody.innerHTML += `<tr class="hover:bg-gray-50 border-b transition"><td class="p-2 font-bold text-gray-700">${safeMemberName}</td><td class="p-2">${roleHtml}</td><td class="p-2">${targetHtml}</td><td class="p-2 text-center">${salesRankingHtml}</td><td class="p-2 text-center">${sortControls}</td><td class="p-2 text-right">${actionHtml}</td></tr>`;
     });
+};
+
+window.moveStaffOrder = async function(staffName, direction) {
+    try {
+        const res = await window.apiFetch('/api/update-staff-order', {
+            method: 'POST',
+            body: JSON.stringify({ staffName, direction })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || '排序调整失败');
+        window.showToast('人员顺序已更新');
+        await window.loadStaff();
+        if (document.getElementById('sec-home')?.classList.contains('active')) {
+            window.loadHomeDashboard?.();
+        }
+    } catch (e) {
+        window.showToast(e.message, 'error');
+    }
+};
+
+window.updateStaffSalesRanking = async function(staffName, shouldParticipate) {
+    try {
+        const res = await window.apiFetch('/api/update-staff-sales-ranking', {
+            method: 'POST',
+            body: JSON.stringify({
+                staffName,
+                excludeFromSalesRanking: shouldParticipate ? 0 : 1
+            })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || '更新失败');
+        window.showToast('销售全景参与设置已更新');
+        await window.loadStaff();
+        if (document.getElementById('sec-home')?.classList.contains('active')) {
+            window.loadHomeDashboard?.();
+        }
+    } catch (e) {
+        window.showToast(e.message, 'error');
+        await window.loadStaff();
+    }
 };
 
 window.createStaff = async function() {
@@ -249,7 +344,7 @@ window.loadIndustries = async function() {
         if (tbody) {
             tbody.innerHTML = '';
             window.projectIndustries.forEach((industry) => {
-                tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-gray-700">${window.escapeHtml(industry.industry_name)}</td><td class="p-2 text-right"><button onclick="window.deleteIndustry(${Number(industry.id)})" class="text-red-500 hover:underline text-xs">删除</button></td></tr>`;
+                tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold text-gray-700">${window.escapeHtml(industry.industry_name)}</td><td class="p-2 text-right"><button onclick="window.deleteIndustry(${Number(industry.id)})" class="btn-soft-danger px-3 py-1 text-xs">删除</button></td></tr>`;
             });
         }
 
@@ -307,7 +402,7 @@ window.loadAccounts = async function() {
 
     tbody.innerHTML = '';
     projectAccounts.forEach((account) => {
-        tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold">${window.escapeHtml(account.account_name)}</td><td class="p-2 text-gray-600">${window.escapeHtml(account.bank_name || '-')}</td><td class="p-2 text-gray-600">${window.escapeHtml(account.account_no || '-')}</td><td class="p-2 text-right"><button onclick="window.deleteAccount(${Number(account.id)})" class="text-red-500 hover:underline text-xs">删除</button></td></tr>`;
+        tbody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-bold">${window.escapeHtml(account.account_name)}</td><td class="p-2 text-gray-600">${window.escapeHtml(account.bank_name || '-')}</td><td class="p-2 text-gray-600">${window.escapeHtml(account.account_no || '-')}</td><td class="p-2 text-right"><button onclick="window.deleteAccount(${Number(account.id)})" class="btn-soft-danger px-3 py-1 text-xs">删除</button></td></tr>`;
     });
 };
 
@@ -362,7 +457,7 @@ window.renderErpSyncResult = function(payload, title = 'ERP 同步结果') {
         `非已认领状态：${summary.skipped_not_closed || 0}`,
         `项目名不匹配：${summary.skipped_project_mismatch || 0}`,
         `金额无效：${summary.skipped_invalid_amount || 0}`,
-        `超出订单应收：${summary.skipped_overpaid || 0}`,
+        `超收待处理：${summary.overpaid_pending_count || summary.skipped_overpaid || 0}`,
         `未匹配企业：${summary.unmatched_company || 0}`,
         `匹配到多个同名企业：${summary.ambiguous_company || 0}`
     ];
@@ -371,7 +466,7 @@ window.renderErpSyncResult = function(payload, title = 'ERP 同步结果') {
         lines.push('', '预览明细（最多显示前 50 条）：');
         preview.forEach((item, index) => {
             lines.push(
-                `${index + 1}. [${item.result}] ERP#${item.erp_id} | ${item.company_name} | ${item.project_name} | ¥${Number(item.amount || 0).toLocaleString()} | ${item.reason}`
+                `${index + 1}. [${item.result}] ERP#${item.erp_id} | ${item.company_name} | ${item.project_name} | ${window.formatCurrency(item.amount || 0)} | ${item.reason}`
             );
         });
     }
@@ -493,5 +588,78 @@ window.runErpSync = async function() {
         window.showToast(e.message, 'error');
     } finally {
         window.toggleBtnLoading('btn-run-erp-sync', false);
+    }
+};
+
+window.renderOrderFieldSettings = function() {
+    const tbody = document.getElementById('order-field-settings-tbody');
+    if (!tbody) return;
+    const settings = Array.isArray(window.currentOrderFieldSettings) ? window.currentOrderFieldSettings : [];
+    const rows = settings.map((setting) => {
+        const definition = window.orderFieldDefinitions.find((item) => item.key === setting.key) || { label: setting.key, desc: '' };
+        const locked = !!setting.immutable;
+        return `
+            <tr class="hover:bg-slate-50">
+                <td class="p-3">
+                    <div class="font-bold text-slate-800">${window.escapeHtml(definition.label)}</div>
+                    <div class="text-xs text-slate-500 mt-1">${window.escapeHtml(definition.key || setting.key)}</div>
+                </td>
+                <td class="p-3 text-center">
+                    <input type="checkbox" ${setting.enabled ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="window.updateOrderFieldSetting('${setting.key}', 'enabled', this.checked)" class="h-4 w-4 accent-slate-900">
+                </td>
+                <td class="p-3 text-center">
+                    <input type="checkbox" ${setting.required ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="window.updateOrderFieldSetting('${setting.key}', 'required', this.checked)" class="h-4 w-4 accent-slate-900">
+                </td>
+                <td class="p-3 text-right text-xs text-slate-500">${window.escapeHtml(locked ? '核心字段，固定显示并必填' : (definition.desc || ''))}</td>
+            </tr>
+        `;
+    }).join('');
+    tbody.innerHTML = rows || '<tr><td colspan="4" class="p-6 text-center text-slate-400">暂无字段设置</td></tr>';
+};
+
+window.updateOrderFieldSetting = function(fieldKey, targetField, checked) {
+    if (!Array.isArray(window.currentOrderFieldSettings)) return;
+    window.currentOrderFieldSettings = window.currentOrderFieldSettings.map((item) => {
+        if (item.key !== fieldKey || item.immutable) return item;
+        const next = { ...item, [targetField]: checked ? 1 : 0 };
+        if (targetField === 'enabled' && !checked) next.required = 0;
+        if (targetField === 'required' && checked) next.enabled = 1;
+        return next;
+    });
+    window.renderOrderFieldSettings();
+};
+
+window.loadOrderFieldSettings = async function() {
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
+    try {
+        const res = await window.apiFetch(`/api/order-field-settings?projectId=${pid}`);
+        window.currentOrderFieldSettings = await res.json();
+        window.renderOrderFieldSettings();
+        window.orderFieldSettingsMap = Object.fromEntries((window.currentOrderFieldSettings || []).map((item) => [item.key, item]));
+        window.applyOrderFieldSettings?.();
+    } catch (e) {
+        console.error('加载订单字段设置失败', e);
+        window.showToast('加载订单字段设置失败', 'error');
+    }
+};
+
+window.saveOrderFieldSettings = async function() {
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return window.showToast('请先选择项目', 'error');
+    window.toggleBtnLoading('btn-save-order-field-settings', true);
+    try {
+        const res = await window.apiFetch('/api/save-order-field-settings', {
+            method: 'POST',
+            body: JSON.stringify({ project_id: Number(pid), settings: window.currentOrderFieldSettings || [] })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || '保存失败');
+        window.showToast('订单字段设置已保存');
+        await window.loadOrderFieldSettings();
+    } catch (e) {
+        window.showToast(e.message, 'error');
+    } finally {
+        window.toggleBtnLoading('btn-save-order-field-settings', false);
     }
 };

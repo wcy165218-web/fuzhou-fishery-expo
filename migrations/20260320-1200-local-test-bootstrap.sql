@@ -6,7 +6,10 @@ PRAGMA foreign_keys = OFF;
 
 DROP TABLE IF EXISTS Expenses;
 DROP TABLE IF EXISTS LoginAttempts;
+DROP TABLE IF EXISTS OrderOverpaymentIssues;
+DROP TABLE IF EXISTS OrderBoothChanges;
 DROP TABLE IF EXISTS ProjectErpConfigs;
+DROP TABLE IF EXISTS ProjectOrderFieldSettings;
 DROP TABLE IF EXISTS Payments;
 DROP TABLE IF EXISTS Orders;
 DROP TABLE IF EXISTS Booths;
@@ -29,7 +32,9 @@ CREATE TABLE Staff (
   name TEXT NOT NULL UNIQUE,
   password TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'user',
-  target REAL NOT NULL DEFAULT 0
+  target REAL NOT NULL DEFAULT 0,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  exclude_from_sales_ranking INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE Accounts (
@@ -109,7 +114,9 @@ CREATE TABLE Payments (
   remarks TEXT,
   source TEXT NOT NULL DEFAULT 'MANUAL',
   erp_record_id TEXT,
-  raw_payload TEXT
+  raw_payload TEXT,
+  deleted_at TEXT,
+  deleted_by TEXT
 );
 
 CREATE UNIQUE INDEX idx_payments_erp_record_id ON Payments (erp_record_id);
@@ -136,6 +143,15 @@ CREATE TABLE ProjectErpConfigs (
   last_sync_summary TEXT
 );
 
+CREATE TABLE ProjectOrderFieldSettings (
+  project_id INTEGER NOT NULL,
+  field_key TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  required INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+  PRIMARY KEY (project_id, field_key)
+);
+
 CREATE TABLE Expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL,
@@ -147,15 +163,47 @@ CREATE TABLE Expenses (
   amount REAL NOT NULL DEFAULT 0,
   applicant TEXT,
   reason TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+  deleted_at TEXT,
+  deleted_by TEXT
+);
+
+CREATE TABLE OrderOverpaymentIssues (
+  order_id INTEGER PRIMARY KEY,
+  project_id INTEGER NOT NULL,
+  overpaid_amount REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reason TEXT,
+  note TEXT,
+  handled_by TEXT,
+  handled_at TEXT,
+  detected_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
+);
+
+CREATE TABLE OrderBoothChanges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  order_id INTEGER NOT NULL,
+  old_booth_id TEXT NOT NULL,
+  new_booth_id TEXT NOT NULL,
+  old_area REAL NOT NULL DEFAULT 0,
+  new_area REAL NOT NULL DEFAULT 0,
+  booth_delta_count REAL NOT NULL DEFAULT 0,
+  old_total_amount REAL NOT NULL DEFAULT 0,
+  new_total_amount REAL NOT NULL DEFAULT 0,
+  total_amount_delta REAL NOT NULL DEFAULT 0,
+  changed_by TEXT,
+  reason TEXT,
+  changed_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
 );
 
 INSERT INTO Projects (id, name, year, start_date, end_date) VALUES
   (1, 'Local Demo Expo 2026', 2026, '2026-05-18', '2026-05-20');
 
-INSERT INTO Staff (name, password, role, target) VALUES
-  ('admin', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'admin', 12),
-  ('sales01', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'user', 8);
+INSERT INTO Staff (name, password, role, target, display_order) VALUES
+  ('admin', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'admin', 12, 0),
+  ('sales01', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'user', 8, 1);
 
 INSERT INTO Accounts (project_id, account_name, bank_name, account_no) VALUES
   (1, 'Demo Company', 'ICBC', '6222000000000001'),

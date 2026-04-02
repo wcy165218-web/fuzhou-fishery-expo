@@ -23,8 +23,14 @@ window.savePrices = async function() {
 
 window.toggleEntrySection = function() { 
     const sec = document.getElementById('entry-section'); const arr = document.getElementById('entry-arrow'); 
-    if(sec.classList.contains('hidden')) { sec.classList.remove('hidden'); arr.innerText = '▲'; } 
-    else { sec.classList.add('hidden'); arr.innerText = '▼'; } 
+    if(sec.classList.contains('hidden')) {
+        sec.classList.remove('hidden');
+        arr?.classList.add('rotate-180');
+    } 
+    else {
+        sec.classList.add('hidden');
+        arr?.classList.remove('rotate-180');
+    } 
 }
 
 window.addSingleBooth = async function() { 
@@ -75,7 +81,7 @@ window.loadBooths = async function() {
     allBooths = await (await window.apiFetch(`/api/booths?projectId=${pid}`)).json(); 
     const halls = [...new Set(allBooths.map(b => b.hall))].sort(); 
     const hallFilter = document.getElementById('filter-hall'); 
-    hallFilter.innerHTML = '<option value="">🏢 所有展馆</option>'; 
+    hallFilter.innerHTML = '<option value="">所有展馆</option>'; 
     halls.forEach(h => {
         const option = document.createElement('option');
         option.value = h;
@@ -89,7 +95,7 @@ window.updateStatsTitle = function() {
     const titleEl = document.getElementById('stats-title');
     if (!titleEl) return;
     const hallTxt = document.getElementById('filter-hall')?.value;
-    titleEl.innerHTML = `📊 ${hallTxt || '总体展位'}动态大盘 <span class="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded">随下方馆号筛选实时联动</span>`;
+    titleEl.innerHTML = `${hallTxt || '总体展位'}动态大盘 <span class="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded">随下方馆号筛选实时联动</span>`;
 }
 
 window.getBoothStatusLabel = function(status) {
@@ -211,21 +217,21 @@ window.renderBooths = function() {
         let pStr = '';
         if (isLockedByOrder && b.total_booth_fee != null) {
             let actualUnit = b.type === '光地' ? (b.total_booth_fee / b.area) : (b.total_booth_fee / (b.area / 9)); actualUnit = Number(actualUnit.toFixed(2));
-            pStr = `<span class="bg-green-100 text-green-700 px-1 rounded text-xs font-bold">实际单价</span> ¥${actualUnit}/${unit}`;
+            pStr = `<span class="badge-success">实际单价</span> <span class="tabular-data">¥${actualUnit}/${unit}</span>`;
         } else {
             const standardPrice = b.base_price > 0 ? b.base_price : (globalPrices[b.type] || 0); 
-            pStr = `<span class="bg-gray-100 text-gray-500 px-1 rounded text-xs font-bold">原价</span> ¥${standardPrice}/${unit}`;
+            pStr = `<span class="badge-neutral">原价</span> <span class="tabular-data">¥${standardPrice}/${unit}</span>`;
         }
         
         let selectHtml = '';
         if (isLockedByOrder) { 
-            selectHtml = `<span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-xs font-bold flex items-center justify-center gap-1" title="受订单关联控制，不可手动更改">🔒 ${window.escapeHtml(b.status)}</span>`; 
+            selectHtml = `<span class="badge-readonly" title="受订单关联控制，不可手动更改">${window.escapeHtml(b.status)}</span>`; 
         } else { 
             selectHtml = `<select onchange='window.updateSingleBoothStatus(${JSON.stringify(String(b.id))}, this.value)' class="border p-1 text-xs rounded w-20 bg-white">`; 
             ['可售', '已锁定'].forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${window.getBoothStatusLabel(opt)}</option>`); 
             selectHtml += `</select>`; 
         }
-        const actionHtml = isLockedByOrder ? `<span class="text-xs text-gray-400 font-bold">订单锁定</span>` : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)})' class="text-indigo-600 hover:underline mr-2 text-xs">修改</button><button onclick='window.deleteSingleBooth(${JSON.stringify(String(b.id))})' class="text-red-500 hover:underline text-xs">删除</button>`; 
+        const actionHtml = isLockedByOrder ? `<span class="badge-readonly">订单锁定</span>` : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)})' class="btn-soft-primary px-3 py-1 text-xs mr-2">修改</button><button onclick='window.deleteSingleBooth(${JSON.stringify(String(b.id))})' class="btn-soft-danger px-3 py-1 text-xs">删除</button>`; 
         const checkHtml = isLockedByOrder ? `<input type="checkbox" disabled title="不可批量操作">` : `<input type="checkbox" class="booth-check" value="${window.escapeAttr(b.id)}">`; 
         tbody.innerHTML += `<tr class="border-b"><td class="p-3">${checkHtml}</td><td class="p-3 font-bold">${window.escapeHtml(b.id)}</td><td class="p-3">${window.escapeHtml(b.hall)}</td><td class="p-3">${window.escapeHtml(b.type)}</td><td class="p-3">${b.area}㎡</td><td class="p-3">${bCount}个</td><td class="p-3">${pStr}</td><td class="p-3 text-center">${selectHtml}</td><td class="p-3 text-center">${actionHtml}</td></tr>`; 
     }); 

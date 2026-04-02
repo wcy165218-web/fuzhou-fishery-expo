@@ -1,5 +1,129 @@
 // ================= js/order.js =================
 window.currentAllocatedArea = 0; // 全局存储本次分配的展位面积
+window.selectedOrderBooths = [];
+window.orderFieldSettingsMap = window.orderFieldSettingsMap || {};
+
+window.isOrderFieldEnabled = function(fieldKey) {
+    const setting = window.orderFieldSettingsMap?.[fieldKey];
+    return setting ? Number(setting.enabled || 0) === 1 : true;
+}
+
+window.isOrderFieldRequired = function(fieldKey) {
+    const setting = window.orderFieldSettingsMap?.[fieldKey];
+    return setting ? Number(setting.required || 0) === 1 : true;
+}
+
+window.setOrderFieldVisibility = function(fieldKey, visible) {
+    const block = document.getElementById(`order-field-${fieldKey}-block`);
+    if (!block) return;
+    block.classList.toggle('hidden', !visible);
+}
+
+window.setOrderFieldRequiredMarker = function(fieldKey, required) {
+    const marker = document.getElementById(`order-required-${fieldKey}`);
+    if (!marker) return;
+    marker.classList.toggle('hidden', !required);
+}
+
+window.applyOrderFieldSettings = function() {
+    const fieldKeys = ['is_agent', 'company_name', 'credit_code', 'contact_person', 'phone', 'region', 'category', 'main_business', 'profile', 'booth_selection', 'actual_booth_fee', 'extra_fees', 'contract_upload'];
+    fieldKeys.forEach((fieldKey) => {
+        window.setOrderFieldVisibility(fieldKey, window.isOrderFieldEnabled(fieldKey));
+        window.setOrderFieldRequiredMarker(fieldKey, window.isOrderFieldRequired(fieldKey));
+    });
+
+    const agentInput = document.getElementById('order-agent-name');
+    if (agentInput) {
+        if (!window.isOrderFieldEnabled('is_agent')) {
+            const directRadio = document.querySelector('input[name="is_agent"][value="0"]');
+            if (directRadio) directRadio.checked = true;
+        }
+        agentInput.placeholder = window.isOrderFieldRequired('agent_name') ? '请输入具体代理商公司名称 (必填)' : '请输入具体代理商公司名称（选填）';
+    }
+
+    if (!window.isOrderFieldEnabled('extra_fees')) {
+        dynamicFees = [];
+        window.renderDynamicFees();
+    }
+
+    if (!window.isOrderFieldEnabled('actual_booth_fee')) {
+        const actualFeeInput = document.getElementById('order-actual-fee');
+        if (actualFeeInput) actualFeeInput.value = currentStandardFee || 0;
+    }
+
+    if (!window.isOrderFieldEnabled('contract_upload')) {
+        const contractInput = document.getElementById('order-contract');
+        if (contractInput) contractInput.value = '';
+    }
+
+    window.toggleAgent();
+    window.calculateFinalTotal();
+};
+
+window.calculateBoothStandardFee = function(booth, allocatedArea) {
+    const priceUnit = booth.base_price > 0 ? booth.base_price : (globalPrices[booth.type] || 0);
+    const standardFee = booth.type === '光地'
+        ? priceUnit * allocatedArea
+        : priceUnit * (allocatedArea / 9);
+    return {
+        priceUnit,
+        standardFee
+    };
+}
+
+window.renderSelectedBooths = function() {
+    const list = document.getElementById('selected-booth-list');
+    const countBadge = document.getElementById('selected-booth-count');
+    const selectedIdsInput = document.getElementById('selected-booth-id');
+    if (!list || !countBadge || !selectedIdsInput) return;
+
+    if (!Array.isArray(window.selectedOrderBooths)) window.selectedOrderBooths = [];
+    selectedIdsInput.value = window.selectedOrderBooths.map((item) => item.id).join(',');
+    countBadge.innerText = `${window.selectedOrderBooths.length} 个`;
+
+    if (window.selectedOrderBooths.length === 0) {
+        list.innerHTML = '<span class="text-xs text-slate-400 italic">暂未选择展位</span>';
+        document.getElementById('calc-booth').innerText = '-';
+        document.getElementById('calc-type').innerText = '-';
+        document.getElementById('calc-area').innerText = '-';
+        document.getElementById('calc-unit').innerText = '-';
+        currentStandardFee = 0;
+        document.getElementById('calc-standard-fee').innerText = '¥ 0';
+        window.calculateFinalTotal();
+        return;
+    }
+
+    list.innerHTML = window.selectedOrderBooths.map((item) => `
+        <div class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
+            <span>${window.escapeHtml ? window.escapeHtml(item.hall) : item.hall} - ${window.escapeHtml ? window.escapeHtml(item.id) : item.id}</span>
+            <span class="tabular-data text-slate-400">${Number(item.area || 0).toLocaleString()}㎡</span>
+            <button type="button" onclick="window.removeSelectedBooth('${String(item.id).replace(/'/g, "\\'")}')" class="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="移除展位">
+                ${window.renderIcon('close', 'h-3.5 w-3.5', 2.2)}
+            </button>
+        </div>
+    `).join('');
+
+    const totalArea = window.selectedOrderBooths.reduce((sum, item) => sum + Number(item.area || 0), 0);
+    const types = Array.from(new Set(window.selectedOrderBooths.map((item) => item.type).filter(Boolean)));
+    currentStandardFee = window.selectedOrderBooths.reduce((sum, item) => sum + Number(item.standard_fee || 0), 0);
+
+    document.getElementById('calc-booth').innerText = window.selectedOrderBooths.length === 1
+        ? `${window.selectedOrderBooths[0].hall} - ${window.selectedOrderBooths[0].id}`
+        : `${window.selectedOrderBooths.length} 个展位`;
+    document.getElementById('calc-type').innerText = types.length === 1 ? types[0] : '混合';
+    document.getElementById('calc-area').innerText = totalArea.toLocaleString();
+    document.getElementById('calc-unit').innerText = window.selectedOrderBooths.length === 1
+        ? `${window.selectedOrderBooths[0].unit_label}`
+        : '按已选展位分别计价';
+    document.getElementById('calc-standard-fee').innerText = `¥ ${currentStandardFee.toLocaleString()}`;
+    document.getElementById('order-actual-fee').value = currentStandardFee;
+    window.calculateFinalTotal();
+}
+
+window.removeSelectedBooth = function(boothId) {
+    window.selectedOrderBooths = (window.selectedOrderBooths || []).filter((item) => String(item.id) !== String(boothId));
+    window.renderSelectedBooths();
+}
 
 window.initOrderForm = async function() {
     const pid = document.getElementById('global-project-select').value; if(!pid) return;
@@ -10,6 +134,7 @@ window.initOrderForm = async function() {
     const bRes = await window.apiFetch(`/api/booths?projectId=${pid}`); 
     allBooths = await bRes.json(); 
     
+    await window.loadOrderFieldSettings?.();
     window.resetOrderForm();
     window.loadIndustries(); 
 }
@@ -31,6 +156,7 @@ window.resetOrderForm = function() {
     
     isJointExhibition = false; 
     window.currentAllocatedArea = 0;
+    window.selectedOrderBooths = [];
 
     document.getElementById('calc-booth').innerText = '-'; 
     document.getElementById('calc-type').innerText = '-'; 
@@ -44,6 +170,8 @@ window.resetOrderForm = function() {
     
     dynamicFees = []; 
     window.renderDynamicFees();
+    window.renderSelectedBooths();
+    window.applyOrderFieldSettings?.();
 }
 
 window.onProvinceChange = function() { 
@@ -84,6 +212,10 @@ window.searchAndSelectBooth = function() {
     
     const booth = allBooths.find(b => b.id.toUpperCase() === inp); 
     if(!booth) return window.showToast(`未找到展位：${inp}`, 'error');
+    if ((window.selectedOrderBooths || []).some((item) => String(item.id) === String(booth.id))) {
+        document.getElementById('booth-search-inp').value = '';
+        return window.showToast(`展位 [${inp}] 已经在当前订单选择列表中`, 'info');
+    }
     
     if(booth.status === '已锁定') { 
         document.getElementById('booth-search-inp').value = ''; 
@@ -114,13 +246,23 @@ window.searchAndSelectBooth = function() {
         isJointExhibition = false; 
     }
     
-    document.getElementById('selected-booth-id').value = booth.id; 
-    document.getElementById('calc-booth').innerText = `${booth.hall} - ${booth.id}`; 
+    window.currentAllocatedArea = allocatedArea;
+    const boothPricing = window.calculateBoothStandardFee(booth, allocatedArea);
+    window.selectedOrderBooths.push({
+        id: booth.id,
+        hall: booth.hall,
+        type: booth.type,
+        area: allocatedArea,
+        unit_price: boothPricing.priceUnit,
+        unit_label: booth.type === '光地' ? `¥${boothPricing.priceUnit} /平米` : `¥${boothPricing.priceUnit} /个(9㎡)`,
+        standard_fee: boothPricing.standardFee,
+        price_unit: booth.type === '光地' ? '平米' : '个',
+        is_joint: isJointExhibition ? 1 : 0
+    });
+    window.renderSelectedBooths();
+    document.getElementById('booth-search-inp').value = '';
     
-    window.currentAllocatedArea = allocatedArea; // 记录本次分配的面积
-    window.autoFillBoothData(booth);
-    
-    if(!isJointExhibition) window.showToast(`已成功锁定展位：${booth.id}`);
+    if(!isJointExhibition) window.showToast(`已加入展位：${booth.id}`);
 }
 
 window.addFeeRow = function() { dynamicFees.push({ name: '', amount: '' }); window.renderDynamicFees(); }
@@ -130,6 +272,13 @@ window.updateFeeData = function(idx, field, val) { dynamicFees[idx][field] = val
 window.renderDynamicFees = function() {
     const container = document.getElementById('dynamic-fees-container'); 
     const noFeesText = document.getElementById('no-fees-text'); 
+    const wrapper = document.getElementById('order-field-extra_fees-block');
+    if (wrapper && wrapper.classList.contains('hidden')) {
+        container.innerHTML = '';
+        noFeesText.classList.add('hidden');
+        window.calculateFinalTotal();
+        return;
+    }
     container.innerHTML = '';
     
     if (dynamicFees.length === 0) { 
@@ -144,9 +293,15 @@ window.renderDynamicFees = function() {
 }
 
 window.toggleAgent = function() { 
-    const isAgent = document.querySelector('input[name="is_agent"]:checked').value === '1';
+    if (!window.isOrderFieldEnabled('is_agent')) {
+        document.getElementById('order-agent-name')?.classList.add('hidden');
+        return;
+    }
+    const checkedAgent = document.querySelector('input[name="is_agent"]:checked');
+    const isAgent = checkedAgent && checkedAgent.value === '1';
     const box = document.getElementById('order-agent-name'); 
-    if(isAgent) { box.classList.remove('hidden'); } else { box.classList.add('hidden'); } 
+    const showAgentName = isAgent && window.isOrderFieldEnabled('agent_name');
+    if(showAgentName) { box.classList.remove('hidden'); } else { box.classList.add('hidden'); } 
 }
 
 window.toggleCreditCode = function() { 
@@ -179,7 +334,11 @@ window.autoFillBoothData = function(booth) {
 }
 
 window.calculateFinalTotal = function() {
-    const actualBoothFee = parseFloat(document.getElementById('order-actual-fee').value); 
+    const actualFeeInput = document.getElementById('order-actual-fee');
+    if (!window.isOrderFieldEnabled('actual_booth_fee') && actualFeeInput) {
+        actualFeeInput.value = currentStandardFee || 0;
+    }
+    const actualBoothFee = parseFloat(actualFeeInput?.value); 
     const dynamicStrategyDiv = document.getElementById('dynamic-strategy-display'); 
     const boothId = document.getElementById('selected-booth-id').value;
     
@@ -212,26 +371,27 @@ window.submitOrderForm = async function() {
     const code = document.getElementById('order-credit-code').value.trim();
     const contact = document.getElementById('order-contact').value.trim(); 
     const phone = document.getElementById('order-phone').value.trim();
-    const boothId = document.getElementById('selected-booth-id').value; 
+    const selectedBooths = Array.isArray(window.selectedOrderBooths) ? window.selectedOrderBooths : [];
     
-    const isAgent = document.querySelector('input[name="is_agent"]:checked').value === '1';
+    const selectedAgentRadio = document.querySelector('input[name="is_agent"]:checked');
+    const isAgent = window.isOrderFieldEnabled('is_agent') ? (selectedAgentRadio?.value === '1') : false;
     const agentName = document.getElementById('order-agent-name').value.trim();
-    if(isAgent && !agentName) return window.showToast("请填写代理商公司名称！", 'error');
+    if(isAgent && window.isOrderFieldEnabled('agent_name') && window.isOrderFieldRequired('agent_name') && !agentName) return window.showToast("请填写代理商公司名称！", 'error');
 
     let finalRegion = ''; const prov = document.getElementById('reg-prov').value;
-    if(!prov) return window.showToast("请选择所在地区！", 'error');
+    if(window.isOrderFieldEnabled('region') && window.isOrderFieldRequired('region') && !prov) return window.showToast("请选择所在地区！", 'error');
     if(prov === '国际') { 
         const intl = document.getElementById('reg-intl').value.trim(); 
-        if(!intl) return window.showToast("【国际】地区必须输入具体的国家/地区名称！", 'error'); 
+        if(window.isOrderFieldRequired('region') && !intl) return window.showToast("【国际】地区必须输入具体的国家/地区名称！", 'error'); 
         finalRegion = `国际 - ${intl}`; 
     } 
     else if (prov === '福建') { 
         const city = document.getElementById('reg-city-sel').value; 
-        if(!city) return window.showToast("请选择福建城市！", 'error'); 
+        if(window.isOrderFieldRequired('region') && !city) return window.showToast("请选择福建城市！", 'error'); 
         finalRegion = `${prov}省 - ${city}市`; 
         if(city === '福州') { 
             const dist = document.getElementById('reg-dist').value; 
-            if(!dist) return window.showToast("请选择区县！", 'error'); 
+            if(window.isOrderFieldRequired('region') && !dist) return window.showToast("请选择区县！", 'error'); 
             finalRegion += ` - ${dist}`; 
         } 
     } else { 
@@ -239,35 +399,39 @@ window.submitOrderForm = async function() {
         finalRegion = `${prov} - ${cityInp || '未知市'}`; 
     }
 
-    if(!company) return window.showToast("请填写企业名称", 'error'); 
-    if(!code) return window.showToast("请填写信用代码", 'error'); 
-    if(!contact || !phone) return window.showToast("请填写电话", 'error'); 
-    if(!boothId) return window.showToast("请锁定展位", 'error'); 
+    if(window.isOrderFieldEnabled('company_name') && window.isOrderFieldRequired('company_name') && !company) return window.showToast("请填写企业名称", 'error'); 
+    if(window.isOrderFieldEnabled('credit_code') && window.isOrderFieldRequired('credit_code') && !code) return window.showToast("请填写信用代码", 'error'); 
+    if(window.isOrderFieldEnabled('contact_person') && window.isOrderFieldRequired('contact_person') && !contact) return window.showToast("请填写联系人", 'error'); 
+    if(window.isOrderFieldEnabled('phone') && window.isOrderFieldRequired('phone') && !phone) return window.showToast("请填写联系电话", 'error'); 
+    if(window.isOrderFieldRequired('booth_selection') && selectedBooths.length === 0) return window.showToast("请至少选择一个展位", 'error'); 
     
-    const actualBoothFee = parseFloat(document.getElementById('order-actual-fee').value); 
+    const actualBoothFee = window.isOrderFieldEnabled('actual_booth_fee')
+        ? parseFloat(document.getElementById('order-actual-fee').value)
+        : Number(currentStandardFee || 0);
     if(isNaN(actualBoothFee)) return window.showToast("金额填写错误", 'error');
     
     const reason = document.getElementById('order-discount-reason').value.trim(); 
     if(actualBoothFee < currentStandardFee && !reason) return window.showToast("低于系统原价，请填写优惠理由！", 'error');
 
     let otherFeeTotal = 0; let validFees = [];
-    dynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { otherFeeTotal += parseFloat(f.amount); validFees.push(f); } });
+    if (window.isOrderFieldEnabled('extra_fees')) {
+        dynamicFees.forEach(f => { if(f.name && parseFloat(f.amount)) { otherFeeTotal += parseFloat(f.amount); validFees.push(f); } });
+    }
     const feesJsonStr = JSON.stringify(validFees); 
     
     const category = document.getElementById('order-category').value.trim();
     const business = document.getElementById('order-business').value.trim();
     const profile = document.getElementById('order-profile').value.trim(); 
-    const booth = allBooths.find(b => b.id === boothId);
-    if (!category) return window.showToast("请选择产品分类", 'error');
-    if (!business) return window.showToast("请填写主营业务/详细展品", 'error');
-    if (!profile) return window.showToast("请填写企业简介", 'error');
+    if (window.isOrderFieldEnabled('category') && window.isOrderFieldRequired('category') && !category) return window.showToast("请选择产品分类", 'error');
+    if (window.isOrderFieldEnabled('main_business') && window.isOrderFieldRequired('main_business') && !business) return window.showToast("请填写主营业务/详细展品", 'error');
+    if (window.isOrderFieldEnabled('profile') && window.isOrderFieldRequired('profile') && !profile) return window.showToast("请填写企业简介", 'error');
 
-    window.toggleBtnLoading('submit-btn', true, '✅ 确认无误，生成订单并锁定展位');
+    window.toggleBtnLoading('submit-btn', true, '确认无误，生成订单并锁定展位');
 
     let uploadedFileKey = '';
     try {
         const fileInput = document.getElementById('order-contract');
-        if (fileInput.files.length > 0) {
+        if (window.isOrderFieldEnabled('contract_upload') && fileInput.files.length > 0) {
             const file = fileInput.files[0]; 
             const formData = new FormData(); formData.append('file', file);
             const uploadRes = await window.apiFetch('/api/upload', { method: 'POST', body: formData }); 
@@ -278,14 +442,27 @@ window.submitOrderForm = async function() {
         const orderData = {
             project_id: pid, company_name: company, credit_code: code, no_code_checked: document.getElementById('order-no-code').checked,
             category: category, main_business: business, is_agent: isAgent, agent_name: agentName,
-            contact_person: contact, phone: phone, region: finalRegion, booth_id: boothId, 
-            area: window.currentAllocatedArea || booth.area, // 提交分配后面积
-            price_unit: booth.type === '光地' ? '平米' : '个', unit_price: booth.base_price > 0 ? booth.base_price : globalPrices[booth.type],
+            contact_person: contact, phone: phone, region: finalRegion, booth_id: selectedBooths.map((item) => item.id).join(', '), 
+            area: selectedBooths.reduce((sum, item) => sum + Number(item.area || 0), 0),
+            price_unit: selectedBooths.length === 1 ? selectedBooths[0].price_unit : '组合',
+            unit_price: selectedBooths.length === 1 ? selectedBooths[0].unit_price : 0,
             total_booth_fee: actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: actualBoothFee + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name
         };
+        orderData.selected_booths = selectedBooths.map((item) => ({
+            booth_id: item.id,
+            hall: item.hall,
+            type: item.type,
+            area: item.area,
+            price_unit: item.price_unit,
+            unit_price: item.unit_price,
+            standard_fee: item.standard_fee,
+            is_joint: item.is_joint
+        }));
         const res = await window.apiFetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) });
         if(res.ok) { 
-            window.showToast("🎉 订单录入成功，展位已锁定！"); 
+            const result = await res.json().catch(() => ({ success: true }));
+            const createdCount = Number(result.created_count || selectedBooths.length || 1);
+            window.showToast(`🎉 订单录入成功，已生成 ${createdCount} 笔订单并锁定对应展位！`); 
             window.initOrderForm(); 
         } else { 
             const err = await res.json(); 
