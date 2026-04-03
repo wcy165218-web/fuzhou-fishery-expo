@@ -9,15 +9,14 @@ window.loadPrices = async function() {
 window.savePrices = async function() { 
     const pid = document.getElementById('global-project-select').value; if(!pid) return; 
     const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; 
-    window.toggleBtnLoading('btn-save-prices', true);
     try {
-        await window.apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); 
-        window.showToast("全局策略保存成功！"); 
-        window.loadPrices(); window.loadBooths(); 
+        await window.withButtonLoading('btn-save-prices', async () => {
+            await window.apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); 
+            window.showToast("全局策略保存成功！"); 
+            window.loadPrices(); window.loadBooths(); 
+        }); 
     } catch (e) {
         window.showToast(e.message || '保存失败', 'error');
-    } finally {
-        window.toggleBtnLoading('btn-save-prices', false);
     }
 }
 
@@ -38,14 +37,11 @@ window.addSingleBooth = async function() {
     if(!idVal || !hallNum) return window.showToast("请输入完整展位号和展馆", 'error'); 
     const type = document.getElementById('s-type').value; const area = parseFloat(document.getElementById('s-area').value); 
     if(isNaN(area) || area <= 0) return window.showToast("请输入正确面积", 'error'); 
-    window.toggleBtnLoading('btn-add-booth', true);
-    try {
+    await window.withButtonLoading('btn-add-booth', async () => {
         const res = await window.apiFetch('/api/add-booth', { method: 'POST', body: JSON.stringify({ project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 }) }); 
         if (res.ok) { document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; window.showToast("展位添加成功"); window.loadBooths(); }
         else { const err = await res.json(); window.showToast(err.error, 'error'); }
-    } finally {
-        window.toggleBtnLoading('btn-add-booth', false);
-    }
+    });
 }
 
 window.downloadTemplate = function() { 
@@ -64,15 +60,14 @@ window.parseAndImportBooths = async function() {
     } 
     if(booths.length === 0) return window.showToast('未解析到有效数据', 'error'); 
     
-    window.toggleBtnLoading('btn-import-booth', true);
     try {
-        await window.apiFetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) }); 
-        document.getElementById('booth-import-text').value = ''; window.loadBooths(); 
-        window.showToast(`批量导入成功，共解析 ${booths.length} 条数据`);
+        await window.withButtonLoading('btn-import-booth', async () => {
+            await window.apiFetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) }); 
+            document.getElementById('booth-import-text').value = ''; window.loadBooths(); 
+            window.showToast(`批量导入成功，共解析 ${booths.length} 条数据`);
+        });
     } catch (e) {
         window.showToast("导入失败，请检查数据格式", 'error');
-    } finally {
-        window.toggleBtnLoading('btn-import-booth', false);
     }
 }
 
@@ -210,8 +205,9 @@ window.renderBooths = function() {
         return true; 
     }); 
     window.renderStats(filtered);
-    const tbody = document.getElementById('booth-list-tbody'); tbody.innerHTML = ''; document.getElementById('check-all').checked = false; 
-    filtered.forEach(b => { 
+    const tbody = document.getElementById('booth-list-tbody');
+    document.getElementById('check-all').checked = false;
+    tbody.innerHTML = window.renderHtmlCollection(filtered, (b) => {
         const unit = b.type === '光地' ? '㎡' : '个'; const bCount = Number((b.area / 9).toFixed(2)).toString(); const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
         
         let pStr = '';
@@ -233,8 +229,8 @@ window.renderBooths = function() {
         }
         const actionHtml = isLockedByOrder ? `<span class="badge-readonly">订单锁定</span>` : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)})' class="btn-soft-primary px-3 py-1 text-xs mr-2">修改</button><button onclick='window.deleteSingleBooth(${JSON.stringify(String(b.id))})' class="btn-soft-danger px-3 py-1 text-xs">删除</button>`; 
         const checkHtml = isLockedByOrder ? `<input type="checkbox" disabled title="不可批量操作">` : `<input type="checkbox" class="booth-check" value="${window.escapeAttr(b.id)}">`; 
-        tbody.innerHTML += `<tr class="border-b"><td class="p-3">${checkHtml}</td><td class="p-3 font-bold">${window.escapeHtml(b.id)}</td><td class="p-3">${window.escapeHtml(b.hall)}</td><td class="p-3">${window.escapeHtml(b.type)}</td><td class="p-3">${b.area}㎡</td><td class="p-3">${bCount}个</td><td class="p-3">${pStr}</td><td class="p-3 text-center">${selectHtml}</td><td class="p-3 text-center">${actionHtml}</td></tr>`; 
-    }); 
+        return `<tr class="border-b"><td class="p-3">${checkHtml}</td><td class="p-3 font-bold">${window.escapeHtml(b.id)}</td><td class="p-3">${window.escapeHtml(b.hall)}</td><td class="p-3">${window.escapeHtml(b.type)}</td><td class="p-3">${b.area}㎡</td><td class="p-3">${bCount}个</td><td class="p-3">${pStr}</td><td class="p-3 text-center">${selectHtml}</td><td class="p-3 text-center">${actionHtml}</td></tr>`; 
+    }, '<tr><td colspan="9" class="p-6 text-center text-gray-400">暂无符合条件的展位</td></tr>');
 }
 
 window.toggleAllChecks = function(source) { document.querySelectorAll('.booth-check:not(:disabled)').forEach(cb => cb.checked = source.checked); } 
@@ -255,8 +251,7 @@ window.submitEditBooth = async function() {
 
     if (isNaN(area) || area <= 0) return window.showToast("面积必须大于0", 'error');
 
-    window.toggleBtnLoading('btn-save-booth', true);
-    try {
+    await window.withButtonLoading('btn-save-booth', async () => {
         const res = await window.apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({project_id: pid, id: id, type: type, area: area, base_price: finalCustomPrice}) }); 
         if(res.ok) {
             window.closeModal('edit-booth-modal'); 
@@ -265,7 +260,5 @@ window.submitEditBooth = async function() {
         } else {
             window.showToast("修改失败", 'error');
         }
-    } finally {
-        window.toggleBtnLoading('btn-save-booth', false);
-    }
+    });
 }

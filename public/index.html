@@ -234,6 +234,227 @@
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
             flex-shrink: 0;
         }
+        .order-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1.8fr) minmax(300px, 360px);
+            gap: 1.5rem;
+            align-items: start;
+        }
+        .order-step-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 1.5rem;
+            box-shadow: 0 22px 44px -34px rgba(15, 23, 42, 0.24);
+            overflow: hidden;
+        }
+        .order-step-body {
+            padding: 1.5rem;
+        }
+        .order-step-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 800;
+        }
+        .order-step-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #dbeafe, #eff6ff);
+            color: #1d4ed8;
+            font-size: 0.76rem;
+            letter-spacing: normal;
+            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.18);
+        }
+        .order-channel-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 0.18rem;
+            padding: 0.58rem 0.8rem 0.58rem 2.2rem;
+            border-radius: 0.9rem;
+            border: 1px solid #dbeafe;
+            background: #fff;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+            cursor: pointer;
+            min-height: 0;
+        }
+        .order-channel-card:hover {
+            border-color: #93c5fd;
+            box-shadow: 0 10px 20px -22px rgba(37, 99, 235, 0.42);
+            background: #f8fbff;
+        }
+        .order-channel-card input {
+            position: absolute;
+            left: 0.75rem;
+            top: 0.68rem;
+        }
+        .order-channel-card[data-checked="true"] {
+            border-color: #2563eb;
+            background: #eff6ff;
+            box-shadow: 0 14px 28px -26px rgba(37, 99, 235, 0.5);
+        }
+        .order-channel-card .title {
+            font-size: 0.84rem;
+            font-weight: 900;
+            color: #0f172a;
+            line-height: 1.15;
+        }
+        .order-channel-card .desc {
+            font-size: 0.68rem;
+            line-height: 1.35;
+            color: #64748b;
+        }
+        .order-field-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem 1.1rem;
+        }
+        .order-field-panel {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: #f8fafc;
+            padding: 1rem;
+        }
+        .order-help-list {
+            display: grid;
+            gap: 0.65rem;
+            font-size: 0.82rem;
+            color: #475569;
+        }
+        .order-help-list li {
+            display: flex;
+            gap: 0.65rem;
+            align-items: flex-start;
+        }
+        .order-help-dot {
+            flex: 0 0 auto;
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #38bdf8, #2563eb);
+            margin-top: 0.35rem;
+        }
+        .order-fee-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(180px, 220px) auto auto;
+            gap: 0.75rem;
+            align-items: end;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: rgba(248, 250, 252, 0.86);
+            padding: 0.9rem;
+        }
+        .order-fee-field {
+            display: grid;
+            gap: 0.4rem;
+            min-width: 0;
+        }
+        .order-fee-field label {
+            font-size: 0.75rem;
+            line-height: 1.1;
+            font-weight: 800;
+            color: #64748b;
+            letter-spacing: 0.02em;
+        }
+        .order-fee-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: end;
+            justify-content: flex-end;
+        }
+        .order-summary-fees-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            padding: 1rem;
+        }
+        .order-summary-fees-list {
+            display: grid;
+            gap: 0.55rem;
+        }
+        .order-side-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 1.35rem;
+            box-shadow: 0 22px 44px -34px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+        }
+        .order-side-card > div {
+            padding: 1.25rem 1.25rem 1.35rem;
+        }
+        .order-summary-tile {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            padding: 0.9rem 1rem;
+        }
+        .order-summary-label {
+            font-size: 0.7rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 800;
+        }
+        .order-summary-value {
+            font-size: 1.55rem;
+            line-height: 1.1;
+            font-weight: 900;
+            color: #0f172a;
+            margin-top: 0.45rem;
+        }
+        .order-summary-meta {
+            display: grid;
+            gap: 0.75rem;
+        }
+        .order-summary-meta-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.82rem;
+        }
+        .order-summary-meta-row .label {
+            color: #64748b;
+            font-weight: 700;
+        }
+        .order-summary-meta-row .value {
+            color: #0f172a;
+            font-weight: 800;
+            text-align: right;
+            max-width: 68%;
+            word-break: break-word;
+        }
+        .order-section-divider {
+            height: 1px;
+            background: linear-gradient(90deg, rgba(203,213,225,0) 0%, rgba(203,213,225,0.9) 18%, rgba(203,213,225,0.9) 82%, rgba(203,213,225,0) 100%);
+        }
+        @media (max-width: 1279px) {
+            .order-shell {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+        @media (max-width: 767px) {
+            .order-field-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .order-fee-row {
+                grid-template-columns: 1fr;
+            }
+            .order-fee-actions {
+                justify-content: stretch;
+            }
+            .order-fee-actions > button {
+                flex: 1 1 0;
+            }
+        }
         .nav-icon-shell {
             display: inline-flex;
             align-items: center;
@@ -874,140 +1095,375 @@
                 </section>
 
                 <section id="sec-order-entry" class="page-section">
-                    <div class="max-w-5xl mx-auto space-y-6 pb-20">
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-blue-600 relative">
-                            <div id="order-field-is_agent-block" class="col-span-1 md:col-span-2 bg-blue-50 p-4 rounded border border-blue-200 mb-6">
-                                <label class="block text-blue-900 font-bold mb-2">本单招展渠道分类 <span id="order-required-is_agent" class="text-red-500">*</span></label>
-                                <div class="flex items-center gap-6 mb-2">
-                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="0" checked onchange="window.toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 直招</label>
-                                    <label class="inline-flex items-center cursor-pointer font-bold text-gray-700 hover:text-blue-600"><input type="radio" name="is_agent" value="1" onchange="window.toggleAgent()" class="w-4 h-4 text-blue-600 mr-2"> 代理商招展</label>
+                    <div class="max-w-7xl mx-auto space-y-6 pb-20">
+                        <div class="order-step-card">
+                            <div class="order-step-body flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+                                <div class="max-w-3xl">
+                                    <div class="order-step-kicker"><span class="order-step-chip">录</span><span>订单信息录入</span></div>
+                                    <h3 class="text-2xl font-black text-slate-900 mt-3">用更顺手的流程完成客户、展位与费用录入</h3>
+                                    <p class="text-sm text-slate-500 mt-2 leading-7">先确认招展来源和客户信息，再搜索并锁定展位，最后检查应收结构和合同附件。页面右侧会实时汇总本单关键信息，提交前不用来回滚动确认。</p>
                                 </div>
-                                <input type="text" id="order-agent-name" class="w-full border-2 border-blue-300 p-2 rounded hidden focus:border-blue-500 bg-white" placeholder="请输入具体代理商公司名称">
-                            </div>
-
-                            <h3 class="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">第一步：客户基本资料</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm">
-                                <div id="order-field-company_name-block"><label class="block text-gray-800 font-bold mb-1">参展企业全称 <span id="order-required-company_name" class="text-red-500">*</span></label><input type="text" id="order-company" class="w-full border-2 border-blue-200 p-2 rounded focus:border-blue-500" placeholder="请输入营业执照名称"><p class="text-xs text-gray-400 mt-1">* 默认作为会刊及楣板名称</p></div>
-                                <div id="order-field-credit_code-block"><label class="block text-gray-800 font-bold mb-1">统一社会信用代码 <span id="order-required-credit_code" class="text-red-500">*</span><label class="inline-flex items-center ml-4 text-xs text-blue-600 cursor-pointer font-normal"><input type="checkbox" id="order-no-code" onchange="window.toggleCreditCode()" class="mr-1"> 境外/特殊无代码</label></label><input type="text" id="order-credit-code" class="w-full border-2 border-yellow-300 p-2 rounded bg-yellow-50 focus:bg-white" placeholder="为防止重复录入及后期开票申请，请准确填写"></div>
-                                <div id="order-field-contact_person-block"><label class="block text-gray-800 font-bold mb-1">联系人 <span id="order-required-contact_person" class="text-red-500">*</span></label><input type="text" id="order-contact" class="w-full border p-2 rounded bg-gray-50 focus:bg-white"></div>
-                                <div id="order-field-phone-block"><label class="block text-gray-800 font-bold mb-1">联系电话 <span id="order-required-phone" class="text-red-500">*</span></label><input type="text" id="order-phone" class="w-full border p-2 rounded bg-gray-50 focus:bg-white"></div>
-                                <div id="order-field-region-block" class="col-span-1 md:col-span-2 grid grid-cols-3 gap-2 bg-gray-50 p-3 rounded border">
-                                    <div class="col-span-3"><label class="block text-gray-800 font-bold mb-1">所在地区 <span id="order-required-region" class="text-red-500">*</span></label></div>
-                                    <div>
-                                        <select id="reg-prov" onchange="window.onProvinceChange()" class="w-full border p-2 rounded text-gray-700 bg-white">
-                                            <option value="">-- 拼音首字母省份/地区 --</option>
-                                            <optgroup label="国际与港澳台">
-                                                <option value="国际">国际 (International)</option>
-                                                <option value="香港">香港特别行政区</option>
-                                                <option value="澳门">澳门特别行政区</option>
-                                                <option value="台湾">台湾省</option>
-                                            </optgroup>
-                                            <optgroup label="A-F">
-                                                <option value="安徽">安徽省 (A)</option>
-                                                <option value="北京">北京市 (B)</option>
-                                                <option value="重庆">重庆市 (C)</option>
-                                                <option value="福建">福建省 (F)</option>
-                                            </optgroup>
-                                            <optgroup label="G-J">
-                                                <option value="甘肃">甘肃省 (G)</option>
-                                                <option value="广东">广东省 (G)</option>
-                                                <option value="广西">广西壮族自治区 (G)</option>
-                                                <option value="贵州">贵州省 (G)</option>
-                                                <option value="海南">海南省 (H)</option>
-                                                <option value="河北">河北省 (H)</option>
-                                                <option value="河南">河南省 (H)</option>
-                                                <option value="黑龙江">黑龙江省 (H)</option>
-                                                <option value="湖北">湖北省 (H)</option>
-                                                <option value="湖南">湖南省 (H)</option>
-                                                <option value="吉林">吉林省 (J)</option>
-                                                <option value="江苏">江苏省 (J)</option>
-                                                <option value="江西">江西省 (J)</option>
-                                            </optgroup>
-                                            <optgroup label="L-S">
-                                                <option value="辽宁">辽宁省 (L)</option>
-                                                <option value="内蒙古">内蒙古自治区 (N)</option>
-                                                <option value="宁夏">宁夏回族自治区 (N)</option>
-                                                <option value="青海">青海省 (Q)</option>
-                                                <option value="山东">山东省 (S)</option>
-                                                <option value="山西">山西省 (S)</option>
-                                                <option value="陕西">陕西省 (S)</option>
-                                                <option value="上海">上海市 (S)</option>
-                                                <option value="四川">四川省 (S)</option>
-                                            </optgroup>
-                                            <optgroup label="T-Z">
-                                                <option value="天津">天津市 (T)</option>
-                                                <option value="西藏">西藏自治区 (X)</option>
-                                                <option value="新疆">新疆维吾尔自治区 (X)</option>
-                                                <option value="云南">云南省 (Y)</option>
-                                                <option value="浙江">浙江省 (Z)</option>
-                                            </optgroup>
-                                        </select>
+                                <div class="grid gap-3 sm:grid-cols-3 xl:w-[380px]">
+                                    <div class="order-summary-tile">
+                                        <div class="order-summary-label">步骤一</div>
+                                        <div class="text-sm font-black text-slate-900 mt-2">确认客户信息</div>
+                                        <div class="text-xs text-slate-500 mt-1 leading-5">企业全称、信用代码、地区、联系人</div>
                                     </div>
-                                    <div><input type="text" id="reg-intl" class="w-full border p-2 rounded hidden border-blue-300" placeholder="请输入国家/地区名称 (必填)"><select id="reg-city-sel" onchange="window.onCityChange()" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择城市 --</option><option value="福州">福州市</option><option value="厦门">厦门市</option><option value="泉州">泉州市</option><option value="漳州">漳州市</option><option value="莆田">莆田市</option><option value="宁德">宁德市</option><option value="三明">三明市</option><option value="南平">南平市</option><option value="龙岩">龙岩市</option><option value="平潭">平潭综合实验区</option></select><input type="text" id="reg-city-inp" class="w-full border p-2 rounded hidden" placeholder="请输入城市名称"></div>
-                                    <div><select id="reg-dist" class="w-full border p-2 rounded hidden bg-white"><option value="">-- 选择区县 --</option><option value="鼓楼区">鼓楼区</option><option value="台江区">台江区</option><option value="仓山区">仓山区</option><option value="马尾区">马尾区</option><option value="晋安区">晋安区</option><option value="长乐区">长乐区</option><option value="闽侯县">闽侯县</option><option value="连江县">连江县</option><option value="罗源县">罗源县</option><option value="闽清县">闽清县</option><option value="永泰县">永泰县</option><option value="福清市">福清市</option></select></div>
+                                    <div class="order-summary-tile">
+                                        <div class="order-summary-label">步骤二</div>
+                                        <div class="text-sm font-black text-slate-900 mt-2">锁定展位计价</div>
+                                        <div class="text-xs text-slate-500 mt-1 leading-5">支持连续添加多个展位并实时试算应收</div>
+                                    </div>
+                                    <div class="order-summary-tile">
+                                        <div class="order-summary-label">步骤三</div>
+                                        <div class="text-sm font-black text-slate-900 mt-2">补充合同后提交</div>
+                                        <div class="text-xs text-slate-500 mt-1 leading-5">确认优惠理由、杂费和合同附件后一次提交</div>
+                                    </div>
                                 </div>
-                                
-                                <div id="order-field-category-block" class="col-span-1">
-                                    <label class="block text-gray-800 font-bold mb-1">产品分类 <span id="order-required-category" class="text-red-500">*</span></label>
-                                    <select id="order-category" class="w-full border rounded p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                                        <option value="">-- 请选择产品分类 --</option>
-                                    </select>
-                                </div>
-                                <div id="order-field-main_business-block" class="col-span-1">
-                                    <label class="block text-gray-800 font-bold mb-1">主营业务/详细展品 <span id="order-required-main_business" class="text-red-500">*</span></label>
-                                    <input type="text" id="order-business" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请填写主营业务或详细展品">
-                                </div>
-
-                                <div id="order-field-profile-block" class="col-span-1 md:col-span-2"><label class="block text-gray-800 font-bold mb-1">企业简介 <span id="order-required-profile" class="text-red-500">*</span> <span class="text-gray-400 font-normal text-xs">(200字以内)</span></label><textarea id="order-profile" rows="3" maxlength="200" class="w-full border p-2 rounded bg-gray-50 focus:bg-white" placeholder="请填写企业简介"></textarea></div>
                             </div>
                         </div>
 
-                        <div class="bg-white p-6 rounded shadow border-t-4 border-red-500">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">第二步：展位选定与计价</h3>
-                            <div id="order-field-booth_selection-block" class="mb-4 p-4 bg-blue-50 rounded border border-blue-200">
-                                <label class="block text-blue-900 font-bold mb-2">选择展位 <span id="order-required-booth_selection" class="text-red-500">*</span></label>
-                                <div class="flex flex-nowrap items-center gap-2"><input type="text" id="booth-search-inp" class="min-w-0 flex-1 border-2 border-blue-400 p-3 rounded text-lg font-bold uppercase tracking-wider shadow-inner" placeholder="输入准确的展位号 (如: 1A01)"><button onclick="window.searchAndSelectBooth()" class="btn-primary inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-5 shadow-md"><svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span>搜索并锁定</span></button></div>
-                                <input type="hidden" id="selected-booth-id">
-                                <div class="mt-3 rounded-xl border border-blue-200 bg-white/80 px-4 py-3">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <div>
-                                            <div class="text-xs font-bold tracking-wide text-blue-600">已选展位清单</div>
-                                            <div class="text-xs text-slate-500 mt-1">可连续添加多个展位；提交时系统会按“一个展位一笔订单”自动拆分生成。</div>
+                        <div class="order-shell">
+                            <div class="space-y-6">
+                                <div class="order-step-card">
+                                    <div class="order-step-body space-y-5">
+                                        <div class="flex flex-col gap-2">
+                                            <div class="order-step-kicker"><span class="order-step-chip">1</span><span>客户与招展信息</span></div>
+                                            <div class="flex flex-col gap-1">
+                                                <h3 class="text-xl font-black text-slate-900">先确认客户来源与基础资料</h3>
+                                                <p class="text-sm text-slate-500">招展渠道默认不预选，防止误触；企业基础资料录入完成后，右侧会即时汇总到当前订单摘要。</p>
+                                            </div>
                                         </div>
-                                        <div id="selected-booth-count" class="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">0 个</div>
-                                    </div>
-                                    <div id="selected-booth-list" class="mt-3 flex flex-wrap gap-2"></div>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-3 gap-4 text-sm bg-gray-50 p-4 rounded border border-gray-200 mb-4">
-                                <div><span class="text-gray-500">已选展位：</span><span id="calc-booth" class="font-bold text-blue-700 text-lg">-</span></div>
-                                <div><span class="text-gray-500">展位类型：</span><span id="calc-type" class="font-bold text-gray-800">-</span></div>
-                                <div><span class="text-gray-500">总面积：</span><span id="calc-area" class="font-bold text-gray-800">-</span> ㎡</div>
-                                <div class="col-span-3 border-t border-gray-300 mt-2 pt-2 flex justify-between items-center"><div><span class="text-gray-500">计价策略：</span><span id="calc-unit" class="font-bold text-gray-800">-</span></div><div><span class="text-gray-600 font-bold">系统标准展位费：</span><span id="calc-standard-fee" class="text-xl font-bold text-red-600">¥ 0</span></div></div>
-                            </div>
-                            <div class="grid grid-cols-1 gap-4 text-sm mb-4">
-                                <div id="order-field-actual_booth_fee-block">
-                                    <label class="block text-gray-800 font-bold mb-1">最终成交展位费 (元) <span id="order-required-actual_booth_fee" class="text-red-500">*</span></label>
-                                    <p class="text-xs text-green-600 font-bold mb-2">提示：如本展位免费，请直接在此填写 0，并在下方填写理由。</p>
-                                    <div class="flex items-center gap-3"><input type="number" id="order-actual-fee" oninput="window.calculateFinalTotal()" class="w-full md:w-1/3 border-2 border-green-500 p-3 rounded text-xl font-bold text-green-700 shadow-inner" placeholder="实际成交金额"><span id="dynamic-strategy-display" class="text-blue-600 font-bold hidden bg-blue-50 px-3 py-2 rounded border border-blue-200"></span></div>
-                                </div>
-                                <div id="discount-reason-container" class="hidden bg-red-50 p-3 border border-red-200 rounded mt-2"><label class="block text-red-600 font-bold mb-1">成交价低于标准价，请必须填写优惠理由！</label><input type="text" id="order-discount-reason" class="w-full border border-red-400 p-2 rounded bg-white" placeholder="如：资源互换免费 / 老客户折扣"></div>
-                            </div>
-                            <div id="order-field-extra_fees-block" class="border-t border-gray-200 pt-4 mb-4">
-                                <div class="flex justify-between items-center mb-2"><label class="block text-gray-800 font-bold">其他代收/杂费明细</label><button onclick="window.addFeeRow()" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1 rounded text-xs font-bold border border-indigo-200">+ 新增代收/杂费</button></div>
-                                <div id="dynamic-fees-container" class="space-y-2"></div><p id="no-fees-text" class="text-xs text-gray-400 italic">暂无额外杂费</p>
-                            </div>
-                            <div class="bg-gray-800 text-white p-4 rounded text-right flex flex-col md:flex-row justify-between items-center"><span class="text-gray-300 text-sm mb-2 md:mb-0" id="calc-formula-text">应收合计 = 展位费 (¥0) + 杂费 (¥0)</span><span class="text-3xl font-bold text-yellow-400" id="calc-final-total">¥ 0</span></div>
-                        </div>
 
-                        <div id="order-field-contract_upload-block" class="bg-white p-6 rounded shadow border-t-4 border-green-500">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">第三步：合同附件上传</h3>
-                            <div class="bg-blue-50 p-4 rounded border border-blue-200">
-                                <label class="block text-blue-800 font-bold mb-2">上传盖章合同附件 (仅限 PDF，最大 10MB)</label>
-                                <input type="file" id="order-contract" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
+                                        <div id="order-field-is_agent-block" class="order-field-panel">
+                                            <div class="flex flex-col gap-3">
+                                                <div>
+                                                    <label class="block text-slate-800 font-bold mb-1.5">本单招展渠道分类 <span id="order-required-is_agent" class="text-red-500">*</span></label>
+                                                    <p class="text-[11px] text-slate-500">默认不勾选，避免误录。</p>
+                                                </div>
+                                                <div class="grid md:grid-cols-2 gap-3">
+                                                    <label class="order-channel-card" id="order-channel-direct-card" data-checked="false">
+                                                        <input type="radio" name="is_agent" value="0" onchange="window.toggleAgent()">
+                                                        <span class="title">直招</span>
+                                                        <span class="desc">本项目业务团队直接招展</span>
+                                                    </label>
+                                                    <label class="order-channel-card" id="order-channel-agent-card" data-checked="false">
+                                                        <input type="radio" name="is_agent" value="1" onchange="window.toggleAgent()">
+                                                        <span class="title">代理商招展</span>
+                                                        <span class="desc">需补充具体代理商企业名称</span>
+                                                    </label>
+                                                </div>
+                                                <input type="text" id="order-agent-name" oninput="window.refreshOrderOverview()" class="w-full border-2 border-blue-300 p-3 rounded-xl hidden focus:border-blue-500 bg-white" placeholder="请输入具体代理商公司名称">
+                                            </div>
+                                        </div>
+
+                                        <div class="order-field-grid text-sm">
+                                            <div id="order-field-company_name-block">
+                                                <label class="block text-slate-800 font-bold mb-1.5">参展企业全称 <span id="order-required-company_name" class="text-red-500">*</span></label>
+                                                <input type="text" id="order-company" oninput="window.refreshOrderOverview()" class="w-full border-2 border-blue-200 px-3 py-3 rounded-xl focus:border-blue-500" placeholder="请输入营业执照名称">
+                                                <p class="text-xs text-slate-400 mt-1.5">默认作为会刊及楣板名称，请尽量与营业执照保持一致。</p>
+                                            </div>
+                                            <div id="order-field-credit_code-block">
+                                                <label class="block text-slate-800 font-bold mb-1.5">统一社会信用代码 <span id="order-required-credit_code" class="text-red-500">*</span><label class="inline-flex items-center ml-3 text-xs text-blue-600 cursor-pointer font-normal"><input type="checkbox" id="order-no-code" onchange="window.toggleCreditCode()" class="mr-1"> 境外/特殊无代码</label></label>
+                                                <input type="text" id="order-credit-code" class="w-full border-2 border-amber-300 px-3 py-3 rounded-xl bg-amber-50 focus:bg-white" placeholder="为防止重复录入及后期开票申请，请准确填写">
+                                            </div>
+                                            <div id="order-field-contact_person-block">
+                                                <label class="block text-slate-800 font-bold mb-1.5">联系人 <span id="order-required-contact_person" class="text-red-500">*</span></label>
+                                                <input type="text" id="order-contact" oninput="window.refreshOrderOverview()" class="w-full border px-3 py-3 rounded-xl bg-gray-50 focus:bg-white">
+                                            </div>
+                                            <div id="order-field-phone-block">
+                                                <label class="block text-slate-800 font-bold mb-1.5">联系电话 <span id="order-required-phone" class="text-red-500">*</span></label>
+                                                <input type="text" id="order-phone" oninput="window.refreshOrderOverview()" class="w-full border px-3 py-3 rounded-xl bg-gray-50 focus:bg-white">
+                                            </div>
+                                        </div>
+
+                                        <div id="order-field-region-block" class="order-field-panel space-y-3">
+                                            <div>
+                                                <label class="block text-slate-800 font-bold mb-1.5">所在地区 <span id="order-required-region" class="text-red-500">*</span></label>
+                                                <p class="text-xs text-slate-500">国际地区直接填国家/地区；福建支持省/市/区三级联动；其他省市按省份 + 城市录入。</p>
+                                            </div>
+                                            <div class="grid md:grid-cols-3 gap-3">
+                                                <div>
+                                                    <select id="reg-prov" onchange="window.onProvinceChange(); window.refreshOrderOverview();" class="w-full border px-3 py-3 rounded-xl text-gray-700 bg-white">
+                                                        <option value="">-- 选择省份/地区 --</option>
+                                                        <optgroup label="国际与港澳台">
+                                                            <option value="国际">国际 (International)</option>
+                                                            <option value="香港">香港特别行政区</option>
+                                                            <option value="澳门">澳门特别行政区</option>
+                                                            <option value="台湾">台湾省</option>
+                                                        </optgroup>
+                                                        <optgroup label="A-F">
+                                                            <option value="安徽">安徽省 (A)</option>
+                                                            <option value="北京">北京市 (B)</option>
+                                                            <option value="重庆">重庆市 (C)</option>
+                                                            <option value="福建">福建省 (F)</option>
+                                                        </optgroup>
+                                                        <optgroup label="G-J">
+                                                            <option value="甘肃">甘肃省 (G)</option>
+                                                            <option value="广东">广东省 (G)</option>
+                                                            <option value="广西">广西壮族自治区 (G)</option>
+                                                            <option value="贵州">贵州省 (G)</option>
+                                                            <option value="海南">海南省 (H)</option>
+                                                            <option value="河北">河北省 (H)</option>
+                                                            <option value="河南">河南省 (H)</option>
+                                                            <option value="黑龙江">黑龙江省 (H)</option>
+                                                            <option value="湖北">湖北省 (H)</option>
+                                                            <option value="湖南">湖南省 (H)</option>
+                                                            <option value="吉林">吉林省 (J)</option>
+                                                            <option value="江苏">江苏省 (J)</option>
+                                                            <option value="江西">江西省 (J)</option>
+                                                        </optgroup>
+                                                        <optgroup label="L-S">
+                                                            <option value="辽宁">辽宁省 (L)</option>
+                                                            <option value="内蒙古">内蒙古自治区 (N)</option>
+                                                            <option value="宁夏">宁夏回族自治区 (N)</option>
+                                                            <option value="青海">青海省 (Q)</option>
+                                                            <option value="山东">山东省 (S)</option>
+                                                            <option value="山西">山西省 (S)</option>
+                                                            <option value="陕西">陕西省 (S)</option>
+                                                            <option value="上海">上海市 (S)</option>
+                                                            <option value="四川">四川省 (S)</option>
+                                                        </optgroup>
+                                                        <optgroup label="T-Z">
+                                                            <option value="天津">天津市 (T)</option>
+                                                            <option value="西藏">西藏自治区 (X)</option>
+                                                            <option value="新疆">新疆维吾尔自治区 (X)</option>
+                                                            <option value="云南">云南省 (Y)</option>
+                                                            <option value="浙江">浙江省 (Z)</option>
+                                                        </optgroup>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <input type="text" id="reg-intl" oninput="window.refreshOrderOverview()" class="w-full border px-3 py-3 rounded-xl hidden border-blue-300" placeholder="请输入国家/地区名称">
+                                                    <select id="reg-city-sel" onchange="window.onCityChange(); window.refreshOrderOverview();" class="w-full border px-3 py-3 rounded-xl hidden bg-white">
+                                                        <option value="">-- 选择城市 --</option>
+                                                        <option value="福州">福州市</option>
+                                                        <option value="厦门">厦门市</option>
+                                                        <option value="泉州">泉州市</option>
+                                                        <option value="漳州">漳州市</option>
+                                                        <option value="莆田">莆田市</option>
+                                                        <option value="宁德">宁德市</option>
+                                                        <option value="三明">三明市</option>
+                                                        <option value="南平">南平市</option>
+                                                        <option value="龙岩">龙岩市</option>
+                                                        <option value="平潭">平潭综合实验区</option>
+                                                    </select>
+                                                    <input type="text" id="reg-city-inp" oninput="window.refreshOrderOverview()" class="w-full border px-3 py-3 rounded-xl hidden" placeholder="请输入城市名称">
+                                                </div>
+                                                <div>
+                                                    <select id="reg-dist" onchange="window.refreshOrderOverview()" class="w-full border px-3 py-3 rounded-xl hidden bg-white">
+                                                        <option value="">-- 选择区县 --</option>
+                                                        <option value="鼓楼区">鼓楼区</option>
+                                                        <option value="台江区">台江区</option>
+                                                        <option value="仓山区">仓山区</option>
+                                                        <option value="马尾区">马尾区</option>
+                                                        <option value="晋安区">晋安区</option>
+                                                        <option value="长乐区">长乐区</option>
+                                                        <option value="闽侯县">闽侯县</option>
+                                                        <option value="连江县">连江县</option>
+                                                        <option value="罗源县">罗源县</option>
+                                                        <option value="闽清县">闽清县</option>
+                                                        <option value="永泰县">永泰县</option>
+                                                        <option value="福清市">福清市</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="order-field-grid text-sm">
+                                            <div id="order-field-category-block">
+                                                <label class="block text-slate-800 font-bold mb-1.5">产品分类 <span id="order-required-category" class="text-red-500">*</span></label>
+                                                <select id="order-category" onchange="window.refreshOrderOverview()" class="w-full border rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                                    <option value="">-- 请选择产品分类 --</option>
+                                                </select>
+                                            </div>
+                                            <div id="order-field-main_business-block">
+                                                <label class="block text-slate-800 font-bold mb-1.5">主营业务/详细展品 <span id="order-required-main_business" class="text-red-500">*</span></label>
+                                                <input type="text" id="order-business" class="w-full border px-3 py-3 rounded-xl bg-gray-50 focus:bg-white" placeholder="请填写主营业务或详细展品">
+                                            </div>
+                                            <div id="order-field-profile-block" class="md:col-span-2">
+                                                <label class="block text-slate-800 font-bold mb-1.5">企业简介 <span id="order-required-profile" class="text-red-500">*</span> <span class="text-slate-400 font-normal text-xs">(200字以内)</span></label>
+                                                <textarea id="order-profile" rows="4" maxlength="200" class="w-full border px-3 py-3 rounded-xl bg-gray-50 focus:bg-white" placeholder="请填写企业简介"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="order-step-card">
+                                    <div class="order-step-body space-y-5">
+                                        <div class="flex flex-col gap-2">
+                                            <div class="order-step-kicker"><span class="order-step-chip">2</span><span>展位与费用</span></div>
+                                            <div class="flex flex-col gap-1">
+                                                <h3 class="text-xl font-black text-slate-900">锁定展位后再确认应收结构</h3>
+                                                <p class="text-sm text-slate-500">支持连续录入多个展位，系统会按“一个展位一笔订单”自动拆分，同时保留统一的客户资料和费用结构；也支持纯其他应收的无展位订单。</p>
+                                            </div>
+                                        </div>
+
+                                        <div id="order-field-booth_selection-block" class="order-field-panel space-y-4">
+                                            <div class="flex items-start justify-between gap-4">
+                                                <div>
+                                                    <label class="block text-slate-800 font-bold mb-1.5">选择展位 <span id="order-required-booth_selection" class="text-red-500">*</span></label>
+                                                    <p class="text-xs text-slate-500">按准确展位号搜索。若展位已成交或已预订，系统会提示联合参展面积分配；联合参展面积允许填写 0㎡，此时展位费固定为 0。</p>
+                                                </div>
+                                                <div id="selected-booth-count" class="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">0 个</div>
+                                            </div>
+                                            <div class="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                                <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
+                                                    <input type="checkbox" id="order-no-booth-order" onchange="window.toggleNoBoothOrder(this.checked)" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                                    <span>无展位订单</span>
+                                                </label>
+                                                <p class="text-xs text-slate-500 leading-5">适用于纯代收/杂费订单。不锁定展位，展位费固定为 0，必须至少添加一项其他应收费用。</p>
+                                            </div>
+                                            <div id="order-booth-picker-wrap" class="flex flex-nowrap items-center gap-2">
+                                                <input type="text" id="booth-search-inp" class="min-w-0 flex-1 border-2 border-blue-400 px-4 py-3 rounded-xl text-lg font-bold uppercase tracking-wider shadow-inner" placeholder="输入准确的展位号 (如: 1A01)">
+                                                <button onclick="window.searchAndSelectBooth()" class="btn-primary inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-5 py-3 shadow-md"><svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span>搜索并锁定</span></button>
+                                            </div>
+                                            <input type="hidden" id="selected-booth-id">
+                                            <div id="order-no-booth-hint" class="hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600 leading-6">
+                                                当前已切换为 <span class="font-bold text-slate-900">无展位订单</span> 模式：本单不会锁定展位，也不会计入展位相关统计；请在下方维护其他应收/杂费明细后提交。
+                                            </div>
+                                            <div id="selected-booth-panel" class="rounded-xl border border-blue-200 bg-white/90 px-4 py-4">
+                                                <div class="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div class="text-xs font-bold tracking-wide text-blue-600">已选展位清单</div>
+                                                        <div class="text-xs text-slate-500 mt-1">可连续添加多个展位；提交时系统会按“一个展位一笔订单”自动拆分生成。</div>
+                                                    </div>
+                                                </div>
+                                                <div id="selected-booth-list" class="mt-3 flex flex-wrap gap-2"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid lg:grid-cols-2 gap-4 text-sm">
+                                            <div class="order-summary-tile">
+                                                <div class="order-summary-label">展位与面积</div>
+                                                <div class="grid grid-cols-2 gap-3 mt-4">
+                                                    <div>
+                                                        <div class="text-xs text-slate-500 font-bold">已选展位</div>
+                                                        <div id="calc-booth" class="text-lg font-black text-blue-700 mt-1 break-words">-</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-xs text-slate-500 font-bold">展位类型</div>
+                                                        <div id="calc-type" class="text-lg font-black text-slate-800 mt-1">-</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-xs text-slate-500 font-bold">总面积</div>
+                                                        <div class="text-lg font-black text-slate-800 mt-1"><span id="calc-area" class="tabular-data">-</span> ㎡</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-xs text-slate-500 font-bold">计价策略</div>
+                                                        <div id="calc-unit" class="text-sm font-black text-slate-800 mt-1 break-words">-</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="order-summary-tile">
+                                                <div class="order-summary-label">标准计价</div>
+                                                <div class="text-xs text-slate-500 mt-3" id="calc-formula-text">应收合计 = 展位费 (¥0) + 杂费 (¥0)</div>
+                                                <div class="grid grid-cols-2 gap-3 mt-4">
+                                                    <div>
+                                                        <div class="text-xs text-slate-500 font-bold">系统标准展位费</div>
+                                                        <div id="calc-standard-fee" class="text-2xl font-black text-rose-700 mt-1">¥0</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="text-xs text-slate-500 font-bold">当前总应收</div>
+                                                        <div id="calc-final-total" class="text-2xl font-black text-amber-600 mt-1">¥0</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="order-field-grid text-sm">
+                                            <div id="order-field-actual_booth_fee-block" class="order-field-panel md:col-span-2">
+                                                <label class="block text-slate-800 font-bold mb-1.5">最终成交展位费 (元) <span id="order-required-actual_booth_fee" class="text-red-500">*</span></label>
+                                                <p id="order-actual-fee-help" class="text-xs text-emerald-600 font-bold mb-3">如为免费展位，请直接填写 0 元；若低于系统标准价，系统会要求填写价格说明。</p>
+                                                <div class="flex flex-col lg:flex-row lg:items-center gap-3">
+                                                    <input type="number" min="0" step="0.01" id="order-actual-fee" oninput="window.calculateFinalTotal()" class="w-full lg:w-72 border-2 border-emerald-500 px-4 py-3 rounded-xl text-xl font-black text-emerald-700 shadow-inner" placeholder="实际成交金额">
+                                                    <span id="dynamic-strategy-display" class="text-blue-600 font-bold hidden bg-blue-50 px-3 py-2 rounded-xl border border-blue-200"></span>
+                                                </div>
+                                            </div>
+                                            <div id="discount-reason-container" class="hidden md:col-span-2 bg-red-50 px-4 py-4 border border-red-200 rounded-2xl">
+                                                <label class="block text-red-600 font-bold mb-1.5">成交价低于标准价，请填写优惠理由</label>
+                                                <input type="text" id="order-discount-reason" class="w-full border border-red-400 px-3 py-3 rounded-xl bg-white" placeholder="如：资源互换免费 / 老客户折扣 / 战略合作支持">
+                                            </div>
+                                        </div>
+
+                                        <div id="order-field-extra_fees-block" class="space-y-3">
+                                            <div class="flex flex-wrap justify-between items-center gap-3">
+                                                <div>
+                                                    <label class="block text-slate-800 font-bold">其他代收/杂费明细</label>
+                                                    <p class="text-xs text-slate-500 mt-1">如果本单还包含搭建、广告、证件等代收项，可在这里结构化维护。</p>
+                                                </div>
+                                                <button onclick="window.addFeeRow()" class="btn-soft-primary px-3 py-2 text-xs font-bold">新增代收/杂费</button>
+                                            </div>
+                                            <div id="dynamic-fees-container" class="space-y-2"></div>
+                                            <p id="no-fees-text" class="text-xs text-slate-400 italic">暂无额外杂费</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="order-field-contract_upload-block" class="order-step-card">
+                                    <div class="order-step-body space-y-5">
+                                        <div class="flex flex-col gap-2">
+                                            <div class="order-step-kicker"><span class="order-step-chip">3</span><span>附件与提交</span></div>
+                                            <div class="flex flex-col gap-1">
+                                                <h3 class="text-xl font-black text-slate-900">确认附件后提交订单</h3>
+                                                <p class="text-sm text-slate-500">合同上传为选配字段时可跳过；若启用则仅支持 PDF，最大 6MB。</p>
+                                            </div>
+                                        </div>
+                                        <div class="order-field-panel">
+                                            <label class="block text-blue-800 font-bold mb-2">上传盖章合同附件（仅限 PDF，最大 6MB）</label>
+                                            <input type="file" id="order-contract" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer">
+                                        </div>
+                                        <div class="order-field-panel">
+                                            <div class="order-step-kicker mb-3"><span class="order-step-chip">!</span><span>提交前检查</span></div>
+                                            <ul class="order-help-list">
+                                                <li><span class="order-help-dot"></span><span>企业名称、信用代码、地区、联系人等信息请尽量一次录准，避免后续频繁返工。</span></li>
+                                                <li><span class="order-help-dot"></span><span>若录入多个展位，系统会按“一个展位一笔订单”拆分，但客户资料、杂费结构和合同附件会沿用当前表单。</span></li>
+                                                <li><span class="order-help-dot"></span><span>若成交价低于系统标准价，请务必补充优惠理由，否则无法提交。</span></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+
+                            <aside class="space-y-4 xl:sticky xl:top-6">
+                                <div class="order-side-card">
+                                    <div class="space-y-4">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div class="order-step-kicker"><span class="order-step-chip">总览</span><span>实时摘要</span></div>
+                                                <h3 class="text-lg font-black text-slate-900 mt-3">当前订单概览</h3>
+                                            </div>
+                                            <div class="badge-neutral text-[11px]">提交前自动校验</div>
+                                        </div>
+                                        <div class="grid gap-3">
+                                            <div class="order-summary-tile">
+                                                <div class="order-summary-label">本单总应收</div>
+                                                <div id="order-summary-total" class="order-summary-value tabular-data">¥0</div>
+                                                <div class="text-xs text-slate-500 mt-2">会随展位费和其他应收实时更新</div>
+                                            </div>
+                                        </div>
+                                        <div id="order-summary-fees-wrap" class="hidden">
+                                            <div class="order-summary-fees-card">
+                                                <div class="flex items-center justify-between gap-3">
+                                                    <div class="text-xs tracking-[0.16em] text-slate-400 font-bold uppercase">费用构成</div>
+                                                    <div class="badge-neutral text-[11px]">仅展示已保存项</div>
+                                                </div>
+                                                <p id="order-summary-fee-hint" class="text-xs text-slate-500 mt-2 leading-5">以下为已保存的其他应收/杂费明细</p>
+                                                <div id="order-summary-fees" class="order-summary-fees-list mt-3"></div>
+                                            </div>
+                                        </div>
+                                        <div class="order-summary-tile">
+                                            <div class="order-summary-label">已选展位号</div>
+                                            <div id="order-summary-booths" class="text-lg font-black text-slate-900 mt-2 leading-7 break-words">未选择</div>
+                                            <div class="text-xs text-slate-500 mt-2">多展位会自动拆成多笔订单</div>
+                                        </div>
+                                        <div class="order-section-divider"></div>
+                                        <button id="submit-btn" onclick="window.submitOrderForm()" class="btn-primary w-full text-lg py-4 shadow-xl"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12h15"/><path d="m12.75 6.75 5.25 5.25-5.25 5.25"/></svg><span id="submit-text">确认无误，生成订单并锁定展位</span></button>
+                                        <p class="text-[11px] leading-5 text-slate-400">提交后系统会锁定对应展位，并按已选展位生成订单。请确保页面右侧摘要与实际沟通结果一致。</p>
+                                    </div>
+                                </div>
+                            </aside>
                         </div>
-                        <button id="submit-btn" onclick="window.submitOrderForm()" class="btn-primary w-full text-2xl py-5 shadow-xl"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12h15"/><path d="m12.75 6.75 5.25 5.25-5.25 5.25"/></svg><span id="submit-text">确认无误，生成订单并锁定展位</span></button>
                     </div>
                 </section>
 

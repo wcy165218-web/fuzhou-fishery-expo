@@ -20,7 +20,7 @@ const ERP_SECRET_VERSION = 'erpenc_v1';
 const ERP_SECRET_IV_BYTES = 12;
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['pdf']);
 const ALLOWED_UPLOAD_MIME_TYPES = new Set(['application/pdf', 'application/x-pdf', '']);
-const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
+const MAX_UPLOAD_SIZE = 6 * 1024 * 1024;
 const STAFF_SORT_ORDER = `CASE WHEN name = 'admin' THEN 0 ELSE 1 END ASC, display_order ASC, name COLLATE NOCASE ASC`;
 const ORDER_FIELD_SETTINGS = [
     { key: 'is_agent', enabled: 1, required: 1 },
@@ -494,7 +494,7 @@ function validateUploadFile(file) {
         return '文件不能为空';
     }
     if (Number(file.size || 0) > MAX_UPLOAD_SIZE) {
-        return '文件大小不能超过 8MB';
+        return '文件大小不能超过 6MB';
     }
     return '';
 }
@@ -2655,31 +2655,57 @@ export default {
       if (url.pathname === '/api/submit-order' && request.method === 'POST') {
         const o = await request.json();
         const stmts = [];
-        const selectedBooths = Array.isArray(o.selected_booths) && o.selected_booths.length > 0
-          ? o.selected_booths.map((item) => ({
-              booth_id: String(item.booth_id || '').trim(),
-              area: Number(item.area || 0),
-              price_unit: String(item.price_unit || '').trim(),
-              unit_price: Number(item.unit_price || 0),
-              standard_fee: Number(item.standard_fee || 0),
-              is_joint: Number(item.is_joint || 0) ? 1 : 0
-            })).filter((item) => item.booth_id && item.area > 0)
-          : [{
-              booth_id: String(o.booth_id || '').trim(),
-              area: Number(o.area || 0),
-              price_unit: String(o.price_unit || '').trim(),
-              unit_price: Number(o.unit_price || 0),
-              standard_fee: Number(o.total_booth_fee || 0),
-              is_joint: 0
-            }];
+        const noBoothOrder = Number(o.no_booth_order || 0) === 1;
+        let normalizedFees = [];
+        try {
+          normalizedFees = normalizeEditableFeeItems(o.fees_json || '[]');
+        } catch (e) {
+          return errorResponse('其他应收费用格式不正确', 400, corsHeaders);
+        }
+        const totalOtherIncome = Number(normalizedFees.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2));
+        const totalBoothFee = Number(Number(o.total_booth_fee || 0).toFixed(2));
 
-        if (selectedBooths.length === 0) {
+        const selectedBooths = noBoothOrder
+          ? [{
+              booth_id: '',
+              area: 0,
+              price_unit: '无展位',
+              unit_price: 0,
+              standard_fee: 0,
+              is_joint: 0,
+              no_booth_order: 1
+            }]
+          : Array.isArray(o.selected_booths) && o.selected_booths.length > 0
+            ? o.selected_booths.map((item) => ({
+                booth_id: String(item.booth_id || '').trim(),
+                area: Number(item.area || 0),
+                price_unit: String(item.price_unit || '').trim(),
+                unit_price: Number(item.unit_price || 0),
+                standard_fee: Number(item.standard_fee || 0),
+                is_joint: Number(item.is_joint || 0) ? 1 : 0
+              })).filter((item) => item.booth_id && item.area >= 0)
+            : [{
+                booth_id: String(o.booth_id || '').trim(),
+                area: Number(o.area || 0),
+                price_unit: String(o.price_unit || '').trim(),
+                unit_price: Number(o.unit_price || 0),
+                standard_fee: Number(o.total_booth_fee || 0),
+                is_joint: 0
+              }];
+
+        if (!noBoothOrder && selectedBooths.length === 0) {
           return errorResponse('请至少选择一个展位', 400, corsHeaders);
         }
 
         const totalStandardFee = Number(selectedBooths.reduce((sum, item) => sum + Number(item.standard_fee || 0), 0).toFixed(2));
-        const totalBoothFee = Number(o.total_booth_fee || 0);
-        const totalOtherIncome = Number(o.other_income || 0);
+        const totalSelectedArea = Number(selectedBooths.reduce((sum, item) => sum + Number(item.area || 0), 0).toFixed(2));
+        if (totalBoothFee < 0) return errorResponse('最终成交展位费不能为负数', 400, corsHeaders);
+        if (noBoothOrder) {
+          if (totalBoothFee !== 0) return errorResponse('无展位订单的应收展位费必须为0', 400, corsHeaders);
+          if (normalizedFees.length === 0 || totalOtherIncome <= 0) return errorResponse('无展位订单必须至少包含一项其他应收费用', 400, corsHeaders);
+        } else if (totalSelectedArea <= 0 && totalBoothFee > 0) {
+          return errorResponse('0面积联合参展的应收展位费必须为0', 400, corsHeaders);
+        }
 
         let remainingBoothFee = totalBoothFee;
         let remainingOtherIncome = totalOtherIncome;
@@ -2704,13 +2730,16 @@ export default {
             total_booth_fee: boothFeePart,
             other_income: otherIncomePart,
             total_amount: Number((boothFeePart + otherIncomePart).toFixed(2)),
-            fees_json: index === 0 ? (o.fees_json || '[]') : '[]'
+            fees_json: index === 0 ? JSON.stringify(normalizedFees) : '[]'
           };
         });
 
         for (const boothItem of distributedBooths) {
-          const existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1").bind(o.project_id, boothItem.booth_id).first();
-          if (existingOrder && boothItem.is_joint) {
+          let existingOrder = null;
+          if (boothItem.booth_id) {
+            existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1").bind(o.project_id, boothItem.booth_id).first();
+          }
+          if (existingOrder && boothItem.is_joint && boothItem.area > 0) {
             stmts.push(env.DB.prepare("UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?").bind(boothItem.area, existingOrder.id));
           }
 
@@ -2723,14 +2752,16 @@ export default {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
           `).bind(
             o.project_id, o.company_name, o.credit_code, o.no_code_checked ? 1 : 0, o.category, o.main_business,
-            o.is_agent ? 1 : 0, o.agent_name, o.contact_person, o.phone, o.region, boothItem.booth_id, boothItem.area, boothItem.price_unit, boothItem.unit_price,
+            o.is_agent ? 1 : 0, o.agent_name, o.contact_person, o.phone, o.region, boothItem.booth_id || '', boothItem.area, boothItem.price_unit, boothItem.unit_price,
             boothItem.total_booth_fee, o.discount_reason, boothItem.other_income, boothItem.fees_json, o.profile, boothItem.total_amount, 0,
             o.contract_url || null, o.sales_name, '正常'
           ));
 
-          stmts.push(env.DB.prepare(
-            "UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')"
-          ).bind(boothItem.booth_id, o.project_id));
+          if (boothItem.booth_id) {
+            stmts.push(env.DB.prepare(
+              "UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')"
+            ).bind(boothItem.booth_id, o.project_id));
+          }
         }
 
         await env.DB.batch(stmts);
@@ -3209,9 +3240,13 @@ export default {
       }
 
       if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return errorResponse('权限不足：仅管理员可撤销单据', 403, corsHeaders);
         try {
             const { expense_id } = await request.json();
+            const expense = await env.DB.prepare('SELECT id, order_id FROM Expenses WHERE id = ? AND deleted_at IS NULL')
+                .bind(Number(expense_id)).first();
+            if (!expense) return errorResponse('记录不存在或已撤销', 404, corsHeaders);
+            const hasPermission = await canManageOrder(env, currentUser, expense.order_id);
+            if (!hasPermission) return errorResponse('权限不足：仅管理员或本人名下企业可撤销', 403, corsHeaders);
             await env.DB.prepare('UPDATE Expenses SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL')
                 .bind(getChinaTimestamp(), String(currentUser.name || ''), Number(expense_id))
                 .run();

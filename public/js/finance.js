@@ -11,6 +11,14 @@ window.canManageOrder = function(order) {
     return !!order && (window.currentUser.role === 'admin' || Number(order.can_manage) === 1);
 }
 
+window.getOrderBoothDisplay = function(order) {
+    if (!order) return '无展位订单';
+    const hall = String(order.hall || '').trim();
+    const boothId = String(order.booth_id || '').trim();
+    if (!boothId) return '无展位订单';
+    return hall ? `${hall} - ${boothId}` : boothId;
+}
+
 window.getOverpaidAmount = function(order) {
     if (!order) return 0;
     const explicit = Number(order.overpaid_amount || 0);
@@ -407,7 +415,8 @@ window.renderOrderList = function() {
     }
 
     const filtered = (window.allOrders || []).filter(o => {
-        if(searchTxt && !(o.company_name.toLowerCase().includes(searchTxt) || o.booth_id.toLowerCase().includes(searchTxt))) return false;
+        const boothSearch = String(o.booth_id || '').toLowerCase();
+        if(searchTxt && !(o.company_name.toLowerCase().includes(searchTxt) || boothSearch.includes(searchTxt))) return false;
         if (businessSearchTxt && !String(o.main_business || '').toLowerCase().includes(businessSearchTxt)) return false;
         let payStatus = '未付';
         if(o.paid_amount > 0 && o.paid_amount < o.total_amount) payStatus = '定金';
@@ -421,12 +430,12 @@ window.renderOrderList = function() {
     });
 
     document.getElementById('order-total-stats').innerText = `共 ${filtered.length} 笔订单`;
-    const tbody = document.getElementById('order-list-tbody'); tbody.innerHTML = '';
+    const tbody = document.getElementById('order-list-tbody');
     
     const checkAllBox = document.getElementById('check-all-orders');
     if(checkAllBox) checkAllBox.checked = false;
 
-    filtered.forEach(o => {
+    tbody.innerHTML = window.renderHtmlCollection(filtered, (o) => {
         const canManage = window.canManageOrder(o);
         const hasOverpayment = window.hasOverpaymentIssue(o);
         const overpaidAmount = window.getOverpaidAmount(o);
@@ -461,6 +470,8 @@ window.renderOrderList = function() {
         const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name;
         const safeHall = window.escapeHtml(o.hall || '');
         const safeBoothId = window.escapeHtml(o.booth_id || '');
+        const boothDisplay = window.getOrderBoothDisplay(o);
+        const safeBoothDisplay = window.escapeHtml(boothDisplay);
         const safeRegion = window.escapeHtml(o.region || '未填');
         const safeBoothType = window.escapeHtml(o.booth_type || '');
         // 【核心优化】：合同状态 UI 升级，明确展示状态，仅保留预览和重新上传
@@ -509,12 +520,12 @@ window.renderOrderList = function() {
                 <button class="btn-muted px-3 py-1.5 text-xs mr-2">${window.renderIcon('download', 'h-3.5 w-3.5', 2)}<span>代付</span></button>
             `;
 
-        tbody.innerHTML += `
+        return `
             <tr class="border-b hover:bg-blue-50 transition">
                 <td class="p-3 text-center">${checkboxHtml}</td>
                 <td class="p-3 text-center align-middle">${payBadge}</td>
-                <td class="p-3 font-bold text-gray-600">${safeHall}</td>
-                <td class="p-3 font-bold text-blue-700 text-lg">${safeBoothId}</td>
+                <td class="p-3 font-bold text-gray-600">${safeHall || '—'}</td>
+                <td class="p-3 font-bold text-blue-700 text-lg">${safeBoothId || `<span class="text-sm text-slate-500 font-semibold">${safeBoothDisplay}</span>`}</td>
                 <td class="p-3 text-xs text-gray-500 truncate max-w-[120px]" title="${safeRegion}">${safeRegion}</td>
                 <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[220px] truncate" onclick='window.showOrderDetailById(${JSON.stringify(String(o.id))})' title="点击查看详情">${safeCompany}</td>
                 <td class="p-3 tabular-data">${o.area} ㎡</td>
@@ -525,7 +536,7 @@ window.renderOrderList = function() {
                 <td class="${stickyActionCellClass}">${actionHtml}</td>
             </tr>
         `;
-    });
+    }, '<tr><td colspan="12" class="p-6 text-center text-gray-400">暂无符合条件的订单</td></tr>');
 }
 
 window.showOrderDetailById = function(id) {
@@ -846,7 +857,7 @@ window.showOrderDetail = function(o) {
     const editContactInput = document.getElementById('edit-dt-contact');
     const editPhoneInput = document.getElementById('edit-dt-phone');
     window.currentViewOrder = o; 
-    document.getElementById('dt-company').innerText = o.company_name; document.getElementById('dt-code').innerText = o.no_code_checked ? `无代码 (代号: ${o.credit_code})` : o.credit_code; document.getElementById('dt-booth').innerText = `${o.hall} - ${o.booth_id}`; document.getElementById('dt-sales').innerText = o.sales_name; document.getElementById('dt-time').innerText = o.created_at || '未知'; document.getElementById('dt-region').innerText = o.region || '未填'; document.getElementById('dt-contact').innerText = o.contact_person; document.getElementById('dt-phone').innerText = o.phone; document.getElementById('dt-category').innerText = o.category || '未填'; document.getElementById('dt-business').innerText = o.main_business || '未填'; document.getElementById('dt-profile').innerText = o.profile || '暂无简介'; document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直招入驻';
+    document.getElementById('dt-company').innerText = o.company_name; document.getElementById('dt-code').innerText = o.no_code_checked ? `无代码 (代号: ${o.credit_code})` : o.credit_code; document.getElementById('dt-booth').innerText = window.getOrderBoothDisplay(o); document.getElementById('dt-sales').innerText = o.sales_name; document.getElementById('dt-time').innerText = o.created_at || '未知'; document.getElementById('dt-region').innerText = o.region || '未填'; document.getElementById('dt-contact').innerText = o.contact_person; document.getElementById('dt-phone').innerText = o.phone; document.getElementById('dt-category').innerText = o.category || '未填'; document.getElementById('dt-business').innerText = o.main_business || '未填'; document.getElementById('dt-profile').innerText = o.profile || '暂无简介'; document.getElementById('dt-agent').innerText = o.is_agent ? `由代理商 [${o.agent_name}] 代招` : '直招入驻';
     editContactInput.value = o.contact_person;
     editPhoneInput.value = o.phone;
     editContactInput.disabled = !canViewSensitive;
@@ -972,7 +983,7 @@ window.openFinanceModal = async function(order, forcedTab = null) {
     window.currentFinanceOrder = order;
     const targetTab = forcedTab || window.lastFmTab || 'pay';
     
-    document.getElementById('fm-order-title').innerText = `当前客户：${order.company_name} (展位: ${order.booth_id})`;
+    document.getElementById('fm-order-title').innerText = `当前客户：${order.company_name} (展位: ${window.getOrderBoothDisplay(order)})`;
     document.getElementById('fm-total').innerText = window.formatCurrency(order.total_amount); 
     document.getElementById('fm-paid').innerText = window.formatCurrency(order.paid_amount); 
     document.getElementById('fm-unpaid').innerText = window.formatCurrency(Number(order.total_amount || 0) - Number(order.paid_amount || 0));
@@ -1014,7 +1025,7 @@ window.refreshFinanceModalStats = function() {
     const updatedOrder = window.allOrders.find(o => String(o.id) === String(window.currentModalOrderId));
     if (updatedOrder) {
         window.currentFinanceOrder = updatedOrder;
-        document.getElementById('fm-order-title').innerText = `当前客户：${updatedOrder.company_name} (展位: ${updatedOrder.booth_id})`;
+        document.getElementById('fm-order-title').innerText = `当前客户：${updatedOrder.company_name} (展位: ${window.getOrderBoothDisplay(updatedOrder)})`;
         document.getElementById('fm-total').innerText = window.formatCurrency(updatedOrder.total_amount);
         document.getElementById('fm-paid').innerText = window.formatCurrency(updatedOrder.paid_amount);
         document.getElementById('fm-unpaid').innerText = window.formatCurrency(Number(updatedOrder.total_amount || 0) - Number(updatedOrder.paid_amount || 0));
@@ -1123,7 +1134,7 @@ window.resetFmSwapDraft = function(order) {
     if (!currentOrder) return;
     window.fmSwapCandidateBooth = null;
     window.fmSwapFees = window.normalizeSwapFeeDraft(currentOrder.fees_json);
-    document.getElementById('fm-swap-current-booth').innerText = `${currentOrder.hall || ''} - ${currentOrder.booth_id || '-'}`;
+    document.getElementById('fm-swap-current-booth').innerText = window.getOrderBoothDisplay(currentOrder);
     document.getElementById('fm-swap-current-area').innerText = `${Number(currentOrder.area || 0).toLocaleString()}㎡`;
     document.getElementById('fm-swap-current-total').innerText = window.formatCurrency(currentOrder.total_amount || 0);
     document.getElementById('fm-swap-current-paid').innerText = window.formatCurrency(currentOrder.paid_amount || 0);
@@ -1259,7 +1270,7 @@ window.openOverpaymentModalById = function(orderId, action = 'fx_diff', returnCo
     window.currentOverpaymentReturnContext = returnContext;
     document.getElementById('overpayment-action').value = action;
     document.getElementById('overpayment-note').value = order.overpayment_note || '';
-    document.getElementById('overpayment-order-title').innerText = `${order.company_name} (${order.booth_id})`;
+    document.getElementById('overpayment-order-title').innerText = `${order.company_name} (${window.getOrderBoothDisplay(order)})`;
     const overpaidAmount = window.getOverpaidAmount(order);
     document.getElementById('overpayment-order-summary').innerText = `当前应收 ${window.formatCurrency(order.total_amount || 0)}，已收 ${window.formatCurrency(order.paid_amount || 0)}，超收 ${window.formatCurrency(overpaidAmount)}。若选择下方“确认汇率差”或“暂挂并填写说明”，系统会自动把本次差额补录为一条其他应收明细并自动平账。`;
     document.getElementById('overpayment-modal').classList.remove('hidden');
@@ -1307,8 +1318,7 @@ window.loadPaymentHistory = async function(orderId) {
         if(!response.ok) throw new Error("获取历史记录失败");
         const pays = await response.json();
         if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
-        listDiv.innerHTML = '';
-        pays.forEach(p => {
+        listDiv.innerHTML = window.renderHtmlCollection(pays, (p) => {
             const safePayer = String(p.payer_name || '').replace(/'/g, "\\'");
             const safeBank = String(p.bank_name || '').replace(/'/g, "\\'");
             const safeRem = String(p.remarks || '').replace(/'/g, "\\'");
@@ -1355,7 +1365,7 @@ window.loadPaymentHistory = async function(orderId) {
             const sourceBadge = isErpSync
                 ? '<span class="ml-2 badge-readonly">ERP同步</span>'
                 : '';
-            listDiv.innerHTML += `<div class="bg-white border rounded p-3 flex justify-between items-start gap-4 hover:bg-gray-50 transition"><div class="min-w-0 flex-1"><div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}${sourceBadge}</div>${detailsHtml}</div><div class="text-right flex shrink-0 flex-col items-end gap-2"><div class="text-xs font-bold text-gray-700 tabular-data">${window.escapeHtml(p.payment_time)}</div>${actionHtml}</div></div>`;
+            return `<div class="bg-white border rounded p-3 flex justify-between items-start gap-4 hover:bg-gray-50 transition"><div class="min-w-0 flex-1"><div class="font-bold text-green-600 text-lg">到账 ¥${p.amount}${sourceBadge}</div>${detailsHtml}</div><div class="text-right flex shrink-0 flex-col items-end gap-2"><div class="text-xs font-bold text-gray-700 tabular-data">${window.escapeHtml(p.payment_time)}</div>${actionHtml}</div></div>`;
         });
     } catch (e) { listDiv.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
@@ -1416,7 +1426,7 @@ window.fmRemoveFeeRow = function(idx) { window.fmDynamicFees.splice(idx, 1); win
 window.fmUpdateFeeData = function(idx, field, val) { window.fmDynamicFees[idx][field] = val; window.calculateFmAdjustTotal(); }
 window.renderFmDynamicFees = function() {
     const container = document.getElementById('fm-dynamic-fees-container'); container.innerHTML = '';
-    window.fmDynamicFees.forEach((fee, idx) => { container.innerHTML += `<div class="flex gap-2 items-center bg-white p-2 rounded border border-orange-100 shadow-sm"><input type="text" placeholder="名称" value="${fee.name}" oninput="window.fmUpdateFeeData(${idx}, 'name', this.value)" class="border p-1.5 rounded flex-1 text-sm bg-gray-50"><span class="text-gray-500 font-bold">¥</span><input type="number" placeholder="金额" value="${fee.amount}" oninput="window.fmUpdateFeeData(${idx}, 'amount', this.value)" class="border p-1.5 rounded w-24 text-sm bg-gray-50 font-bold text-gray-700"><button onclick="window.fmRemoveFeeRow(${idx})" class="text-red-500 hover:bg-red-100 font-bold px-2 py-1 rounded text-xs">删</button></div>`; });
+    container.innerHTML = window.renderHtmlCollection(window.fmDynamicFees, (fee, idx) => `<div class="flex gap-2 items-center bg-white p-2 rounded border border-orange-100 shadow-sm"><input type="text" placeholder="名称" value="${window.escapeAttr(fee.name)}" oninput="window.fmUpdateFeeData(${idx}, 'name', this.value)" class="border p-1.5 rounded flex-1 text-sm bg-gray-50"><span class="text-gray-500 font-bold">¥</span><input type="number" placeholder="金额" value="${window.escapeAttr(fee.amount)}" oninput="window.fmUpdateFeeData(${idx}, 'amount', this.value)" class="border p-1.5 rounded w-24 text-sm bg-gray-50 font-bold text-gray-700"><button onclick="window.fmRemoveFeeRow(${idx})" class="text-red-500 hover:bg-red-100 font-bold px-2 py-1 rounded text-xs">删</button></div>`);
     window.calculateFmAdjustTotal();
 }
 window.calculateFmAdjustTotal = function() { const af = parseFloat(document.getElementById('adj-actual-fee').value) || 0; let ot = 0; window.fmDynamicFees.forEach(f => { ot += parseFloat(f.amount) || 0; }); document.getElementById('fm-adjust-calc-total').innerText = window.formatCurrency(af + ot, '¥ '); }
@@ -1444,15 +1454,16 @@ window.loadExpenseHistory = async function(orderId) {
         if(!response.ok) throw new Error("拉取数据失败");
         const exps = await response.json();
         if(exps.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付记录</p>'; return; }
-        listDiv.innerHTML = '';
-        exps.forEach(e => {
+        const currentOrder = (window.allOrders || []).find((item) => String(item.id) === String(orderId));
+        const canRevokeExpense = window.canManageOrder(currentOrder);
+        listDiv.innerHTML = window.renderHtmlCollection(exps, (e) => {
             const safeE = JSON.stringify(e).replace(/'/g, "&#39;");
             const safePayeeName = window.escapeHtml(e.payee_name || '');
             const safeReason = window.escapeHtml(e.reason || '无说明');
             const safeCreatedAt = window.escapeHtml(e.created_at ? e.created_at.split(' ')[0] : '');
             const safeChannel = window.escapeHtml(e.payee_channel || '转账');
             const safeApplicant = window.escapeHtml(e.applicant || '');
-            listDiv.innerHTML += `<div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50"><div><div class="font-bold text-purple-700 tabular-data">金额: ¥${e.amount} <span class="text-sm font-normal text-gray-500 ml-2">(${safePayeeName})</span></div><div class="text-xs text-gray-600 mt-1">事由: <span class="font-bold">${safeReason}</span></div><div class="text-xs text-gray-400 mt-1">${safeCreatedAt} | 渠道: ${safeChannel} | 申请人: ${safeApplicant}</div></div><div class="text-right"><button onclick='window.printExpense(${safeE})' class="bg-gray-800 text-white hover:bg-black text-xs font-bold px-3 py-1.5 rounded mr-2">打印单据</button><button onclick="window.deleteExpense('${e.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">撤销</button></div></div>`;
+            return `<div class="bg-white border rounded p-3 mb-2 flex justify-between items-center hover:bg-gray-50"><div><div class="font-bold text-purple-700 tabular-data">金额: ¥${e.amount} <span class="text-sm font-normal text-gray-500 ml-2">(${safePayeeName})</span></div><div class="text-xs text-gray-600 mt-1">事由: <span class="font-bold">${safeReason}</span></div><div class="text-xs text-gray-400 mt-1">${safeCreatedAt} | 渠道: ${safeChannel} | 申请人: ${safeApplicant}</div></div><div class="text-right"><button onclick='window.printExpense(${safeE})' class="bg-gray-800 text-white hover:bg-black text-xs font-bold px-3 py-1.5 rounded mr-2">打印单据</button>${canRevokeExpense ? `<button onclick="window.deleteExpense('${e.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold">撤销</button>` : `<span class="text-xs font-bold text-slate-400">仅本人或管理员可撤销</span>`}</div></div>`;
         });
     } catch (err) { listDiv.innerHTML = `<p class="text-red-500 font-bold">解析异常: ${err.message}</p>`; }
 }

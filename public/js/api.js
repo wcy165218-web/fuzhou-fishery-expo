@@ -225,6 +225,15 @@ window.toggleBtnLoading = function(btnId, isLoading, originalText = '') {
         btn.classList.remove('opacity-70', 'cursor-not-allowed');
     }
 }
+
+window.withButtonLoading = async function(btnId, task, originalText = '') {
+    window.toggleBtnLoading(btnId, true, originalText);
+    try {
+        return await task();
+    } finally {
+        window.toggleBtnLoading(btnId, false, originalText);
+    }
+}
 // 前端 XSS 防护：HTML 字符转义
 window.escapeHtml = function(text) {
     if (!text) return "";
@@ -238,4 +247,9 @@ window.escapeHtml = function(text) {
 
 window.escapeAttr = function(text) {
     return window.escapeHtml(text).replace(/`/g, '&#096;');
+}
+
+window.renderHtmlCollection = function(items, renderItem, emptyHtml = '') {
+    if (!Array.isArray(items) || items.length === 0) return emptyHtml;
+    return items.map((item, index) => renderItem(item, index)).join('');
 }
