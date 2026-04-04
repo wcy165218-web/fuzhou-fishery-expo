@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Cloudflare Workers + D1 + R2 expo management app",
   "scripts": {
-    "check": "node --check _worker.js",
+    "check": "node --check _worker.js && node --check src/utils/response.mjs && node --check src/utils/crypto.mjs && node --check src/utils/helpers.mjs && node --check src/services/order-fields.mjs && node --check src/services/booth-sync.mjs && node --check src/services/overpayment.mjs && node --check src/services/erp.mjs && node --check src/routes/auth.mjs && node --check src/routes/files.mjs && node --check src/routes/projects.mjs && node --check src/routes/staff.mjs && node --check src/routes/config.mjs && node --check src/routes/booths.mjs && node --check src/routes/expenses.mjs && node --check src/routes/orders.mjs && node --check src/routes/payments.mjs && node --check src/routes/dashboard.mjs",
     "test:erp-sync": "node tests/erp-sync-core.test.mjs",
     "cf:login": "HOME=$PWD/.wrangler-home wrangler login --callback-host 127.0.0.1",
     "cf:whoami": "HOME=$PWD/.wrangler-home wrangler whoami",

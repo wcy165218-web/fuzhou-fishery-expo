@@ -165,27 +165,31 @@ function runTests() {
   });
 
   assert.equal(plan.summary.total_rows, 11);
-  assert.equal(plan.summary.importable_count, 3);
-  assert.equal(plan.summary.matched_count, 3);
+  assert.equal(plan.summary.importable_count, 4);
+  assert.equal(plan.summary.matched_count, 4);
   assert.equal(plan.summary.skipped_not_closed, 1);
   assert.equal(plan.summary.skipped_project_mismatch, 2);
   assert.equal(plan.summary.unmatched_company, 1);
   assert.equal(plan.summary.duplicate_count, 1);
-  assert.equal(plan.summary.skipped_overpaid, 1);
+  assert.equal(plan.summary.skipped_overpaid, 0);
+  assert.equal(plan.summary.overpaid_pending_count, 1);
   assert.equal(plan.summary.ambiguous_company, 1);
   assert.equal(plan.summary.skipped_refund_related, 1);
-  assert.equal(plan.importableItems.length, 3);
+  assert.equal(plan.importableItems.length, 4);
   assert.equal(plan.importableItems[0].order_id, 11);
   assert.equal(plan.importableItems[0].erp_record_id, 'erp-1');
   assert.equal(plan.importableItems[0].payer_name, '张三');
   assert.equal(plan.importableItems[0].payment_time, '2026-03-26');
   assert.match(plan.importableItems[0].remarks, /收至账户名：福建荟源/);
   assert.match(plan.importableItems[0].remarks, /收至账号：123456/);
-  assert.equal(plan.importableItems[1].order_id, 18);
-  assert.equal(plan.importableItems[1].amount, 6800);
-  assert.equal(plan.importableItems[1].erp_record_id, 'erp-10');
-  assert.equal(plan.importableItems[2].order_id, 19);
-  assert.equal(plan.importableItems[2].erp_record_id, 'erp-11');
+  assert.equal(plan.importableItems[1].order_id, 13);
+  assert.equal(plan.importableItems[1].erp_record_id, 'erp-6');
+  assert.equal(plan.importableItems[1].overpaid_after_sync, true);
+  assert.equal(plan.importableItems[2].order_id, 18);
+  assert.equal(plan.importableItems[2].amount, 6800);
+  assert.equal(plan.importableItems[2].erp_record_id, 'erp-10');
+  assert.equal(plan.importableItems[3].order_id, 19);
+  assert.equal(plan.importableItems[3].erp_record_id, 'erp-11');
 }
 
 runTests();
