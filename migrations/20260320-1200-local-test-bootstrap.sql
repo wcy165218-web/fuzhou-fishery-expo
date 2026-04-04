@@ -34,7 +34,8 @@ CREATE TABLE Staff (
   role TEXT NOT NULL DEFAULT 'user',
   target REAL NOT NULL DEFAULT 0,
   display_order INTEGER NOT NULL DEFAULT 0,
-  exclude_from_sales_ranking INTEGER NOT NULL DEFAULT 0
+  exclude_from_sales_ranking INTEGER NOT NULL DEFAULT 0,
+  token_index INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE Accounts (

@@ -18,6 +18,8 @@ const PASSWORD_SALT_BYTES = 16;
 const PASSWORD_HASH_BYTES = 32;
 const ERP_SECRET_VERSION = 'erpenc_v1';
 const ERP_SECRET_IV_BYTES = 12;
+const JWT_TTL_SECONDS = 12 * 60 * 60;
+const JWT_CLOCK_SKEW_SECONDS = 60;
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['pdf']);
 const ALLOWED_UPLOAD_MIME_TYPES = new Set(['application/pdf', 'application/x-pdf', '']);
 const MAX_UPLOAD_SIZE = 6 * 1024 * 1024;
@@ -38,16 +40,7 @@ const ORDER_FIELD_SETTINGS = [
     { key: 'extra_fees', enabled: 1, required: 0 },
     { key: 'contract_upload', enabled: 1, required: 0 }
 ];
-const schemaEnsureState = {
-    loginAttempts: false,
-    staffDisplayOrder: false,
-    staffSalesRanking: false,
-    orderFieldSettings: false,
-    overpaymentIssues: false,
-    orderBoothChanges: false,
-    paymentsSoftDelete: false,
-    expensesSoftDelete: false
-};
+let legacyErpSecretMigrationScheduled = false;
 
 const base64UrlEncode = (source) => {
     let encoded = btoa(String.fromCharCode(...new Uint8Array(source)));
@@ -159,7 +152,9 @@ async function verifyJWT(token, secretStr) {
     const isValid = await crypto.subtle.verify('HMAC', key, base64UrlDecode(parts[2]), strToUint8(data));
     if (!isValid) throw new Error('Invalid signature');
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[1])));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) throw new Error('Token expired');
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < nowSeconds) throw new Error('Token expired');
+    if (payload.iat && Number(payload.iat) > nowSeconds + JWT_CLOCK_SKEW_SECONDS) throw new Error('Token issued in the future');
     return payload;
 }
 
@@ -209,6 +204,79 @@ async function decryptSensitiveValue(value, env) {
     const key = await importAesKey(getErpConfigSecret(env));
     const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
     return new TextDecoder().decode(plainBuffer);
+}
+
+function isEncryptedSensitiveValue(value) {
+    return String(value || '').trim().startsWith(`${ERP_SECRET_VERSION}$`);
+}
+
+async function migrateLegacyErpSessionCookie(env, projectId, plainSessionCookie) {
+    const normalizedCookie = String(plainSessionCookie || '').trim();
+    if (!normalizedCookie) return;
+    const encryptedValue = await encryptSensitiveValue(normalizedCookie, env);
+    await env.DB.prepare(`
+      UPDATE ProjectErpConfigs
+      SET session_cookie = ?
+      WHERE project_id = ?
+    `).bind(encryptedValue, Number(projectId)).run();
+}
+
+async function migrateAllLegacyErpSessionCookies(env) {
+    const rows = (await env.DB.prepare(`
+      SELECT project_id, session_cookie
+      FROM ProjectErpConfigs
+      WHERE session_cookie IS NOT NULL
+        AND TRIM(session_cookie) != ''
+    `).all()).results || [];
+    for (const row of rows) {
+        const rawValue = String(row.session_cookie || '').trim();
+        if (!rawValue || isEncryptedSensitiveValue(rawValue)) continue;
+        await migrateLegacyErpSessionCookie(env, row.project_id, rawValue);
+    }
+}
+
+async function getOrderCountBySalesName(env, staffName) {
+    const row = await env.DB.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM Orders
+      WHERE sales_name = ?
+    `).bind(String(staffName || '').trim()).first();
+    return Number(row?.cnt || 0);
+}
+
+async function getStaffAuthState(env, staffName) {
+    return env.DB.prepare(`
+      SELECT name, role, COALESCE(token_index, 0) AS token_index
+      FROM Staff
+      WHERE name = ?
+    `).bind(String(staffName || '').trim()).first();
+}
+
+function buildJwtPayloadForUser(user) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return {
+        name: user.name,
+        role: user.role,
+        token_index: Number(user.token_index || 0),
+        iat: nowSeconds,
+        exp: nowSeconds + JWT_TTL_SECONDS
+    };
+}
+
+async function getReferencedBoothIds(env, projectId, boothIds) {
+    const normalizedBoothIds = Array.isArray(boothIds)
+      ? boothIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : [];
+    if (normalizedBoothIds.length === 0) return [];
+    const placeholders = normalizedBoothIds.map(() => '?').join(',');
+    const results = await env.DB.prepare(`
+      SELECT booth_id
+      FROM Orders
+      WHERE project_id = ?
+        AND booth_id IN (${placeholders})
+      GROUP BY booth_id
+    `).bind(Number(projectId), ...normalizedBoothIds).all();
+    return (results.results || []).map((row) => String(row.booth_id || '').trim()).filter(Boolean);
 }
 
 function buildSecurityHeaders({ includeCsp = false } = {}) {
@@ -262,6 +330,8 @@ function buildCorsHeaders(request, url, env) {
     const headers = {
         'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
         'Vary': 'Origin',
         ...buildSecurityHeaders()
     };
@@ -331,62 +401,7 @@ function getLoginAttemptContext(request, username) {
     };
 }
 
-async function ensureLoginAttemptsTable(env) {
-    if (schemaEnsureState.loginAttempts) return;
-    await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS LoginAttempts (
-            attempt_key TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
-            ip_address TEXT NOT NULL,
-            failed_count INTEGER NOT NULL DEFAULT 0,
-            last_failed_at TEXT,
-            locked_until TEXT
-        )
-    `).run();
-    schemaEnsureState.loginAttempts = true;
-}
-
-async function ensureStaffDisplayOrderColumn(env) {
-    if (schemaEnsureState.staffDisplayOrder) return;
-    const columns = (await env.DB.prepare(`PRAGMA table_info(Staff)`).all()).results || [];
-    const hasDisplayOrder = columns.some((column) => String(column.name || '').toLowerCase() === 'display_order');
-    if (!hasDisplayOrder) {
-        await env.DB.prepare(`ALTER TABLE Staff ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0`).run();
-        await env.DB.prepare(`UPDATE Staff SET display_order = id WHERE display_order = 0`).run();
-    } else {
-        await env.DB.prepare(`UPDATE Staff SET display_order = id WHERE display_order IS NULL OR display_order = 0`).run();
-    }
-    schemaEnsureState.staffDisplayOrder = true;
-}
-
-async function ensureStaffSalesRankingColumn(env) {
-    if (schemaEnsureState.staffSalesRanking) return;
-    const columns = (await env.DB.prepare(`PRAGMA table_info(Staff)`).all()).results || [];
-    const hasRankingColumn = columns.some((column) => String(column.name || '').toLowerCase() === 'exclude_from_sales_ranking');
-    if (!hasRankingColumn) {
-        await env.DB.prepare(`ALTER TABLE Staff ADD COLUMN exclude_from_sales_ranking INTEGER NOT NULL DEFAULT 0`).run();
-    }
-    await env.DB.prepare(`UPDATE Staff SET exclude_from_sales_ranking = 0 WHERE exclude_from_sales_ranking IS NULL`).run();
-    schemaEnsureState.staffSalesRanking = true;
-}
-
-async function ensureOrderFieldSettingsTable(env) {
-    if (schemaEnsureState.orderFieldSettings) return;
-    await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS ProjectOrderFieldSettings (
-            project_id INTEGER NOT NULL,
-            field_key TEXT NOT NULL,
-            enabled INTEGER NOT NULL DEFAULT 1,
-            required INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
-            PRIMARY KEY (project_id, field_key)
-        )
-    `).run();
-    schemaEnsureState.orderFieldSettings = true;
-}
-
 async function getOrderFieldSettings(env, projectId) {
-    await ensureOrderFieldSettingsTable(env);
     const rows = (await env.DB.prepare(`
         SELECT field_key, enabled, required
         FROM ProjectOrderFieldSettings
@@ -404,7 +419,6 @@ async function getOrderFieldSettings(env, projectId) {
 }
 
 async function saveOrderFieldSettings(env, projectId, settings) {
-    await ensureOrderFieldSettingsTable(env);
     const normalizedSettings = ORDER_FIELD_SETTINGS.map((item) => {
         const incoming = Array.isArray(settings)
             ? settings.find((setting) => String(setting.key) === item.key)
@@ -627,76 +641,6 @@ function getChinaTimestamp() {
     return new Date(Date.now() + (8 * 60 * 60 * 1000)).toISOString().replace('T', ' ').slice(0, 19);
 }
 
-async function ensureOverpaymentIssuesTable(env) {
-    if (schemaEnsureState.overpaymentIssues) return;
-    await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS OrderOverpaymentIssues (
-            order_id INTEGER PRIMARY KEY,
-            project_id INTEGER NOT NULL,
-            overpaid_amount REAL NOT NULL DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'pending',
-            reason TEXT,
-            note TEXT,
-            handled_by TEXT,
-            handled_at TEXT,
-            detected_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
-        )
-    `).run();
-    schemaEnsureState.overpaymentIssues = true;
-}
-
-async function ensureOrderBoothChangesTable(env) {
-    if (schemaEnsureState.orderBoothChanges) return;
-    await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS OrderBoothChanges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER NOT NULL,
-            order_id INTEGER NOT NULL,
-            old_booth_id TEXT NOT NULL,
-            new_booth_id TEXT NOT NULL,
-            old_area REAL NOT NULL DEFAULT 0,
-            new_area REAL NOT NULL DEFAULT 0,
-            booth_delta_count REAL NOT NULL DEFAULT 0,
-            old_total_amount REAL NOT NULL DEFAULT 0,
-            new_total_amount REAL NOT NULL DEFAULT 0,
-            total_amount_delta REAL NOT NULL DEFAULT 0,
-            changed_by TEXT,
-            reason TEXT,
-            changed_at TEXT NOT NULL DEFAULT (datetime('now', '+8 hours'))
-        )
-    `).run();
-    schemaEnsureState.orderBoothChanges = true;
-}
-
-async function ensurePaymentsSoftDeleteColumns(env) {
-    if (schemaEnsureState.paymentsSoftDelete) return;
-    const columns = (await env.DB.prepare(`PRAGMA table_info(Payments)`).all()).results || [];
-    const hasDeletedAt = columns.some((column) => String(column.name || '').toLowerCase() === 'deleted_at');
-    const hasDeletedBy = columns.some((column) => String(column.name || '').toLowerCase() === 'deleted_by');
-    if (!hasDeletedAt) {
-        await env.DB.prepare(`ALTER TABLE Payments ADD COLUMN deleted_at TEXT`).run();
-    }
-    if (!hasDeletedBy) {
-        await env.DB.prepare(`ALTER TABLE Payments ADD COLUMN deleted_by TEXT`).run();
-    }
-    schemaEnsureState.paymentsSoftDelete = true;
-}
-
-async function ensureExpensesSoftDeleteColumns(env) {
-    if (schemaEnsureState.expensesSoftDelete) return;
-    const columns = (await env.DB.prepare(`PRAGMA table_info(Expenses)`).all()).results || [];
-    const hasDeletedAt = columns.some((column) => String(column.name || '').toLowerCase() === 'deleted_at');
-    const hasDeletedBy = columns.some((column) => String(column.name || '').toLowerCase() === 'deleted_by');
-    if (!hasDeletedAt) {
-        await env.DB.prepare(`ALTER TABLE Expenses ADD COLUMN deleted_at TEXT`).run();
-    }
-    if (!hasDeletedBy) {
-        await env.DB.prepare(`ALTER TABLE Expenses ADD COLUMN deleted_by TEXT`).run();
-    }
-    schemaEnsureState.expensesSoftDelete = true;
-}
-
 function getOverpaidAmount(totalAmount, paidAmount) {
     return Number((Number(paidAmount || 0) - Number(totalAmount || 0)).toFixed(2));
 }
@@ -776,7 +720,6 @@ async function syncBoothStatusByBoothId(env, projectId, boothId) {
 }
 
 async function refreshOrderOverpaymentIssue(env, orderId, projectId) {
-    await ensureOverpaymentIssuesTable(env);
     const order = await env.DB.prepare(`
         SELECT id, project_id, total_amount, paid_amount
         FROM Orders
@@ -868,9 +811,17 @@ async function getErpConfig(env, projectId) {
         WHERE project_id = ?
     `).bind(projectId).first();
     if (!config) return null;
+    const decryptedCookie = await decryptSensitiveValue(config.session_cookie, env);
+    if (config.session_cookie && !isEncryptedSensitiveValue(config.session_cookie) && decryptedCookie) {
+        try {
+            await migrateLegacyErpSessionCookie(env, projectId, decryptedCookie);
+        } catch (migrationError) {
+            console.warn('ERP session cookie re-encryption skipped:', migrationError);
+        }
+    }
     return {
         ...config,
-        session_cookie: await decryptSensitiveValue(config.session_cookie, env)
+        session_cookie: decryptedCookie
     };
 }
 
@@ -999,11 +950,6 @@ export default {
       return errorResponse('系统未完成安全配置，请联系管理员', 500, corsHeaders);
     }
 
-    await Promise.all([
-      ensurePaymentsSoftDeleteColumns(env),
-      ensureExpensesSoftDeleteColumns(env)
-    ]);
-
     if (url.pathname !== '/api/login') {
       const authHeader = request.headers.get('Authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -1012,6 +958,28 @@ export default {
       const token = authHeader.split(' ')[1];
       try {
         currentUser = await verifyJWT(token, jwtSecret);
+        const currentStaffState = await getStaffAuthState(env, currentUser?.name);
+        if (!currentStaffState) {
+          return errorResponse('账号不存在或已被停用，请重新登录', 401, corsHeaders);
+        }
+        if (Number(currentUser?.token_index ?? 0) !== Number(currentStaffState?.token_index ?? 0)) {
+          return errorResponse('登录状态已失效，请重新登录', 401, corsHeaders);
+        }
+        currentUser = {
+          ...currentUser,
+          name: currentStaffState.name,
+          role: currentStaffState.role,
+          token_index: Number(currentStaffState.token_index || 0)
+        };
+        if (isSuperAdmin(currentUser) && !legacyErpSecretMigrationScheduled) {
+          legacyErpSecretMigrationScheduled = true;
+          ctx.waitUntil(
+            migrateAllLegacyErpSessionCookies(env).catch((migrationError) => {
+              console.warn('Background ERP secret migration failed:', migrationError);
+              legacyErpSecretMigrationScheduled = false;
+            })
+          );
+        }
       } catch (err) {
         return errorResponse('登录状态已失效，请重新登录', 401, corsHeaders);
       }
@@ -1052,7 +1020,6 @@ export default {
       if (url.pathname === '/api/login' && request.method === 'POST') {
         const { username, password } = await request.json();
         const loginContext = getLoginAttemptContext(request, username);
-        await ensureLoginAttemptsTable(env);
         const loginAttempt = await getLoginAttempt(env, loginContext.key);
         const lockedUntilMs = parseChinaDateTime(loginAttempt?.locked_until);
         if (lockedUntilMs && lockedUntilMs > Date.now()) {
@@ -1068,8 +1035,7 @@ export default {
           return errorResponse(`账号或密码错误，已连续失败 ${failure.failedCount} 次`, 401, corsHeaders);
         }
         await clearLoginAttempt(env, loginContext.key);
-        const exp = Math.floor(Date.now() / 1000) + (24 * 60 * 60);
-        const token = await signJWT({ name: user.name, role: user.role, exp }, jwtSecret);
+        const token = await signJWT(buildJwtPayloadForUser(user), jwtSecret);
         const mustChangePassword = await isDefaultPasswordHash(user.password);
         return new Response(JSON.stringify({
           user: {
@@ -1094,7 +1060,7 @@ export default {
         if (!oldPasswordMatches) return errorResponse('原密码错误', 400, corsHeaders);
         if (oldPass === newPass) return errorResponse('新密码不能与原密码相同', 400, corsHeaders);
         const hashedNew = await hashPassword(newPass);
-        await env.DB.prepare('UPDATE Staff SET password = ? WHERE name = ?').bind(hashedNew, currentUser.name).run();
+        await env.DB.prepare('UPDATE Staff SET password = ?, token_index = COALESCE(token_index, 0) + 1 WHERE name = ?').bind(hashedNew, currentUser.name).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -1121,8 +1087,6 @@ export default {
 
       if (url.pathname === '/api/staff') {
         if (request.method === 'GET') {
-          await ensureStaffDisplayOrderColumn(env);
-          await ensureStaffSalesRankingColumn(env);
           const results = await env.DB.prepare(`SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff ORDER BY ${STAFF_SORT_ORDER}`).all();
           return new Response(JSON.stringify(results.results), { headers: corsHeaders });
         } else if (request.method === 'POST') {
@@ -1130,12 +1094,10 @@ export default {
           if (denied) return denied;
           const { name, role } = await request.json();
           try {
-            await ensureStaffDisplayOrderColumn(env);
-            await ensureStaffSalesRankingColumn(env);
             const defaultHash = await hashPassword('123456');
             const maxOrderRow = await env.DB.prepare(`SELECT COALESCE(MAX(display_order), 0) AS maxOrder FROM Staff`).first();
             const nextOrder = Number(maxOrderRow?.maxOrder || 0) + 1;
-            await env.DB.prepare("INSERT INTO Staff (name, password, role, display_order, exclude_from_sales_ranking) VALUES (?, ?, ?, ?, 0)").bind(name, defaultHash, role, nextOrder).run();
+            await env.DB.prepare("INSERT INTO Staff (name, password, role, display_order, exclude_from_sales_ranking, token_index) VALUES (?, ?, ?, ?, 0, 0)").bind(name, defaultHash, role, nextOrder).run();
             return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
           } catch (e) {
             return errorResponse('添加失败，可能姓名已存在', 400, corsHeaders);
@@ -1148,6 +1110,10 @@ export default {
         if (denied) return denied;
         const { staffName } = await request.json();
         if (staffName === 'admin') return errorResponse('不能删除超级管理员', 400, corsHeaders);
+        const relatedOrderCount = await getOrderCountBySalesName(env, staffName);
+        if (relatedOrderCount > 0) {
+          return errorResponse(`该业务员名下仍有关联订单（${relatedOrderCount} 笔），请先转移或处理订单后再删除`, 400, corsHeaders);
+        }
         await env.DB.prepare('DELETE FROM Staff WHERE name = ?').bind(staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
@@ -1157,7 +1123,7 @@ export default {
         if (denied) return denied;
         const { staffName, role } = await request.json();
         if (staffName === 'admin') return errorResponse('不能修改超级管理员角色', 400, corsHeaders);
-        await env.DB.prepare('UPDATE Staff SET role = ? WHERE name = ?').bind(role, staffName).run();
+        await env.DB.prepare('UPDATE Staff SET role = ?, token_index = COALESCE(token_index, 0) + 1 WHERE name = ?').bind(role, staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -1172,7 +1138,6 @@ export default {
       if (url.pathname === '/api/update-staff-order' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        await ensureStaffDisplayOrderColumn(env);
         const { staffName, direction } = await request.json();
         if (!staffName || !['up', 'down'].includes(String(direction))) {
           return errorResponse('参数错误', 400, corsHeaders);
@@ -1204,7 +1169,6 @@ export default {
       if (url.pathname === '/api/update-staff-sales-ranking' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        await ensureStaffSalesRankingColumn(env);
         const { staffName, excludeFromSalesRanking } = await request.json();
         if (!staffName) return errorResponse('参数错误', 400, corsHeaders);
         await env.DB.prepare('UPDATE Staff SET exclude_from_sales_ranking = ? WHERE name = ?')
@@ -1220,7 +1184,7 @@ export default {
         const { staffName } = await request.json();
         if (staffName === 'admin') return errorResponse('不能重置超级管理员的密码', 400, corsHeaders);
         const defaultHash = await hashPassword('123456');
-        await env.DB.prepare('UPDATE Staff SET password = ? WHERE name = ?').bind(defaultHash, staffName).run();
+        await env.DB.prepare('UPDATE Staff SET password = ?, token_index = COALESCE(token_index, 0) + 1 WHERE name = ?').bind(defaultHash, staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -1579,6 +1543,12 @@ export default {
         } catch (e) {
           return errorResponse(e.message, 400, corsHeaders);
         }
+        const referencedBoothIds = await getReferencedBoothIds(env, projectId, normalizedBoothIds);
+        if (referencedBoothIds.length > 0) {
+          const previewText = referencedBoothIds.slice(0, 5).join('、');
+          const suffix = referencedBoothIds.length > 5 ? ' 等' : '';
+          return errorResponse(`以下展位已被历史订单引用，不能删除：${previewText}${suffix}`, 400, corsHeaders);
+        }
         const placeholders = normalizedBoothIds.map(() => '?').join(',');
         await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND id IN (${placeholders})`).bind(projectId, ...normalizedBoothIds).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
@@ -1596,7 +1566,6 @@ export default {
       }
 
       if (url.pathname === '/api/orders' && request.method === 'GET') {
-        await ensureOverpaymentIssuesTable(env);
         const urlObj = new URL(request.url);
         const pid = urlObj.searchParams.get('projectId');
         const selectedSales = currentUser.role === 'admin' ? urlObj.searchParams.get('salesName') : null;
@@ -1817,8 +1786,6 @@ export default {
           WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废')
         `).bind(pid).all()).results || [];
 
-        await ensureStaffDisplayOrderColumn(env);
-        await ensureStaffSalesRankingColumn(env);
         const staffRows = currentUser.role === 'admin'
           ? ((await env.DB.prepare(`SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff ORDER BY ${STAFF_SORT_ORDER}`).all()).results || [])
           : [await env.DB.prepare('SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff WHERE name = ?').bind(currentUser.name).first()].filter(Boolean);
@@ -1876,7 +1843,6 @@ export default {
           LEFT JOIN Orders o ON p.order_id = o.id
           WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL
         `).bind(pid).all()).results || [];
-        await ensureOrderBoothChangesTable(env);
         const scopedActiveOrderIds = new Set(scopedOrders.map((order) => String(order.id || '')).filter(Boolean));
         const globalActiveOrderIds = new Set(globalActiveOrders.map((order) => String(order.id || '')).filter(Boolean));
         const orderBoothChangeRows = globalActiveOrderIds.size > 0
@@ -2800,7 +2766,6 @@ export default {
 
       if (url.pathname === '/api/change-order-booth' && request.method === 'POST') {
         try {
-          await ensureOrderBoothChangesTable(env);
           const payload = await request.json();
           const orderId = Number(payload.order_id || 0);
           const projectId = Number(payload.project_id || 0);
@@ -3139,7 +3104,6 @@ export default {
       }
 
       if (url.pathname === '/api/resolve-overpayment' && request.method === 'POST') {
-        await ensureOverpaymentIssuesTable(env);
         try {
             const payload = await request.json();
             const orderId = Number(payload.order_id);
