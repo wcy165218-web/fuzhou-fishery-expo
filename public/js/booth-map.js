@@ -429,6 +429,29 @@ window.fitBoothMapCompanyLines = function(text, fontSize, maxWidth, maxLines = 2
     return output;
 }
 
+window.fitBoothMapCompanyBlock = function(text, fontSize, maxWidth, maxHeight, maxLines = 2, letterSpacingEm = 0) {
+    const safeWidth = Math.max(Number(maxWidth || 0), 18);
+    const safeHeight = Math.max(Number(maxHeight || 0), 12);
+    let nextFontSize = Math.max(Number(fontSize || 12), 1);
+    while (nextFontSize >= 1) {
+        const lines = window.fitBoothMapCompanyLines(text, nextFontSize, safeWidth, maxLines, letterSpacingEm);
+        const lineHeight = nextFontSize * 0.98;
+        if (lines.length * lineHeight <= safeHeight || nextFontSize <= 1) {
+            return {
+                lines,
+                fontSize: Number(nextFontSize.toFixed(2)),
+                lineHeight: Number(lineHeight.toFixed(2))
+            };
+        }
+        nextFontSize -= 1;
+    }
+    return {
+        lines: [],
+        fontSize: 1,
+        lineHeight: 0.98
+    };
+}
+
 window.getBoothMapRuntimeItem = function(boothCode) {
     const state = window.getBoothMapState();
     return state.runtimeByBoothCode[String(boothCode || '').trim().toUpperCase()] || null;
@@ -2451,6 +2474,13 @@ window.rotateSelectedBoothMapItem = function(delta) {
 window.deleteSelectedBoothMapItem = function() {
     const selectedItems = window.getSelectedBoothMapItems();
     if (selectedItems.length === 0) return;
+    const occupiedItems = selectedItems.filter((item) => Number(item.active_order_count || 0) > 0);
+    if (occupiedItems.length > 0) {
+        const previewText = occupiedItems.slice(0, 5).map((item) => item.booth_code || '未命名').join('、');
+        const suffix = occupiedItems.length > 5 ? ' 等' : '';
+        window.showToast(`以下展位已被订单占用，不能删除：${previewText}${suffix}`, 'error');
+        return;
+    }
     const confirmText = selectedItems.length === 1
         ? `确定删除展位 [${selectedItems[0].booth_code || '未命名'}] 吗？`
         : `确定删除已选中的 ${selectedItems.length} 个展位吗？`;
@@ -2567,7 +2597,7 @@ window.searchCurrentBoothMapItem = function() {
     window.showToast(`已定位到展位：${matchedItem.booth_code}`);
 }
 
-window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, mode = 'editor', map = null) {
+window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, mode = 'editor', map = null, clipPathId = '') {
     const paddingX = Math.max(2.5, Math.min(widthPx, heightPx) * 0.038);
     const paddingY = Math.max(2.5, Math.min(widthPx, heightPx) * 0.034);
     const edgeInsetX = Math.max(0.8, Math.min(widthPx, heightPx) * 0.012);
@@ -2605,17 +2635,19 @@ window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, m
     }
 
     if (companyConfig.visible && companyText) {
-        const availableWidth = Math.max(widthPx - paddingX * 1.45, 24);
-        const companyLines = window.fitBoothMapCompanyLines(companyText, companyConfig.fontSize, availableWidth, 2, companyLetterSpacing);
+        const availableWidth = Math.max(widthPx - paddingX * 1.8, 18);
+        const availableHeight = Math.max(heightPx - paddingY * 2.1, 12);
+        const companyBlock = window.fitBoothMapCompanyBlock(companyText, companyConfig.fontSize, availableWidth, availableHeight, 2, companyLetterSpacing);
+        const companyLines = companyBlock.lines;
         const baseX = paddingX + (widthPx - paddingX * 2) * companyConfig.anchorX;
         const baseY = paddingY + (heightPx - paddingY * 2) * companyConfig.anchorY;
         companyLines.forEach((line, index) => {
-            const lineOffset = (index - (companyLines.length - 1) / 2) * (companyConfig.fontSize * 0.98);
+            const lineOffset = (index - (companyLines.length - 1) / 2) * companyBlock.lineHeight;
             textMarkup.push(`
                 <text
                     x="${baseX.toFixed(2)}"
                     y="${(baseY + lineOffset).toFixed(2)}"
-                    font-size="${companyConfig.fontSize}"
+                    font-size="${companyBlock.fontSize}"
                     font-weight="700"
                     fill="#0f172a"
                     text-anchor="middle"
@@ -2647,7 +2679,9 @@ window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, m
         `);
     }
 
-    return textMarkup.join('');
+    if (!textMarkup.length) return '';
+    if (!clipPathId) return textMarkup.join('');
+    return `<g clip-path="url(#${clipPathId})">${textMarkup.join('')}</g>`;
 }
 
 window.renderBoothMapResizeHandles = function(widthPx, heightPx) {
@@ -2711,10 +2745,14 @@ window.renderBoothMapItem = function(item, mode = 'editor') {
     const selected = window.isBoothMapItemSelected(item.id);
     const centerX = widthPx / 2;
     const centerY = heightPx / 2;
-    const labelMarkup = window.renderBoothMapItemText(item, widthPx, heightPx, runtimeItem, mode);
     const baseStrokeWidth = window.getBoothMapStrokeWidth();
     const localPoints = window.getBoothMapLocalPoints(item, widthPx, heightPx);
     const pointsMarkup = window.getBoothMapPointsMarkup(localPoints);
+    const clipPathId = `booth-map-clip-${mode}-${String(item.id || item.booth_code || 'item').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    const clipMarkup = String(item.shape_type || 'rect') === 'rect'
+        ? `<clipPath id="${clipPathId}"><rect x="0" y="0" width="${widthPx}" height="${heightPx}"></rect></clipPath>`
+        : `<clipPath id="${clipPathId}"><polygon points="${pointsMarkup}"></polygon></clipPath>`;
+    const labelMarkup = window.renderBoothMapItemText(item, widthPx, heightPx, runtimeItem, mode, null, clipPathId);
     const shapeMarkup = String(item.shape_type || 'rect') === 'rect'
         ? `
             <rect
@@ -2745,6 +2783,7 @@ window.renderBoothMapItem = function(item, mode = 'editor') {
         : '';
     return `
         <g data-item-id="${window.escapeBoothMapText(item.id)}" transform="translate(${Number(item.x || 0)} ${Number(item.y || 0)}) rotate(${Number(item.rotation || 0)} ${centerX} ${centerY})">
+            <defs>${clipMarkup}</defs>
             ${shapeMarkup}
             ${labelMarkup}
             ${handleMarkup}

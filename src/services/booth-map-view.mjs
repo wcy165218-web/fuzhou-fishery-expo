@@ -194,6 +194,7 @@ export function normalizeBoothMapItemRecord(itemRow, scalePixelsPerMeter = 0) {
         stroke_width: Number(itemRow.stroke_width || 2),
         z_index: Number(itemRow.z_index || 0),
         hidden: Number(itemRow.hidden || 0),
+        active_order_count: Number(itemRow.active_order_count || 0),
         points_json: safeParseJson(itemRow.points_json, []),
         label_style: normalizeLabelStyle(itemRow.label_style_json, widthPx, heightPx)
     };
@@ -243,7 +244,14 @@ export async function getBoothMapDetail(env, projectId, mapId) {
       SELECT
         bmi.*,
         b.status AS booth_status,
-        b.source AS booth_source
+        b.source AS booth_source,
+        (
+          SELECT COUNT(*)
+          FROM Orders o
+          WHERE o.project_id = bmi.project_id
+            AND o.booth_id = bmi.booth_code
+            AND o.status = '正常'
+        ) AS active_order_count
       FROM BoothMapItems bmi
       LEFT JOIN Booths b ON b.project_id = bmi.project_id AND b.id = bmi.booth_code
       WHERE bmi.map_id = ? AND bmi.project_id = ?
