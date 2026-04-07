@@ -4,6 +4,7 @@ import { errorResponse } from '../utils/response.mjs';
 import { buildErpPreviewResult, getErpConfig, saveErpConfig } from '../services/erp.mjs';
 import { getOrderFieldSettings, saveOrderFieldSettings } from '../services/order-fields.mjs';
 import { refreshOrderOverpaymentIssue } from '../services/overpayment.mjs';
+import { syncBoothStatusByBoothId } from '../services/booth-sync.mjs';
 
 export async function handleConfigRoutes({
     request,
@@ -209,12 +210,8 @@ export async function handleConfigRoutes({
             WHERE project_id = ? AND paid_amount >= total_amount AND status NOT IN ('已退订', '已作废')
           `).bind(project_id).all()).results || [];
 
-            const boothStatements = fullyPaidOrders.map((order) =>
-                env.DB.prepare("UPDATE Booths SET status = '已成交' WHERE id = ? AND project_id = ?")
-                    .bind(order.booth_id, Number(project_id))
-            );
-            if (boothStatements.length > 0) {
-                await env.DB.batch(boothStatements);
+            for (const order of fullyPaidOrders) {
+                await syncBoothStatusByBoothId(env, Number(project_id), String(order.booth_id || ''));
             }
 
             for (const pair of affectedOrderPairs) {

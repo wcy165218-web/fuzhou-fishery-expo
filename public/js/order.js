@@ -3,6 +3,22 @@ window.currentAllocatedArea = 0; // 全局存储本次分配的展位面积
 window.selectedOrderBooths = [];
 window.orderNoBooth = false;
 window.orderFieldSettingsMap = window.orderFieldSettingsMap || {};
+window.orderBoothMapPicker = window.orderBoothMapPicker || {
+    maps: [],
+    currentMapId: 0,
+    currentMap: null,
+    runtimeItems: [],
+    tempSelectedBooths: [],
+    viewBox: { x: 0, y: 0, width: 1600, height: 900 },
+    pointerMode: '',
+    pointerStartClient: null,
+    pointerStartViewBox: null,
+    pointerDownBoothCode: '',
+    dragMoved: false,
+    focusedBoothCode: '',
+    initialized: false
+};
+window.orderBoothMapPointerUpHandler = window.orderBoothMapPointerUpHandler || (() => window.onOrderBoothMapPointerUp());
 
 window.formatOrderMoney = function(value) {
     if (window.formatCurrency) return window.formatCurrency(Number(value || 0));
@@ -67,6 +83,495 @@ window.applyOrderFieldSettings = function() {
     window.refreshOrderOverview();
 };
 
+window.countDisplayNameUnits = function(value) {
+    return Array.from(String(value || '')).reduce((total, char) => total + (/[\u0000-\u00ff]/.test(char) ? 1 : 2), 0);
+}
+
+window.updateBoothDisplayNameCounter = function(kind) {
+    const input = document.getElementById(kind === 'standard' ? 'order-standard-display-name' : 'order-ground-display-name');
+    const counter = document.getElementById(kind === 'standard' ? 'order-standard-display-name-count' : 'order-ground-display-name-count');
+    if (!input || !counter) return;
+    const maxUnits = kind === 'standard' ? 8 : 24;
+    const usedUnits = window.countDisplayNameUnits(input.value);
+    const overLimit = usedUnits > maxUnits;
+    counter.innerText = `${usedUnits} / ${maxUnits} 单位`;
+    counter.className = `font-bold ${overLimit ? 'text-rose-600' : 'text-slate-500'}`;
+    input.classList.toggle('border-rose-400', overLimit);
+    input.classList.toggle('bg-rose-50', overLimit);
+}
+
+window.handleBoothDisplayNameInput = function(kind) {
+    window.updateBoothDisplayNameCounter(kind);
+    window.refreshOrderOverview();
+}
+
+window.updateBoothDisplayNamePanel = function() {
+    const wrap = document.getElementById('order-booth-display-name-block');
+    const standardWrap = document.getElementById('order-standard-display-name-wrap');
+    const groundWrap = document.getElementById('order-ground-display-name-wrap');
+    if (!wrap || !standardWrap || !groundWrap) return;
+
+    const selectedBooths = Array.isArray(window.selectedOrderBooths) ? window.selectedOrderBooths : [];
+    const hasStandardBooth = selectedBooths.some((item) => ['标摊', '豪标'].includes(String(item.type || '').trim()));
+    const hasGroundBooth = selectedBooths.some((item) => String(item.type || '').trim() === '光地');
+    const shouldShow = !window.orderNoBooth && selectedBooths.length > 0 && (hasStandardBooth || hasGroundBooth);
+
+    wrap.classList.toggle('hidden', !shouldShow);
+    standardWrap.classList.toggle('hidden', !hasStandardBooth || !shouldShow);
+    groundWrap.classList.toggle('hidden', !hasGroundBooth || !shouldShow);
+
+    if (!hasStandardBooth) {
+        const input = document.getElementById('order-standard-display-name');
+        if (input) input.value = '';
+    }
+    if (!hasGroundBooth) {
+        const input = document.getElementById('order-ground-display-name');
+        if (input) input.value = '';
+    }
+
+    window.updateBoothDisplayNameCounter('standard');
+    window.updateBoothDisplayNameCounter('ground');
+}
+
+window.getOrderBoothMapPickerState = function() {
+    return window.orderBoothMapPicker;
+}
+
+window.ensureOrderBoothMapPickerInitialized = function() {
+    const state = window.getOrderBoothMapPickerState();
+    if (state.initialized) return;
+    const svg = document.getElementById('order-booth-map-svg');
+    if (!svg) return;
+    svg.addEventListener('pointerdown', (event) => window.onOrderBoothMapPointerDown(event));
+    svg.addEventListener('pointermove', (event) => window.onOrderBoothMapPointerMove(event));
+    svg.addEventListener('wheel', (event) => window.onOrderBoothMapWheel(event), { passive: false });
+    window.addEventListener('pointerup', window.orderBoothMapPointerUpHandler);
+    state.initialized = true;
+}
+
+window.getOrderBoothMapSvgPoint = function(event) {
+    const svg = document.getElementById('order-booth-map-svg');
+    if (window.getBoothMapSvgPointFromElement) {
+        return window.getBoothMapSvgPointFromElement(svg, event);
+    }
+    if (!svg) return { x: 0, y: 0 };
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const transformed = point.matrixTransform(ctm.inverse());
+    return {
+        x: Number(transformed.x.toFixed(2)),
+        y: Number(transformed.y.toFixed(2))
+    };
+}
+
+window.clampOrderBoothMapViewBox = function(viewBox, map) {
+    const width = Number(map?.canvas_width || 1600);
+    const height = Number(map?.canvas_height || 900);
+    const safeWidth = Math.min(Math.max(Number(viewBox?.width || width), 180), width * 4);
+    const safeHeight = Math.min(Math.max(Number(viewBox?.height || height), 120), height * 4);
+    const minX = Math.min(0, width - safeWidth);
+    const minY = Math.min(0, height - safeHeight);
+    return {
+        x: Number(Math.min(Math.max(Number(viewBox?.x || 0), minX), width).toFixed(2)),
+        y: Number(Math.min(Math.max(Number(viewBox?.y || 0), minY), height).toFixed(2)),
+        width: Number(safeWidth.toFixed(2)),
+        height: Number(safeHeight.toFixed(2))
+    };
+}
+
+window.applyOrderBoothMapViewBox = function() {
+    const state = window.getOrderBoothMapPickerState();
+    const svg = document.getElementById('order-booth-map-svg');
+    if (!svg || !state.currentMap) return;
+    state.viewBox = window.clampOrderBoothMapViewBox(state.viewBox, state.currentMap);
+    svg.setAttribute('viewBox', `${state.viewBox.x} ${state.viewBox.y} ${state.viewBox.width} ${state.viewBox.height}`);
+}
+
+window.cloneOrderBoothSelectionList = function(items = []) {
+    return JSON.parse(JSON.stringify(Array.isArray(items) ? items : []));
+}
+
+window.getOrderBoothMapSize = function(map) {
+    return {
+        width: Number(map?.canvas_width || 1600),
+        height: Number(map?.canvas_height || 900)
+    };
+}
+
+window.getOrderBoothMapScale = function(map) {
+    const normalized = Number(map?.scale_pixels_per_meter || 0);
+    return normalized > 0 ? normalized : 40;
+}
+
+window.getOrderBoothMapItemSizePx = function(item, map) {
+    const scale = window.getOrderBoothMapScale(map);
+    return {
+        widthPx: Number((Number(item?.width_m || 0) * scale).toFixed(2)),
+        heightPx: Number((Number(item?.height_m || 0) * scale).toFixed(2))
+    };
+}
+
+window.focusOrderBoothMapItem = function(runtimeItem) {
+    const state = window.getOrderBoothMapPickerState();
+    if (!runtimeItem || !state.currentMap) return;
+    const { widthPx, heightPx } = window.getOrderBoothMapItemSizePx(runtimeItem, state.currentMap);
+    const centerX = Number(runtimeItem.x || 0) + widthPx / 2;
+    const centerY = Number(runtimeItem.y || 0) + heightPx / 2;
+    state.viewBox = window.clampOrderBoothMapViewBox({
+        x: Number((centerX - state.viewBox.width / 2).toFixed(2)),
+        y: Number((centerY - state.viewBox.height / 2).toFixed(2)),
+        width: state.viewBox.width,
+        height: state.viewBox.height
+    }, state.currentMap);
+}
+
+window.searchOrderBoothMapBooth = function() {
+    const state = window.getOrderBoothMapPickerState();
+    if (!state.currentMap) return window.showToast('请先选择一张画布', 'error');
+    const keyword = String(document.getElementById('order-booth-map-search')?.value || '').trim().toUpperCase();
+    if (!keyword) return window.showToast('请输入要搜索的展位号', 'error');
+    const exactItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === keyword);
+    const fuzzyItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase().includes(keyword));
+    const matchedItem = exactItem || fuzzyItem;
+    if (!matchedItem) return window.showToast(`当前画布未找到展位：${keyword}`, 'error');
+    state.focusedBoothCode = String(matchedItem.booth_code || '').trim().toUpperCase();
+    window.focusOrderBoothMapItem(matchedItem);
+    window.renderOrderBoothMapSvg();
+    window.showToast(`已定位到展位：${matchedItem.booth_code}`);
+}
+
+window.getOrderBoothMapSourceBooth = function(runtimeItem) {
+    const boothCode = String(runtimeItem?.booth_code || '').trim().toUpperCase();
+    const matched = (Array.isArray(allBooths) ? allBooths : []).find((item) => String(item.id || '').trim().toUpperCase() === boothCode);
+    if (matched) return matched;
+    return {
+        id: boothCode,
+        hall: runtimeItem?.hall || '',
+        type: runtimeItem?.booth_type || runtimeItem?.type || '标摊',
+        area: Number(runtimeItem?.area || 0),
+        base_price: 0,
+        status: runtimeItem?.status_label || ''
+    };
+}
+
+window.buildOrderBoothSelection = function(runtimeItem, allocatedArea, isJoint = false) {
+    const sourceBooth = window.getOrderBoothMapSourceBooth(runtimeItem);
+    const normalizedArea = Number((Number(allocatedArea || 0)).toFixed(2));
+    const boothPricing = window.calculateBoothStandardFee(sourceBooth, normalizedArea);
+    return {
+        id: sourceBooth.id,
+        hall: sourceBooth.hall,
+        type: sourceBooth.type,
+        area: normalizedArea,
+        unit_price: boothPricing.priceUnit,
+        unit_label: sourceBooth.type === '光地' ? `¥${boothPricing.priceUnit} /平米` : `¥${boothPricing.priceUnit} /个(9㎡)`,
+        standard_fee: boothPricing.standardFee,
+        price_unit: sourceBooth.type === '光地' ? '平米' : '个',
+        is_joint: isJoint ? 1 : 0
+    };
+}
+
+window.populateOrderBoothMapSelectOptions = function() {
+    const state = window.getOrderBoothMapPickerState();
+    const selectEl = document.getElementById('order-booth-map-select');
+    if (!selectEl) return;
+    const options = ['<option value="">请选择画布</option>'];
+    (state.maps || []).forEach((map) => {
+        options.push(`<option value="${Number(map.id)}" ${Number(map.id) === Number(state.currentMapId) ? 'selected' : ''}>${window.escapeHtml(map.name || '')}</option>`);
+    });
+    selectEl.innerHTML = options.join('');
+}
+
+window.renderOrderBoothMapSelectedList = function() {
+    const state = window.getOrderBoothMapPickerState();
+    const listEl = document.getElementById('order-booth-map-selected-list');
+    const countEl = document.getElementById('order-booth-map-selected-count');
+    if (countEl) countEl.innerText = `暂选 ${state.tempSelectedBooths.length} 个`;
+    if (!listEl) return;
+    if (!state.tempSelectedBooths.length) {
+        listEl.innerHTML = '<span class="text-xs text-slate-400 italic">暂未选择展位</span>';
+        return;
+    }
+    listEl.innerHTML = state.tempSelectedBooths.map((item) => `
+        <div class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-slate-700">
+            <span>${window.escapeHtml(item.hall || '')} - ${window.escapeHtml(item.id || '')}</span>
+            <span class="tabular-data text-slate-400">${Number(item.area || 0).toLocaleString()}㎡</span>
+            <button type="button" onclick="window.removeTempOrderBoothSelection('${String(item.id).replace(/'/g, "\\'")}')" class="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="移除展位">
+                ${window.renderIcon('close', 'h-3.5 w-3.5', 2.2)}
+            </button>
+        </div>
+    `).join('');
+}
+
+window.renderOrderBoothMapSvg = function() {
+    const state = window.getOrderBoothMapPickerState();
+    const svg = document.getElementById('order-booth-map-svg');
+    const emptyEl = document.getElementById('order-booth-map-empty-state');
+    const titleEl = document.getElementById('order-booth-map-title');
+    const tipEl = document.getElementById('order-booth-map-tip');
+    if (!svg) return;
+    const map = state.currentMap;
+    if (!map) {
+        svg.innerHTML = '';
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (titleEl) titleEl.innerText = '未选择画布';
+        if (tipEl) tipEl.innerText = '先选择一张已保存的展位图，再从右侧画布中点选展位。';
+        window.renderOrderBoothMapSelectedList();
+        return;
+    }
+
+    const { width, height } = window.getOrderBoothMapSize(map);
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (titleEl) titleEl.innerText = map.name || '未命名画布';
+    if (tipEl) tipEl.innerText = state.runtimeItems.length ? '点击右侧展位即可加入或移出本次订单。' : '当前画布暂未保存展位。';
+    const selectedIds = new Set((state.tempSelectedBooths || []).map((item) => String(item.id || '').trim().toUpperCase()));
+    const focusedBoothCode = String(state.focusedBoothCode || '').trim().toUpperCase();
+    const backgroundHref = window.getAuthorizedAssetUrl(
+        map.background_image_key ? `/api/booth-map-asset/${encodeURIComponent(map.background_image_key)}?mapId=${Number(map.id)}` : '',
+        () => window.renderOrderBoothMapSvg()
+    );
+    const backgroundRect = window.getBoothMapRenderedBackgroundRect
+        ? window.getBoothMapRenderedBackgroundRect(map)
+        : { x: 0, y: 0, width, height };
+    svg.innerHTML = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"></rect>
+        ${backgroundHref ? `<image href="${backgroundHref}" x="${backgroundRect.x}" y="${backgroundRect.y}" width="${backgroundRect.width}" height="${backgroundRect.height}" preserveAspectRatio="none" opacity="0.96"></image>` : ''}
+        ${(state.runtimeItems || []).map((item) => {
+            const { widthPx, heightPx } = window.getOrderBoothMapItemSizePx(item, map);
+            const points = window.getBoothMapLocalPoints ? window.getBoothMapLocalPoints(item, widthPx, heightPx) : [
+                { x: 0, y: 0 },
+                { x: widthPx, y: 0 },
+                { x: widthPx, y: heightPx },
+                { x: 0, y: heightPx }
+            ];
+            const pointsMarkup = window.getBoothMapPointsMarkup ? window.getBoothMapPointsMarkup(points) : points.map((point) => `${point.x},${point.y}`).join(' ');
+            const selected = selectedIds.has(String(item.booth_code || '').trim().toUpperCase());
+            const focused = focusedBoothCode && focusedBoothCode === String(item.booth_code || '').trim().toUpperCase();
+            const fillColor = item.fill_color || '#ffffff';
+            const strokeColor = selected ? '#2563eb' : (focused ? '#ea580c' : (item.stroke_color || '#0f172a'));
+            const labelMarkup = window.renderBoothMapItemText
+                ? window.renderBoothMapItemText(item, widthPx, heightPx, item, 'preview', map)
+                : '';
+            const shapeMarkup = String(item.shape_type || 'rect') === 'rect'
+                ? `<rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${fillColor}" fill-opacity="0.86" stroke="${strokeColor}" stroke-width="${selected ? 4 : (focused ? 4 : 2.2)}"></rect>`
+                : `<polygon points="${pointsMarkup}" fill="${fillColor}" fill-opacity="0.86" stroke="${strokeColor}" stroke-width="${selected ? 4 : (focused ? 4 : 2.2)}" stroke-linejoin="round"></polygon>`;
+            return `
+                <g data-booth-code="${window.escapeHtml(item.booth_code || '')}" transform="translate(${Number(item.x || 0)} ${Number(item.y || 0)})" style="cursor:pointer">
+                    ${shapeMarkup}
+                    ${labelMarkup}
+                </g>
+            `;
+        }).join('')}
+    `;
+    window.applyOrderBoothMapViewBox();
+    window.renderOrderBoothMapSelectedList();
+}
+
+window.loadOrderBoothMapPickerMaps = async function(preferredMapId = 0) {
+    const projectId = Number(document.getElementById('global-project-select')?.value || 0);
+    if (!projectId) return window.showToast('请先选择项目', 'error');
+    const state = window.getOrderBoothMapPickerState();
+    const res = await window.apiFetch(`/api/booth-maps?projectId=${projectId}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || '加载展位图失败');
+    state.maps = Array.isArray(data.items) ? data.items : [];
+    window.populateOrderBoothMapSelectOptions();
+    const targetMap = state.maps.find((map) => Number(map.id) === Number(preferredMapId || 0)) || state.maps[0] || null;
+    if (targetMap) {
+        await window.selectOrderBoothMapForPicker(targetMap.id);
+    } else {
+        state.currentMapId = 0;
+        state.currentMap = null;
+        state.runtimeItems = [];
+        state.focusedBoothCode = '';
+        window.renderOrderBoothMapSvg();
+    }
+}
+
+window.selectOrderBoothMapForPicker = async function(mapId) {
+    const projectId = Number(document.getElementById('global-project-select')?.value || 0);
+    const state = window.getOrderBoothMapPickerState();
+    if (!projectId || !mapId) {
+        state.currentMapId = 0;
+        state.currentMap = null;
+        state.runtimeItems = [];
+        state.focusedBoothCode = '';
+        window.populateOrderBoothMapSelectOptions();
+        window.renderOrderBoothMapSvg();
+        return;
+    }
+    const res = await window.apiFetch(`/api/booth-map-runtime-view?id=${Number(mapId)}&projectId=${projectId}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || '加载展位图失败');
+    state.currentMapId = Number(mapId);
+    state.currentMap = data.map || null;
+    state.runtimeItems = Array.isArray(data.items) ? data.items : [];
+    state.focusedBoothCode = '';
+    state.viewBox = {
+        x: 0,
+        y: 0,
+        width: Number(state.currentMap?.canvas_width || 1600),
+        height: Number(state.currentMap?.canvas_height || 900)
+    };
+    window.populateOrderBoothMapSelectOptions();
+    window.renderOrderBoothMapSvg();
+}
+
+window.handleOrderBoothMapSelectChange = async function(mapId) {
+    try {
+        await window.selectOrderBoothMapForPicker(Number(mapId || 0));
+    } catch (error) {
+        window.showToast(error.message, 'error');
+    }
+}
+
+window.openOrderBoothMapPicker = async function() {
+    if (window.orderNoBooth) return window.showToast('当前已选择无展位订单，请先取消后再选择展位', 'error');
+    const projectId = Number(document.getElementById('global-project-select')?.value || 0);
+    if (!projectId) return window.showToast('请先选择项目', 'error');
+    window.ensureOrderBoothMapPickerInitialized();
+    const state = window.getOrderBoothMapPickerState();
+    state.tempSelectedBooths = window.cloneOrderBoothSelectionList(window.selectedOrderBooths);
+    try {
+        const preferredBoothId = String(state.tempSelectedBooths[0]?.id || '').trim().toUpperCase();
+        const preferredMapId = preferredBoothId
+            ? Number((Array.isArray(allBooths) ? allBooths : []).find((item) => String(item.id || '').trim().toUpperCase() === preferredBoothId)?.booth_map_id || 0)
+            : 0;
+        await window.loadOrderBoothMapPickerMaps(preferredMapId);
+        document.getElementById('order-booth-map-modal')?.classList.remove('hidden');
+    } catch (error) {
+        window.showToast(error.message, 'error');
+    }
+}
+
+window.closeOrderBoothMapPicker = function() {
+    const state = window.getOrderBoothMapPickerState();
+    state.focusedBoothCode = '';
+    state.pointerMode = '';
+    state.pointerStartClient = null;
+    state.pointerStartViewBox = null;
+    state.pointerDownBoothCode = '';
+    state.dragMoved = false;
+    const searchEl = document.getElementById('order-booth-map-search');
+    if (searchEl) searchEl.value = '';
+    document.getElementById('order-booth-map-modal')?.classList.add('hidden');
+}
+
+window.removeTempOrderBoothSelection = function(boothId) {
+    const state = window.getOrderBoothMapPickerState();
+    state.tempSelectedBooths = (state.tempSelectedBooths || []).filter((item) => String(item.id) !== String(boothId));
+    window.renderOrderBoothMapSvg();
+}
+
+window.clearOrderBoothMapTempSelection = function() {
+    const state = window.getOrderBoothMapPickerState();
+    state.tempSelectedBooths = [];
+    window.renderOrderBoothMapSvg();
+}
+
+window.toggleOrderBoothMapSelectionByCode = function(boothCode) {
+    const state = window.getOrderBoothMapPickerState();
+    const runtimeItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === boothCode);
+    if (!runtimeItem) return;
+
+    const existingIndex = (state.tempSelectedBooths || []).findIndex((item) => String(item.id || '').trim().toUpperCase() === boothCode);
+    if (existingIndex >= 0) {
+        state.tempSelectedBooths.splice(existingIndex, 1);
+        state.focusedBoothCode = boothCode;
+        window.renderOrderBoothMapSvg();
+        return;
+    }
+
+    if (runtimeItem.status_code === 'locked') {
+        return window.showToast(`展位 [${boothCode}] 已锁定，当前不可选择`, 'error');
+    }
+
+    const totalArea = Number(runtimeItem.area || 0);
+    let allocatedArea = totalArea;
+    let isJoint = false;
+    if (['reserved', 'deposit', 'full_paid'].includes(String(runtimeItem.status_code || ''))) {
+        const areaInput = prompt(`【联合参展提醒】\n\n展位 [${boothCode}] 当前已有企业入驻。\n\n请输入分配给【新企业】的展位面积（㎡）：\n(原总面积 ${totalArea}㎡，提交后系统将自动从原企业订单中扣除该面积)`, String(totalArea || 9));
+        if (areaInput === null) return;
+        allocatedArea = parseFloat(areaInput);
+        if (Number.isNaN(allocatedArea) || allocatedArea < 0 || allocatedArea >= totalArea) {
+            return window.showToast('输入的面积无效或大于等于总面积，已取消录入', 'error');
+        }
+        isJoint = true;
+    }
+
+    state.tempSelectedBooths.push(window.buildOrderBoothSelection(runtimeItem, allocatedArea, isJoint));
+    state.focusedBoothCode = boothCode;
+    window.renderOrderBoothMapSvg();
+    if (isJoint) {
+        window.showToast(`已加入联合参展：${boothCode}，本单面积 ${allocatedArea}㎡`, 'info');
+    } else {
+        window.showToast(`已暂选展位：${boothCode}`);
+    }
+}
+
+window.onOrderBoothMapPointerDown = function(event) {
+    const state = window.getOrderBoothMapPickerState();
+    const svg = document.getElementById('order-booth-map-svg');
+    if (!svg || !state.currentMap) return;
+    state.pointerMode = 'pan';
+    state.pointerStartClient = { x: event.clientX, y: event.clientY };
+    state.pointerStartViewBox = { ...state.viewBox };
+    state.pointerDownBoothCode = String(event.target.closest('[data-booth-code]')?.getAttribute('data-booth-code') || '').trim().toUpperCase();
+    state.dragMoved = false;
+}
+
+window.onOrderBoothMapPointerMove = function(event) {
+    const state = window.getOrderBoothMapPickerState();
+    const svg = document.getElementById('order-booth-map-svg');
+    if (!svg || !state.currentMap || state.pointerMode !== 'pan' || !state.pointerStartClient || !state.pointerStartViewBox) return;
+    const dx = (event.clientX - state.pointerStartClient.x) * (state.pointerStartViewBox.width / Math.max(svg.clientWidth, 1));
+    const dy = (event.clientY - state.pointerStartClient.y) * (state.pointerStartViewBox.height / Math.max(svg.clientHeight, 1));
+    state.viewBox.x = Number((state.pointerStartViewBox.x - dx).toFixed(2));
+    state.viewBox.y = Number((state.pointerStartViewBox.y - dy).toFixed(2));
+    state.dragMoved = state.dragMoved || Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5;
+    window.applyOrderBoothMapViewBox();
+}
+
+window.onOrderBoothMapPointerUp = function() {
+    const state = window.getOrderBoothMapPickerState();
+    const shouldToggle = !!state.pointerDownBoothCode && !state.dragMoved;
+    const boothCode = state.pointerDownBoothCode;
+    state.pointerMode = '';
+    state.pointerStartClient = null;
+    state.pointerStartViewBox = null;
+    state.pointerDownBoothCode = '';
+    state.dragMoved = false;
+    if (shouldToggle) {
+        window.toggleOrderBoothMapSelectionByCode(boothCode);
+    }
+}
+
+window.onOrderBoothMapWheel = function(event) {
+    const state = window.getOrderBoothMapPickerState();
+    if (!state.currentMap) return;
+    event.preventDefault();
+    const pointer = window.getOrderBoothMapSvgPoint(event);
+    const zoomFactor = event.deltaY < 0 ? 0.88 : 1.14;
+    const nextWidth = Math.min(Math.max(state.viewBox.width * zoomFactor, 180), Number(state.currentMap.canvas_width || 1600) * 4);
+    const nextHeight = Math.min(Math.max(state.viewBox.height * zoomFactor, 120), Number(state.currentMap.canvas_height || 900) * 4);
+    state.viewBox.x = pointer.x - ((pointer.x - state.viewBox.x) * (nextWidth / state.viewBox.width));
+    state.viewBox.y = pointer.y - ((pointer.y - state.viewBox.y) * (nextHeight / state.viewBox.height));
+    state.viewBox.width = Number(nextWidth.toFixed(2));
+    state.viewBox.height = Number(nextHeight.toFixed(2));
+    window.applyOrderBoothMapViewBox();
+}
+
+window.confirmOrderBoothMapSelection = function() {
+    const state = window.getOrderBoothMapPickerState();
+    window.selectedOrderBooths = window.cloneOrderBoothSelectionList(state.tempSelectedBooths);
+    window.currentAllocatedArea = window.selectedOrderBooths.reduce((sum, item) => sum + Number(item.area || 0), 0);
+    window.renderSelectedBooths();
+    window.closeOrderBoothMapPicker();
+}
+
 window.calculateBoothStandardFee = function(booth, allocatedArea) {
     const priceUnit = booth.base_price > 0 ? booth.base_price : (globalPrices[booth.type] || 0);
     const standardFee = booth.type === '光地'
@@ -83,14 +588,12 @@ window.toggleNoBoothOrder = function(checked) {
     const pickerWrap = document.getElementById('order-booth-picker-wrap');
     const noBoothHint = document.getElementById('order-no-booth-hint');
     const selectedBoothPanel = document.getElementById('selected-booth-panel');
-    const boothSearchInput = document.getElementById('booth-search-inp');
     const actualFeeInput = document.getElementById('order-actual-fee');
     const actualFeeHelp = document.getElementById('order-actual-fee-help');
     if (window.orderNoBooth) {
         window.selectedOrderBooths = [];
         window.currentAllocatedArea = 0;
         currentStandardFee = 0;
-        if (boothSearchInput) boothSearchInput.value = '';
         if (actualFeeInput) {
             actualFeeInput.value = 0;
             actualFeeInput.readOnly = true;
@@ -108,6 +611,7 @@ window.toggleNoBoothOrder = function(checked) {
     pickerWrap?.classList.toggle('hidden', window.orderNoBooth);
     noBoothHint?.classList.toggle('hidden', !window.orderNoBooth);
     selectedBoothPanel?.classList.toggle('hidden', window.orderNoBooth);
+    window.updateBoothDisplayNamePanel();
     window.renderSelectedBooths();
     window.calculateFinalTotal();
     window.refreshOrderOverview();
@@ -122,6 +626,7 @@ window.renderSelectedBooths = function() {
     if (!Array.isArray(window.selectedOrderBooths)) window.selectedOrderBooths = [];
     selectedIdsInput.value = window.orderNoBooth ? '' : window.selectedOrderBooths.map((item) => item.id).join(',');
     countBadge.innerText = window.orderNoBooth ? '无展位订单' : `${window.selectedOrderBooths.length} 个`;
+    window.updateBoothDisplayNamePanel();
 
     if (window.orderNoBooth) {
         list.innerHTML = '<span class="text-xs text-slate-500 font-bold">当前为无展位订单，可直接录入其他应收款生成订单</span>';
@@ -153,7 +658,7 @@ window.renderSelectedBooths = function() {
 
     list.innerHTML = window.selectedOrderBooths.map((item) => `
         <div class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
-            <span>${window.escapeHtml ? window.escapeHtml(item.hall) : item.hall} - ${window.escapeHtml ? window.escapeHtml(item.id) : item.id}</span>
+            <span>${window.escapeHtml(item.hall || '')} - ${window.escapeHtml(item.id || '')}</span>
             <span class="tabular-data text-slate-400">${Number(item.area || 0).toLocaleString()}㎡</span>
             <button type="button" onclick="window.removeSelectedBooth('${String(item.id).replace(/'/g, "\\'")}')" class="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="移除展位">
                 ${window.renderIcon('close', 'h-3.5 w-3.5', 2.2)}
@@ -200,7 +705,7 @@ window.initOrderForm = async function() {
 }
 
 window.resetOrderForm = function() {
-    const inputs = ['order-company', 'order-credit-code', 'order-category', 'order-business', 'order-contact', 'order-phone', 'order-agent-name', 'order-actual-fee', 'booth-search-inp', 'order-discount-reason', 'order-contract', 'reg-intl', 'reg-city-inp', 'selected-booth-id', 'order-profile'];
+    const inputs = ['order-company', 'order-credit-code', 'order-category', 'order-business', 'order-contact', 'order-phone', 'order-agent-name', 'order-actual-fee', 'order-discount-reason', 'order-contract', 'reg-intl', 'reg-city-inp', 'selected-booth-id', 'order-profile', 'order-standard-display-name', 'order-ground-display-name'];
     inputs.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     
     document.getElementById('reg-prov').value = ''; 
@@ -235,6 +740,8 @@ window.resetOrderForm = function() {
     window.renderDynamicFees();
     window.toggleNoBoothOrder(false);
     window.renderSelectedBooths();
+    window.updateBoothDisplayNamePanel();
+    window.closeOrderBoothMapPicker?.();
     window.applyOrderFieldSettings?.();
     window.refreshOrderOverview();
 }
@@ -272,37 +779,41 @@ window.onCityChange = function() {
 }
 
 window.searchAndSelectBooth = function() {
+    const boothInput = document.getElementById('booth-search-inp');
+    if (!boothInput) {
+        return window.openOrderBoothMapPicker();
+    }
     if (window.orderNoBooth) return window.showToast("当前已选择无展位订单，请先取消后再搜索展位", 'error');
-    const inp = document.getElementById('booth-search-inp').value.trim().toUpperCase(); 
+    const inp = boothInput.value.trim().toUpperCase();
     if(!inp) return window.showToast("请先输入展位号！", 'error');
     
     const booth = allBooths.find(b => b.id.toUpperCase() === inp); 
     if(!booth) return window.showToast(`未找到展位：${inp}`, 'error');
     if ((window.selectedOrderBooths || []).some((item) => String(item.id) === String(booth.id))) {
-        document.getElementById('booth-search-inp').value = '';
+        boothInput.value = '';
         return window.showToast(`展位 [${inp}] 已经在当前订单选择列表中`, 'info');
     }
     
     if(booth.status === '已锁定') { 
-        document.getElementById('booth-search-inp').value = ''; 
+        boothInput.value = '';
         return window.showToast(`展位 [${inp}] 已被他人临时锁定，暂不可操作！`, 'error'); 
     }
     
     let allocatedArea = booth.area;
 
     // 【核心修复】：联合参展面积分配逻辑
-    if(booth.status === '已预订' || booth.status === '已成交') {
+    if (['已预定', '已付定金', '已付全款'].includes(String(booth.status || ''))) {
         const areaInput = prompt(`【联合参展提醒】\n\n展位 [${booth.id}] 已有企业入驻。\n\n请输入分配给【新企业】的展位面积（㎡）：\n(原总面积 ${booth.area}㎡，提交后系统将自动从原企业订单中扣除该面积)`, "9");
         
         if(areaInput === null) { 
-            document.getElementById('booth-search-inp').value = ''; 
+            boothInput.value = '';
             return; 
         }
         
         allocatedArea = parseFloat(areaInput);
         if(isNaN(allocatedArea) || allocatedArea < 0 || allocatedArea >= booth.area) {
             window.showToast("输入的面积无效或大于等于总面积，已取消录入", "error");
-            document.getElementById('booth-search-inp').value = ''; 
+            boothInput.value = '';
             return;
         }
 
@@ -330,7 +841,7 @@ window.searchAndSelectBooth = function() {
         is_joint: isJointExhibition ? 1 : 0
     });
     window.renderSelectedBooths();
-    document.getElementById('booth-search-inp').value = '';
+    boothInput.value = '';
     
     if(!isJointExhibition) window.showToast(`已加入展位：${booth.id}`);
 }
@@ -481,13 +992,13 @@ window.calculateFinalTotal = function() {
         if (actualFeeInput) actualFeeInput.value = 0;
     }
     const dynamicStrategyDiv = document.getElementById('dynamic-strategy-display'); 
-    const boothId = document.getElementById('selected-booth-id').value;
+    const singleSelectedBooth = selectedBooths.length === 1 ? selectedBooths[0] : null;
     
-    if(!shouldForceZeroBoothFee && boothId && !isNaN(actualBoothFee)) {
-        const booth = allBooths.find(b => b.id === boothId);
-        if(booth && window.currentAllocatedArea > 0) { 
+    if(!shouldForceZeroBoothFee && singleSelectedBooth && !isNaN(actualBoothFee)) {
+        const booth = allBooths.find(b => b.id === singleSelectedBooth.id);
+        if(booth && Number(singleSelectedBooth.area || 0) > 0) {
             // 按照分配的面积反推单价
-            let actualUnit = booth.type === '光地' ? actualBoothFee / window.currentAllocatedArea : actualBoothFee / (window.currentAllocatedArea / 9); 
+            let actualUnit = booth.type === '光地' ? actualBoothFee / Number(singleSelectedBooth.area || 0) : actualBoothFee / (Number(singleSelectedBooth.area || 0) / 9);
             dynamicStrategyDiv.innerText = `(反推实际单价：¥ ${actualUnit.toFixed(2)} /${booth.type === '光地'?'㎡':'个'})`; 
             dynamicStrategyDiv.classList.remove('hidden'); 
         }
@@ -588,8 +1099,8 @@ window.refreshOrderOverview = function() {
         feeListEl.innerHTML = feeItems.map((fee) => `
             <div class="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
                 <div class="min-w-0">
-                    <div class="text-xs font-bold text-slate-700 break-words">${window.escapeHtml ? window.escapeHtml(fee.name) : fee.name}</div>
-                    <div class="text-[11px] text-slate-500 mt-0.5">${window.escapeHtml ? window.escapeHtml(fee.meta) : fee.meta}</div>
+                    <div class="text-xs font-bold text-slate-700 break-words">${window.escapeHtml(fee.name || '')}</div>
+                    <div class="text-[11px] text-slate-500 mt-0.5">${window.escapeHtml(fee.meta || '')}</div>
                 </div>
                 <div class="text-sm font-black text-slate-900 tabular-data whitespace-nowrap">${window.formatOrderMoney(fee.amount)}</div>
             </div>
@@ -611,6 +1122,9 @@ window.submitOrderForm = async function() {
     const phone = document.getElementById('order-phone').value.trim();
     const selectedBooths = Array.isArray(window.selectedOrderBooths) ? window.selectedOrderBooths : [];
     const noBoothOrder = !!document.getElementById('order-no-booth-order')?.checked;
+    const standardDisplayName = document.getElementById('order-standard-display-name')?.value.trim() || '';
+    const groundDisplayName = document.getElementById('order-ground-display-name')?.value.trim() || '';
+    const hasStandardBooth = selectedBooths.some((item) => ['标摊', '豪标'].includes(String(item.type || '').trim()));
     
     const selectedAgentRadio = document.querySelector('input[name="is_agent"]:checked');
     const isAgent = window.isOrderFieldEnabled('is_agent') ? (selectedAgentRadio?.value === '1') : false;
@@ -644,6 +1158,9 @@ window.submitOrderForm = async function() {
     if(window.isOrderFieldEnabled('contact_person') && window.isOrderFieldRequired('contact_person') && !contact) return window.showToast("请填写联系人", 'error'); 
     if(window.isOrderFieldEnabled('phone') && window.isOrderFieldRequired('phone') && !phone) return window.showToast("请填写联系电话", 'error'); 
     if(!noBoothOrder && window.isOrderFieldRequired('booth_selection') && selectedBooths.length === 0) return window.showToast("请至少选择一个展位", 'error'); 
+    if (!noBoothOrder && hasStandardBooth && !standardDisplayName) return window.showToast("标准展位/豪标必须填写展位图简称", 'error');
+    if (window.countDisplayNameUnits(standardDisplayName) > 8) return window.showToast("标准展位简称最多 4 个汉字或 8 个英文字符", 'error');
+    if (window.countDisplayNameUnits(groundDisplayName) > 24) return window.showToast("光地显示名称不能超过 12 个汉字或 24 个英文字符", 'error');
     
     const actualBoothFee = window.isOrderFieldEnabled('actual_booth_fee')
         ? parseFloat(document.getElementById('order-actual-fee').value)
@@ -697,7 +1214,7 @@ window.submitOrderForm = async function() {
             area: noBoothOrder ? 0 : selectedBooths.reduce((sum, item) => sum + Number(item.area || 0), 0),
             price_unit: noBoothOrder ? '无展位' : (selectedBooths.length === 1 ? selectedBooths[0].price_unit : '组合'),
             unit_price: noBoothOrder ? 0 : (selectedBooths.length === 1 ? selectedBooths[0].unit_price : 0),
-            total_booth_fee: noBoothOrder ? 0 : actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: (noBoothOrder ? 0 : actualBoothFee) + otherFeeTotal, contract_url: uploadedFileKey, sales_name: currentUser.name, no_booth_order: noBoothOrder ? 1 : 0
+            total_booth_fee: noBoothOrder ? 0 : actualBoothFee, discount_reason: reason, other_income: otherFeeTotal, fees_json: feesJsonStr, profile: profile, total_amount: (noBoothOrder ? 0 : actualBoothFee) + otherFeeTotal, contract_url: uploadedFileKey, standard_booth_display_name: standardDisplayName, ground_booth_display_name: groundDisplayName, sales_name: currentUser.name, no_booth_order: noBoothOrder ? 1 : 0
         };
         orderData.selected_booths = noBoothOrder ? [] : selectedBooths.map((item) => ({
             booth_id: item.id,

@@ -3,6 +3,7 @@ const navConfig = [
     { id: 'home', label: '数据看板', roles: ['admin', 'user'], icon: 'home' }, 
     { id: 'order-entry', label: '订单信息录入', roles: ['admin', 'user'], icon: 'clipboard' }, 
     { id: 'order-list', label: '订单与财务管理', roles: ['admin', 'user'], icon: 'wallet' }, 
+    { id: 'booth-map', label: '展位图管理', roles: ['admin'], icon: 'layout' },
     { id: 'booth', label: '展位库管理', roles: ['admin'], icon: 'layout' }, 
     { id: 'config', label: '系统配置', roles: ['admin'], superAdminOnly: true, icon: 'settings' }
 ];
@@ -17,8 +18,15 @@ const configNavItems = [
     { key: 'staff', label: '业务员与目标管理', icon: 'users' },
     { key: 'order-fields', label: '订单字段设置', icon: 'fields' }
 ];
+const boothMapNavItems = [
+    { key: 'canvas', label: '管理画布', icon: 'folders' },
+    { key: 'editor', label: '编辑展位图', icon: 'layout' },
+    { key: 'preview', label: '终版预览', icon: 'search' }
+];
 window.isConfigNavExpanded = window.isConfigNavExpanded ?? false;
 window.isHomeNavExpanded = window.isHomeNavExpanded ?? false;
+window.isBoothMapNavExpanded = window.isBoothMapNavExpanded ?? false;
+window.currentBoothMapPanel = window.currentBoothMapPanel || 'editor';
 
 window.isSuperAdmin = function(user = window.currentUser) {
     return !!user && user.role === 'admin' && user.name === 'admin';
@@ -97,6 +105,9 @@ window.openSection = function(sectionId, label) {
     if (sectionId === 'home') {
         window.isHomeNavExpanded = true;
     }
+    if (sectionId === 'booth-map') {
+        window.isBoothMapNavExpanded = true;
+    }
     window.renderNav();
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`sec-${sectionId}`).classList.add('active');
@@ -111,6 +122,9 @@ window.openSection = function(sectionId, label) {
         window.loadErpConfig?.();
         window.loadOrderFieldSettings?.();
     }
+    if(sectionId === 'booth-map') {
+        window.initBoothMapPage?.(window.currentBoothMapPanel || 'editor');
+    }
     if(sectionId === 'booth') { window.loadPrices(); window.loadBooths(); }
     if(sectionId === 'order-entry') window.initOrderForm();
     if(sectionId === 'order-list') window.loadOrderList();
@@ -121,7 +135,7 @@ window.renderNav = function() {
     navConfig.forEach(item => {
         if (!window.canAccessSection(item.id)) return;
 
-        if (item.id !== 'config' && item.id !== 'home') {
+        if (item.id !== 'config' && item.id !== 'home' && item.id !== 'booth-map') {
             const isActive = window.currentSectionId === item.id;
             const btn = document.createElement('button');
             btn.className = `${isActive ? 'btn-primary text-white shadow-sm' : 'btn-nav-muted shadow-sm'} w-full justify-start px-4 py-3 text-sm mb-1`;
@@ -142,6 +156,7 @@ window.renderNav = function() {
 
         const isActive = window.currentSectionId === item.id;
         const isHomeItem = item.id === 'home';
+        const isBoothMapItem = item.id === 'booth-map';
         const wrapper = document.createElement('div');
         wrapper.className = 'mb-1';
 
@@ -154,7 +169,7 @@ window.renderNav = function() {
                 </span>
                 <span>${item.label}</span>
             </span>
-            <span class="inline-flex items-center justify-center text-slate-200 transition-transform duration-200 ${(isHomeItem ? window.isHomeNavExpanded : window.isConfigNavExpanded) ? 'rotate-90' : ''}">
+            <span class="inline-flex items-center justify-center text-slate-200 transition-transform duration-200 ${(isHomeItem ? window.isHomeNavExpanded : (isBoothMapItem ? window.isBoothMapNavExpanded : window.isConfigNavExpanded)) ? 'rotate-90' : ''}">
                 ${window.renderIcon('chevronRight', 'h-4 w-4', 2)}
             </span>
         `;
@@ -162,6 +177,8 @@ window.renderNav = function() {
             if (window.currentSectionId === item.id) {
                 if (isHomeItem) {
                     window.isHomeNavExpanded = !window.isHomeNavExpanded;
+                } else if (isBoothMapItem) {
+                    window.isBoothMapNavExpanded = !window.isBoothMapNavExpanded;
                 } else {
                     window.isConfigNavExpanded = !window.isConfigNavExpanded;
                 }
@@ -170,6 +187,8 @@ window.renderNav = function() {
             }
             if (isHomeItem) {
                 window.isHomeNavExpanded = true;
+            } else if (isBoothMapItem) {
+                window.isBoothMapNavExpanded = true;
             } else {
                 window.isConfigNavExpanded = true;
             }
@@ -177,19 +196,23 @@ window.renderNav = function() {
         };
         wrapper.appendChild(btn);
 
-        const shouldShowChildren = isHomeItem ? window.isHomeNavExpanded : window.isConfigNavExpanded;
+        const shouldShowChildren = isHomeItem
+            ? window.isHomeNavExpanded
+            : (isBoothMapItem ? window.isBoothMapNavExpanded : window.isConfigNavExpanded);
         if (shouldShowChildren) {
             const childWrap = document.createElement('div');
             childWrap.className = 'mt-2 ml-2 space-y-1 rounded-2xl bg-slate-100/80 p-2 border border-slate-200';
 
             const childItems = isHomeItem
                 ? dashboardNavItems.filter((subItem) => !subItem.adminOnly || window.isSuperAdmin())
-                : configNavItems;
+                : (isBoothMapItem ? boothMapNavItems : configNavItems);
 
             childItems.forEach((subItem) => {
                 const isCurrentPanel = isHomeItem
                     ? (isActive && window.activeHomeTab === subItem.key)
-                    : (isActive && window.currentConfigPanel === subItem.key);
+                    : (isBoothMapItem
+                        ? (isActive && window.currentBoothMapPanel === subItem.key)
+                        : (isActive && window.currentConfigPanel === subItem.key));
                 const childBtn = document.createElement('button');
                 childBtn.className = `w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
                     isCurrentPanel
@@ -211,6 +234,16 @@ window.renderNav = function() {
                         } else {
                             document.getElementById('current-page-title').innerText = `数据看板 · ${subItem.label}`;
                             window.switchHomeTab?.(subItem.key, false);
+                            window.renderNav();
+                        }
+                    } else if (isBoothMapItem) {
+                        window.currentBoothMapPanel = subItem.key;
+                        window.isBoothMapNavExpanded = true;
+                        if (window.currentSectionId !== 'booth-map') {
+                            window.openSection('booth-map', `展位图管理 · ${subItem.label}`);
+                        } else {
+                            document.getElementById('current-page-title').innerText = `展位图管理 · ${subItem.label}`;
+                            window.switchBoothMapTab?.(subItem.key, { syncNav: false });
                             window.renderNav();
                         }
                     } else {

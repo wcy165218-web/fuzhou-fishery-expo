@@ -47,6 +47,16 @@
 
 - `GET /api/prices`
 - `POST /api/prices`
+- `GET /api/booth-maps`
+- `POST /api/create-booth-map`
+- `POST /api/update-booth-map`
+- `POST /api/delete-booth-map`
+- `GET /api/booth-map-detail`
+- `GET /api/booth-map-runtime-view`
+- `POST /api/upload-booth-map-background`
+- `POST /api/delete-booth-map-background`
+- `GET /api/booth-map-asset/:key?mapId=...`
+- `POST /api/save-booth-map-items`
 - `GET /api/booths`
 - `POST /api/add-booth`
 - `POST /api/edit-booth`

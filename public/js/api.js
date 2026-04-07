@@ -19,7 +19,17 @@ var lastFmTab = 'pay';
 var currentSilentOrderId = null; 
 var projectErpConfig = null;
 var currentPrintObjectUrl = null;
+var boothMaps = [];
+var currentBoothMap = null;
+var currentBoothMapItems = [];
+var currentBoothMapRuntimeItems = [];
+var currentBoothMapId = null;
+var boothMapDirty = false;
 var AUTH_STORAGE_KEY = 'exhibition_user';
+var assetObjectUrlCache = {};
+var pendingAssetObjectUrlRequests = {};
+var assetDataUrlCache = {};
+var pendingAssetDataUrlRequests = {};
 
 window.formatMoneyNumber = function(value) {
     const amount = Number(value || 0);
@@ -55,6 +65,95 @@ window.setStoredUser = function(user) {
 window.clearStoredUser = function() {
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+window.revokeAuthorizedAssetUrl = function(rawUrl) {
+    const normalizedUrl = String(rawUrl || '').trim();
+    if (!normalizedUrl) return;
+    if (assetObjectUrlCache[normalizedUrl]) {
+        URL.revokeObjectURL(assetObjectUrlCache[normalizedUrl]);
+        delete assetObjectUrlCache[normalizedUrl];
+    }
+    delete pendingAssetObjectUrlRequests[normalizedUrl];
+    delete assetDataUrlCache[normalizedUrl];
+    delete pendingAssetDataUrlRequests[normalizedUrl];
+}
+
+window.getAuthorizedAssetDataUrl = async function(rawUrl) {
+    const normalizedUrl = String(rawUrl || '').trim();
+    if (!normalizedUrl) return '';
+    if (assetDataUrlCache[normalizedUrl]) return assetDataUrlCache[normalizedUrl];
+    if (pendingAssetDataUrlRequests[normalizedUrl]) return pendingAssetDataUrlRequests[normalizedUrl];
+
+    pendingAssetDataUrlRequests[normalizedUrl] = window.apiFetch(normalizedUrl)
+        .then(async (res) => {
+            if (!res.ok) {
+                let message = '资源加载失败';
+                try {
+                    const data = await res.clone().json();
+                    if (data?.error) message = data.error;
+                } catch (error) {
+                    const text = await res.text().catch(() => '');
+                    if (text) message = text;
+                }
+                throw new Error(message);
+            }
+            const blob = await res.blob();
+            const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(new Error('资源读取失败'));
+                reader.readAsDataURL(blob);
+            });
+            assetDataUrlCache[normalizedUrl] = dataUrl;
+            return dataUrl;
+        })
+        .catch((error) => {
+            console.error('Authorized asset data URL load failed:', normalizedUrl, error);
+            return '';
+        })
+        .finally(() => {
+            delete pendingAssetDataUrlRequests[normalizedUrl];
+        });
+
+    return pendingAssetDataUrlRequests[normalizedUrl];
+}
+
+window.getAuthorizedAssetUrl = function(rawUrl, onReady = null) {
+    const normalizedUrl = String(rawUrl || '').trim();
+    if (!normalizedUrl) return '';
+    if (assetObjectUrlCache[normalizedUrl]) return assetObjectUrlCache[normalizedUrl];
+    if (pendingAssetObjectUrlRequests[normalizedUrl]) return '';
+
+    pendingAssetObjectUrlRequests[normalizedUrl] = window.apiFetch(normalizedUrl)
+        .then(async (res) => {
+            if (!res.ok) {
+                let message = '资源加载失败';
+                try {
+                    const data = await res.clone().json();
+                    if (data?.error) message = data.error;
+                } catch (error) {
+                    const text = await res.text().catch(() => '');
+                    if (text) message = text;
+                }
+                throw new Error(message);
+            }
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            assetObjectUrlCache[normalizedUrl] = objectUrl;
+            if (typeof onReady === 'function') onReady(objectUrl);
+            return objectUrl;
+        })
+        .catch((error) => {
+            console.error('Authorized asset load failed:', normalizedUrl, error);
+            if (typeof onReady === 'function') onReady('');
+            return '';
+        })
+        .finally(() => {
+            delete pendingAssetObjectUrlRequests[normalizedUrl];
+        });
+
+    return '';
 }
 
 window.renderIcon = function(name, className = 'h-4 w-4', strokeWidth = 1.9) {

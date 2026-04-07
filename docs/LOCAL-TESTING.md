@@ -7,6 +7,8 @@ This project now includes a stable local testing flow that does not depend on Cl
 - A local D1 database with full table structure
 - A default admin account for login
 - A sample project, product categories, prices, accounts, and booths
+- A sample booth map with four positioned booths for visual testing
+- Three sample orders and payments so booth colors can show `已预定 / 已付定金 / 已付全款`
 - A repeatable reset command for starting over
 
 ## One-time setup

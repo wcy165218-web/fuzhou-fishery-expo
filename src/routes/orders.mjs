@@ -1,14 +1,27 @@
 import { canManageOrder, canViewSensitiveOrderFields, isSuperAdmin } from '../utils/auth.mjs';
 import {
+    countDisplayNameUnits,
     getChinaTimestamp,
     hasMetaChanges,
     normalizeEditableFeeItems,
     toBoothCount,
-    toNonNegativeNumber
+    toNonNegativeNumber,
+    validateStandardBoothDisplayName
 } from '../utils/helpers.mjs';
 import { errorResponse, internalErrorResponse } from '../utils/response.mjs';
 import { syncBoothStatusByBoothId } from '../services/booth-sync.mjs';
 import { refreshOrderOverpaymentIssue } from '../services/overpayment.mjs';
+
+function resolveBoothDisplayName(boothType, payload) {
+    const normalizedBoothType = String(boothType || '').trim();
+    const standardName = String(payload.standard_booth_display_name || '').trim();
+    const groundName = String(payload.ground_booth_display_name || '').trim();
+    const companyName = String(payload.company_name || '').trim();
+    if (normalizedBoothType === '光地') {
+        return groundName || companyName;
+    }
+    return standardName;
+}
 
 export async function handleOrderRoutes({
     request,
@@ -81,124 +94,143 @@ export async function handleOrderRoutes({
     }
 
     if (url.pathname === '/api/submit-order' && request.method === 'POST') {
-        const payload = await request.json();
-        const statements = [];
-        const noBoothOrder = Number(payload.no_booth_order || 0) === 1;
-        let normalizedFees = [];
         try {
-            normalizedFees = normalizeEditableFeeItems(payload.fees_json || '[]');
+            const payload = await request.json();
+            const statements = [];
+            const noBoothOrder = Number(payload.no_booth_order || 0) === 1;
+            let normalizedFees = [];
+            try {
+                normalizedFees = normalizeEditableFeeItems(payload.fees_json || '[]');
+            } catch (error) {
+                return errorResponse('其他应收费用格式不正确', 400, corsHeaders);
+            }
+            const totalOtherIncome = Number(normalizedFees.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2));
+            const totalBoothFee = Number(Number(payload.total_booth_fee || 0).toFixed(2));
+
+            const selectedBooths = noBoothOrder
+                ? [{
+                    booth_id: '',
+                    area: 0,
+                    price_unit: '无展位',
+                    unit_price: 0,
+                    standard_fee: 0,
+                    is_joint: 0,
+                    no_booth_order: 1
+                }]
+                : Array.isArray(payload.selected_booths) && payload.selected_booths.length > 0
+                    ? payload.selected_booths.map((item) => ({
+                        booth_id: String(item.booth_id || '').trim(),
+                        hall: String(item.hall || '').trim(),
+                        type: String(item.type || '').trim(),
+                        area: Number(item.area || 0),
+                        price_unit: String(item.price_unit || '').trim(),
+                        unit_price: Number(item.unit_price || 0),
+                        standard_fee: Number(item.standard_fee || 0),
+                        is_joint: Number(item.is_joint || 0) ? 1 : 0
+                    })).filter((item) => item.booth_id && item.area >= 0)
+                    : [{
+                        booth_id: String(payload.booth_id || '').trim(),
+                        hall: '',
+                        type: '',
+                        area: Number(payload.area || 0),
+                        price_unit: String(payload.price_unit || '').trim(),
+                        unit_price: Number(payload.unit_price || 0),
+                        standard_fee: Number(payload.total_booth_fee || 0),
+                        is_joint: 0
+                    }];
+
+            if (!noBoothOrder && selectedBooths.length === 0) {
+                return errorResponse('请至少选择一个展位', 400, corsHeaders);
+            }
+
+            const hasStandardTypeBooth = selectedBooths.some((item) => ['标摊', '豪标'].includes(String(item.type || '').trim()));
+            if (hasStandardTypeBooth) {
+                const standardDisplayNameError = validateStandardBoothDisplayName(payload.standard_booth_display_name);
+                if (standardDisplayNameError) {
+                    return errorResponse(standardDisplayNameError, 400, corsHeaders);
+                }
+            }
+            if (countDisplayNameUnits(payload.ground_booth_display_name || '') > 24) {
+                return errorResponse('光地显示名称不能超过 12 个汉字或 24 个英文字符', 400, corsHeaders);
+            }
+
+            const totalStandardFee = Number(selectedBooths.reduce((sum, item) => sum + Number(item.standard_fee || 0), 0).toFixed(2));
+            const totalSelectedArea = Number(selectedBooths.reduce((sum, item) => sum + Number(item.area || 0), 0).toFixed(2));
+            if (totalBoothFee < 0) return errorResponse('最终成交展位费不能为负数', 400, corsHeaders);
+            if (noBoothOrder) {
+                if (totalBoothFee !== 0) return errorResponse('无展位订单的应收展位费必须为0', 400, corsHeaders);
+                if (normalizedFees.length === 0 || totalOtherIncome <= 0) return errorResponse('无展位订单必须至少包含一项其他应收费用', 400, corsHeaders);
+            } else if (totalSelectedArea <= 0 && totalBoothFee > 0) {
+                return errorResponse('0面积联合参展的应收展位费必须为0', 400, corsHeaders);
+            }
+
+            let remainingBoothFee = totalBoothFee;
+            let remainingOtherIncome = totalOtherIncome;
+
+            const distributedBooths = selectedBooths.map((item, index) => {
+                const isLast = index === selectedBooths.length - 1;
+                let boothFeePart = 0;
+                let otherIncomePart = 0;
+                if (isLast) {
+                    boothFeePart = Number(remainingBoothFee.toFixed(2));
+                    otherIncomePart = Number(remainingOtherIncome.toFixed(2));
+                } else {
+                    const ratioBase = totalStandardFee > 0 ? Number(item.standard_fee || 0) : 1;
+                    const ratio = totalStandardFee > 0 ? ratioBase / totalStandardFee : 1 / selectedBooths.length;
+                    boothFeePart = Number((totalBoothFee * ratio).toFixed(2));
+                    otherIncomePart = Number((totalOtherIncome * ratio).toFixed(2));
+                    remainingBoothFee = Number((remainingBoothFee - boothFeePart).toFixed(2));
+                    remainingOtherIncome = Number((remainingOtherIncome - otherIncomePart).toFixed(2));
+                }
+                return {
+                    ...item,
+                    total_booth_fee: boothFeePart,
+                    other_income: otherIncomePart,
+                    total_amount: Number((boothFeePart + otherIncomePart).toFixed(2)),
+                    fees_json: index === 0 ? JSON.stringify(normalizedFees) : '[]'
+                };
+            });
+
+            for (const boothItem of distributedBooths) {
+                let existingOrder = null;
+                if (boothItem.booth_id) {
+                    existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1")
+                        .bind(payload.project_id, boothItem.booth_id).first();
+                }
+                if (existingOrder && boothItem.is_joint && boothItem.area > 0) {
+                    statements.push(
+                        env.DB.prepare('UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?')
+                            .bind(boothItem.area, existingOrder.id)
+                    );
+                }
+
+                statements.push(env.DB.prepare(`
+                INSERT INTO Orders (
+                  project_id, company_name, credit_code, no_code_checked, category, main_business,
+                  is_agent, agent_name, contact_person, phone, region, booth_id, area, price_unit, unit_price,
+                  total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, paid_amount,
+                  contract_url, booth_display_name, sales_name, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
+              `).bind(
+                    payload.project_id, payload.company_name, payload.credit_code, payload.no_code_checked ? 1 : 0, payload.category, payload.main_business,
+                    payload.is_agent ? 1 : 0, payload.agent_name, payload.contact_person, payload.phone, payload.region, boothItem.booth_id || '', boothItem.area, boothItem.price_unit, boothItem.unit_price,
+                    boothItem.total_booth_fee, payload.discount_reason, boothItem.other_income, boothItem.fees_json, payload.profile, boothItem.total_amount, 0,
+                    payload.contract_url || null, resolveBoothDisplayName(boothItem.type, payload), payload.sales_name, '正常'
+                ));
+
+                if (boothItem.booth_id) {
+                    statements.push(
+                        env.DB.prepare("UPDATE Booths SET status = '已预定' WHERE id = ? AND project_id = ? AND status NOT IN ('已预定', '已付定金', '已付全款', '已锁定')")
+                            .bind(boothItem.booth_id, payload.project_id)
+                    );
+                }
+            }
+
+            await env.DB.batch(statements);
+            return new Response(JSON.stringify({ success: true, created_count: distributedBooths.length }), { headers: corsHeaders });
         } catch (error) {
-            return errorResponse('其他应收费用格式不正确', 400, corsHeaders);
+            return internalErrorResponse(error, corsHeaders, '提交订单失败');
         }
-        const totalOtherIncome = Number(normalizedFees.reduce((sum, item) => sum + Number(item.amount || 0), 0).toFixed(2));
-        const totalBoothFee = Number(Number(payload.total_booth_fee || 0).toFixed(2));
-
-        const selectedBooths = noBoothOrder
-            ? [{
-                booth_id: '',
-                area: 0,
-                price_unit: '无展位',
-                unit_price: 0,
-                standard_fee: 0,
-                is_joint: 0,
-                no_booth_order: 1
-            }]
-            : Array.isArray(payload.selected_booths) && payload.selected_booths.length > 0
-                ? payload.selected_booths.map((item) => ({
-                    booth_id: String(item.booth_id || '').trim(),
-                    area: Number(item.area || 0),
-                    price_unit: String(item.price_unit || '').trim(),
-                    unit_price: Number(item.unit_price || 0),
-                    standard_fee: Number(item.standard_fee || 0),
-                    is_joint: Number(item.is_joint || 0) ? 1 : 0
-                })).filter((item) => item.booth_id && item.area >= 0)
-                : [{
-                    booth_id: String(payload.booth_id || '').trim(),
-                    area: Number(payload.area || 0),
-                    price_unit: String(payload.price_unit || '').trim(),
-                    unit_price: Number(payload.unit_price || 0),
-                    standard_fee: Number(payload.total_booth_fee || 0),
-                    is_joint: 0
-                }];
-
-        if (!noBoothOrder && selectedBooths.length === 0) {
-            return errorResponse('请至少选择一个展位', 400, corsHeaders);
-        }
-
-        const totalStandardFee = Number(selectedBooths.reduce((sum, item) => sum + Number(item.standard_fee || 0), 0).toFixed(2));
-        const totalSelectedArea = Number(selectedBooths.reduce((sum, item) => sum + Number(item.area || 0), 0).toFixed(2));
-        if (totalBoothFee < 0) return errorResponse('最终成交展位费不能为负数', 400, corsHeaders);
-        if (noBoothOrder) {
-            if (totalBoothFee !== 0) return errorResponse('无展位订单的应收展位费必须为0', 400, corsHeaders);
-            if (normalizedFees.length === 0 || totalOtherIncome <= 0) return errorResponse('无展位订单必须至少包含一项其他应收费用', 400, corsHeaders);
-        } else if (totalSelectedArea <= 0 && totalBoothFee > 0) {
-            return errorResponse('0面积联合参展的应收展位费必须为0', 400, corsHeaders);
-        }
-
-        let remainingBoothFee = totalBoothFee;
-        let remainingOtherIncome = totalOtherIncome;
-
-        const distributedBooths = selectedBooths.map((item, index) => {
-            const isLast = index === selectedBooths.length - 1;
-            let boothFeePart = 0;
-            let otherIncomePart = 0;
-            if (isLast) {
-                boothFeePart = Number(remainingBoothFee.toFixed(2));
-                otherIncomePart = Number(remainingOtherIncome.toFixed(2));
-            } else {
-                const ratioBase = totalStandardFee > 0 ? Number(item.standard_fee || 0) : 1;
-                const ratio = totalStandardFee > 0 ? ratioBase / totalStandardFee : 1 / selectedBooths.length;
-                boothFeePart = Number((totalBoothFee * ratio).toFixed(2));
-                otherIncomePart = Number((totalOtherIncome * ratio).toFixed(2));
-                remainingBoothFee = Number((remainingBoothFee - boothFeePart).toFixed(2));
-                remainingOtherIncome = Number((remainingOtherIncome - otherIncomePart).toFixed(2));
-            }
-            return {
-                ...item,
-                total_booth_fee: boothFeePart,
-                other_income: otherIncomePart,
-                total_amount: Number((boothFeePart + otherIncomePart).toFixed(2)),
-                fees_json: index === 0 ? JSON.stringify(normalizedFees) : '[]'
-            };
-        });
-
-        for (const boothItem of distributedBooths) {
-            let existingOrder = null;
-            if (boothItem.booth_id) {
-                existingOrder = await env.DB.prepare("SELECT id FROM Orders WHERE project_id = ? AND booth_id = ? AND status = '正常' ORDER BY created_at ASC LIMIT 1")
-                    .bind(payload.project_id, boothItem.booth_id).first();
-            }
-            if (existingOrder && boothItem.is_joint && boothItem.area > 0) {
-                statements.push(
-                    env.DB.prepare('UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?')
-                        .bind(boothItem.area, existingOrder.id)
-                );
-            }
-
-            statements.push(env.DB.prepare(`
-            INSERT INTO Orders (
-              project_id, company_name, credit_code, no_code_checked, category, main_business,
-              is_agent, agent_name, contact_person, phone, region, booth_id, area, price_unit, unit_price,
-              total_booth_fee, discount_reason, other_income, fees_json, profile, total_amount, paid_amount,
-              contract_url, sales_name, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+8 hours'))
-          `).bind(
-                payload.project_id, payload.company_name, payload.credit_code, payload.no_code_checked ? 1 : 0, payload.category, payload.main_business,
-                payload.is_agent ? 1 : 0, payload.agent_name, payload.contact_person, payload.phone, payload.region, boothItem.booth_id || '', boothItem.area, boothItem.price_unit, boothItem.unit_price,
-                boothItem.total_booth_fee, payload.discount_reason, boothItem.other_income, boothItem.fees_json, payload.profile, boothItem.total_amount, 0,
-                payload.contract_url || null, payload.sales_name, '正常'
-            ));
-
-            if (boothItem.booth_id) {
-                statements.push(
-                    env.DB.prepare("UPDATE Booths SET status = '已预订' WHERE id = ? AND project_id = ? AND status NOT IN ('已预订', '已成交')")
-                        .bind(boothItem.booth_id, payload.project_id)
-                );
-            }
-        }
-
-        await env.DB.batch(statements);
-        return new Response(JSON.stringify({ success: true, created_count: distributedBooths.length }), { headers: corsHeaders });
     }
 
     if (url.pathname === '/api/update-customer-info' && request.method === 'POST') {

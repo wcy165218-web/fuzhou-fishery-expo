@@ -1,5 +1,6 @@
 import { handleAuthRoutes } from './routes/auth.mjs';
 import { handleBoothRoutes } from './routes/booths.mjs';
+import { handleBoothMapRoutes } from './routes/booth-maps.mjs';
 import { handleConfigRoutes } from './routes/config.mjs';
 import { handleDashboardRoutes } from './routes/dashboard.mjs';
 import { handleExpenseRoutes } from './routes/expenses.mjs';
@@ -15,6 +16,7 @@ const ROUTE_HANDLERS = [
     handleProjectRoutes,
     handleStaffRoutes,
     handleConfigRoutes,
+    handleBoothMapRoutes,
     handleBoothRoutes,
     handleExpenseRoutes,
     handleOrderRoutes,

@@ -485,6 +485,240 @@
             justify-content: center;
             transition: transform 0.2s ease;
         }
+        .booth-map-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 1rem;
+            align-items: start;
+        }
+        .booth-map-editor-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 340px;
+            gap: 1rem;
+            align-items: start;
+        }
+        .booth-map-panel {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 1.5rem;
+            box-shadow: 0 22px 44px -34px rgba(15, 23, 42, 0.22);
+            overflow: hidden;
+        }
+        .booth-map-panel-head {
+            padding: 1rem 1.1rem;
+            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(255,255,255,0.95) 100%);
+        }
+        .booth-map-panel-body {
+            padding: 1rem 1.1rem;
+        }
+        .booth-map-list-item {
+            width: 100%;
+            text-align: left;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            padding: 0.95rem 1rem;
+            background: #fff;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+        }
+        .booth-map-list-item:hover {
+            border-color: #93c5fd;
+            box-shadow: 0 14px 28px -28px rgba(37, 99, 235, 0.45);
+            transform: translateY(-1px);
+        }
+        .booth-map-list-item[data-active="true"] {
+            border-color: #2563eb;
+            background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+            box-shadow: 0 16px 32px -30px rgba(37, 99, 235, 0.45);
+        }
+        .booth-map-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+        .booth-map-main-layout {
+            display: grid;
+            grid-template-columns: 104px minmax(0, 1fr);
+            gap: 0.9rem;
+            align-items: stretch;
+        }
+        .booth-map-palette {
+            display: flex;
+            flex-direction: column;
+            gap: 0.7rem;
+        }
+        .booth-map-preset-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.28rem;
+            padding: 0.85rem 0.72rem;
+            border-radius: 1rem;
+            border: 1px dashed #cbd5e1;
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+            color: #0f172a;
+            font-size: 0.75rem;
+            font-weight: 800;
+            cursor: grab;
+            transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .booth-map-preset-card:hover {
+            border-color: #60a5fa;
+            transform: translateY(-1px);
+            box-shadow: 0 18px 32px -30px rgba(37, 99, 235, 0.32);
+        }
+        .booth-map-preset-card .hint {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        .booth-map-collapsible {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            overflow: hidden;
+            background: #f8fafc;
+        }
+        .booth-map-collapsible-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.9rem 1rem;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .booth-map-collapsible-body {
+            padding: 0 1rem 1rem;
+        }
+        .booth-map-save-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.42rem 0.75rem;
+            border-radius: 9999px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            font-size: 0.72rem;
+            font-weight: 800;
+        }
+        .booth-map-toolbar-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            padding: 0.7rem 0.9rem;
+            border-radius: 0.95rem;
+            border: 1px solid #dbeafe;
+            background: #fff;
+            color: #1e40af;
+            font-size: 0.8rem;
+            font-weight: 800;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+        }
+        .booth-map-toolbar-btn:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+        .booth-map-toolbar-btn[data-active="true"] {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #fff;
+            box-shadow: 0 16px 32px -30px rgba(29, 78, 216, 0.8);
+        }
+        .booth-map-stage-shell {
+            position: relative;
+            min-height: 720px;
+            border: 1px solid #dbeafe;
+            border-radius: 1.5rem;
+            overflow: hidden;
+            background:
+                linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+                linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+                radial-gradient(circle at top, rgba(191, 219, 254, 0.42), rgba(255,255,255,0.98) 58%);
+            background-size: 28px 28px, 28px 28px, 100% 100%;
+        }
+        .booth-map-empty {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            background: rgba(255,255,255,0.78);
+            backdrop-filter: blur(2px);
+            z-index: 2;
+        }
+        .booth-map-stage {
+            width: 100%;
+            height: 720px;
+            overflow: hidden;
+            position: relative;
+        }
+        .booth-map-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none;
+            user-select: none;
+        }
+        .booth-map-legend-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.36rem 0.68rem;
+            border-radius: 9999px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            font-size: 0.73rem;
+            font-weight: 700;
+            color: #334155;
+        }
+        .booth-map-legend-dot {
+            width: 0.72rem;
+            height: 0.72rem;
+            border-radius: 9999px;
+            flex-shrink: 0;
+        }
+        .booth-map-field-label {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: #334155;
+        }
+        .booth-map-mini-stat {
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            padding: 0.85rem 0.95rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        }
+        @media (max-width: 1340px) {
+            .booth-map-shell {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .booth-map-editor-layout {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .booth-map-main-layout {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .booth-map-palette {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .booth-map-stage,
+            .booth-map-stage-shell {
+                min-height: 620px;
+                height: 620px;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
@@ -494,7 +728,7 @@
 
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-2">修改密码</h3><p id="password-modal-hint" class="text-xs text-slate-500 mb-4">新密码必须是新的 6 位数字，且不能继续使用默认密码 123456。</p><input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm"><input type="password" id="modal-new-pass" placeholder="新密码（6位数字）" class="w-full border p-2 rounded mb-5 text-sm" maxlength="6" inputmode="numeric"><div class="flex justify-end gap-2"><button id="password-modal-cancel" onclick="window.closeModal('password-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-change-pass" onclick="window.submitPasswordChange()" class="btn-primary px-4 py-2 text-sm">确认</button></div></div></div>
     <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3><input type="hidden" id="edit-p-id"><div class="space-y-3"><input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm"><input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm"><div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div><div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="window.closeModal('edit-project-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-save-project" onclick="window.submitEditProject()" class="btn-primary px-4 py-2 text-sm">保存</button></div></div></div>
-    <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-3">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="window.closeModal('edit-booth-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-save-booth" onclick="window.submitEditBooth()" class="btn-primary px-4 py-2 text-sm">保存修改</button></div></div></div>
+    <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-2">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><p id="eb-mode-hint" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">该展位由展位图维护，这里仅允许单独调整单价。</p><input type="hidden" id="eb-map-managed" value="0"><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="window.closeModal('edit-booth-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-save-booth" onclick="window.submitEditBooth()" class="btn-primary px-4 py-2 text-sm">保存修改</button></div></div></div>
 
     <div id="order-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
@@ -602,6 +836,78 @@
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="window.closeModal('edit-payment-modal')" class="px-4 py-2 bg-gray-200 rounded font-bold">取消</button>
                 <button id="btn-save-payment" onclick="window.submitEditPayment()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">保存修改</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="order-booth-map-modal" class="hidden fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4">
+        <div class="bg-white rounded-[28px] shadow-2xl w-full max-w-7xl max-h-[92vh] overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-slate-200 bg-slate-50 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="max-w-2xl">
+                    <div class="text-xs tracking-[0.2em] text-slate-400 font-bold">订单选展位</div>
+                    <h3 class="text-xl font-black text-slate-900 mt-2">从已保存展位图中直接点选展位</h3>
+                    <p class="text-sm text-slate-500 mt-2 leading-6">可切换画布查看终版状态色。白底黑框可直接选，灰色表示锁定不可选，其余状态会按联合参展流程提示输入本单分配面积。</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="window.closeOrderBoothMapPicker()" class="btn-secondary px-4 py-2 text-sm">关闭</button>
+                </div>
+            </div>
+            <div class="flex-1 min-h-0 grid xl:grid-cols-[320px_minmax(0,1fr)] gap-0">
+                <div class="border-r border-slate-200 bg-slate-50/70 p-5 space-y-4 overflow-y-auto">
+                    <div>
+                        <label class="block text-xs font-bold tracking-wide text-slate-500 mb-2">选择画布</label>
+                        <select id="order-booth-map-select" onchange="window.handleOrderBoothMapSelectChange(this.value)" class="w-full border px-3 py-3 rounded-xl bg-white text-slate-700 font-bold">
+                            <option value="">请选择画布</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold tracking-wide text-slate-500 mb-2">搜索展位号</label>
+                        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                            <input type="text" id="order-booth-map-search" class="w-full border px-3 py-3 rounded-xl bg-white font-bold uppercase tracking-wider" placeholder="如：1A01" onkeypress="if(event.key==='Enter') window.searchOrderBoothMapBooth()">
+                            <button type="button" onclick="window.searchOrderBoothMapBooth()" class="btn-secondary px-4 py-3 text-sm whitespace-nowrap">定位</button>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4 space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-xs tracking-wide text-slate-500 font-bold">当前画布</div>
+                                <div id="order-booth-map-title" class="text-base font-black text-slate-900 mt-1">未选择画布</div>
+                            </div>
+                            <div id="order-booth-map-selected-count" class="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">暂选 0 个</div>
+                        </div>
+                        <div id="order-booth-map-tip" class="text-xs text-slate-500 leading-6">先选择一张已保存的展位图，再从右侧画布中点选展位。</div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-xs tracking-wide text-slate-500 font-bold">本次暂选展位</div>
+                            <button type="button" onclick="window.clearOrderBoothMapTempSelection()" class="text-xs font-bold text-slate-500 hover:text-rose-600">清空</button>
+                        </div>
+                        <div id="order-booth-map-selected-list" class="mt-3 flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-xs text-slate-500 leading-6">
+                        图例：
+                        <span class="inline-flex items-center gap-1.5 ml-1 mr-2"><span class="booth-map-legend-dot" style="background:#ffffff;border:1px solid #0f172a"></span>可售</span>
+                        <span class="inline-flex items-center gap-1.5 mr-2"><span class="booth-map-legend-dot" style="background:#f59e0b"></span>已预定</span>
+                        <span class="inline-flex items-center gap-1.5 mr-2"><span class="booth-map-legend-dot" style="background:#3b82f6"></span>已付定金</span>
+                        <span class="inline-flex items-center gap-1.5 mr-2"><span class="booth-map-legend-dot" style="background:#ef4444"></span>已付全款</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="booth-map-legend-dot" style="background:#6b7280"></span>已锁定</span>
+                    </div>
+                </div>
+                <div class="p-5 min-h-0 flex flex-col gap-4">
+                    <div class="booth-map-stage-shell min-h-0 flex-1">
+                        <div id="order-booth-map-empty-state" class="booth-map-empty">先选择一张画布，然后从终版状态图上点选要加入订单的展位。</div>
+                        <div class="booth-map-stage h-full">
+                            <svg id="order-booth-map-svg" class="booth-map-svg" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" aria-label="订单展位选择画布"></svg>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="text-xs text-slate-500 leading-6">提示：再次点击已暂选展位可移除；若展位已有订单，会按联合参展逻辑提示输入本单分配面积。</div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="window.closeOrderBoothMapPicker()" class="btn-secondary px-4 py-2 text-sm">取消</button>
+                            <button type="button" id="btn-confirm-order-booth-map" onclick="window.confirmOrderBoothMapSelection()" class="btn-primary px-4 py-2 text-sm">确认加入订单</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1057,6 +1363,352 @@
                     </div>
                 </section>
                 
+                <section id="sec-booth-map" class="page-section">
+                    <div class="space-y-6">
+                        <div class="hidden">
+                            <button id="booth-map-tab-canvas" type="button" onclick="window.switchBoothMapTab('canvas')" class="btn-secondary px-4 py-2 text-sm">管理画布</button>
+                            <button id="booth-map-tab-editor" type="button" onclick="window.switchBoothMapTab('editor')" class="btn-soft-primary px-4 py-2 text-sm">编辑展位图</button>
+                            <button id="booth-map-tab-preview" type="button" onclick="window.switchBoothMapTab('preview')" class="btn-secondary px-4 py-2 text-sm">终版预览</button>
+                        </div>
+
+                        <div id="booth-map-tab-panel-canvas" class="hidden">
+                            <div class="booth-map-panel">
+                                <div class="booth-map-panel-head">
+                                    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                                        <div>
+                                            <div class="text-xs tracking-[0.2em] text-slate-400 font-bold">画布功能及属性</div>
+                                            <div class="text-lg font-black text-slate-900 mt-2">管理画布</div>
+                                        </div>
+                                        <div class="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
+                                            <div class="booth-map-mini-stat">
+                                                <div class="text-xs tracking-wide text-slate-500 font-bold">当前画布</div>
+                                                <div id="booth-map-editor-title" class="text-sm font-black text-slate-900 mt-2">未选择画布</div>
+                                            </div>
+                                            <div class="booth-map-mini-stat">
+                                                <div class="text-xs tracking-wide text-slate-500 font-bold">状态</div>
+                                                <div id="booth-map-updated-at" class="text-sm font-black text-slate-900 mt-2">尚未创建画布</div>
+                                            </div>
+                                            <div class="booth-map-mini-stat">
+                                                <div class="text-xs tracking-wide text-slate-500 font-bold">操作提示</div>
+                                                <div class="text-sm font-black text-slate-900 mt-2">先选画布，再回编辑区</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="booth-map-panel-body">
+                                    <div class="grid xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-6">
+                                        <div class="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 space-y-4">
+                                            <div>
+                                                <label class="booth-map-field-label">新建画布</label>
+                                                <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                                    <input type="text" id="new-booth-map-name" class="w-full border px-3 py-2.5 rounded-xl bg-white" placeholder="输入新画布名称，如：1号馆主图">
+                                                    <button id="btn-create-booth-map" onclick="window.createBoothMap()" class="btn-primary px-4 py-2.5 text-sm whitespace-nowrap">新建</button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="booth-map-field-label">选择画布</label>
+                                                <select id="booth-map-select" onchange="window.handleBoothMapSelectChange(this.value)" class="w-full border px-3 py-2.5 rounded-xl bg-white text-slate-700 font-bold">
+                                                    <option value="">请选择画布</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="booth-map-field-label">编辑画布名称</label>
+                                                <input type="text" id="booth-map-current-name" class="w-full border px-3 py-2.5 rounded-xl bg-white" placeholder="选中画布后可编辑名称" oninput="window.updateCurrentBoothMapName(this.value)">
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <button type="button" onclick="window.saveCurrentBoothMapMeta()" class="btn-secondary px-3 py-2.5 text-sm">保存画布名</button>
+                                                <button type="button" onclick="window.loadBoothMaps()" class="btn-secondary px-3 py-2.5 text-sm">刷新列表</button>
+                                            </div>
+                                            <button onclick="window.deleteCurrentBoothMap()" class="btn-soft-danger w-full px-4 py-2.5 text-sm">删除当前画布</button>
+                                        </div>
+                                        <div class="rounded-3xl border border-slate-200 bg-white p-5 space-y-4">
+                                            <div class="text-lg font-black text-slate-900">当前画布信息</div>
+                                            <div class="text-sm text-slate-500">在左侧完成新建、选择、改名和删除。</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="booth-map-tab-panel-editor" class="booth-map-editor-layout">
+                            <div class="booth-map-panel">
+                                <div class="booth-map-panel-head">
+                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-xs tracking-[0.2em] text-slate-400 font-bold">编辑展位图</div>
+                                            <div class="text-lg font-black text-slate-900 mt-2">编辑展位图</div>
+                                        </div>
+                                        <div id="booth-map-save-indicator" class="booth-map-save-indicator">可保存 0 个展位</div>
+                                    </div>
+                                </div>
+                                <div class="booth-map-panel-body space-y-4">
+                                    <div class="booth-map-toolbar">
+                                        <button type="button" class="booth-map-toolbar-btn" data-tool="select" onclick="window.setBoothMapTool('select')">选择 / 框选</button>
+                                        <button type="button" class="booth-map-toolbar-btn" data-tool="pan" onclick="window.setBoothMapTool('pan')">拖动画布</button>
+                                        <button type="button" class="booth-map-toolbar-btn" data-tool="scale" onclick="window.setBoothMapTool('scale')">设置比例尺</button>
+                                        <button id="btn-upload-booth-map-background" type="button" class="booth-map-toolbar-btn" onclick="document.getElementById('booth-map-background-input').click()">上传底图</button>
+                                        <button type="button" class="booth-map-toolbar-btn" onclick="window.deleteBoothMapBackground()">删除底图</button>
+                                        <button type="button" class="booth-map-toolbar-btn" onclick="window.showBoothMapFitView()">总览</button>
+                                        <button type="button" class="booth-map-toolbar-btn" onclick="window.showBoothMapEditorView()">编辑视角</button>
+                                        <button type="button" class="booth-map-toolbar-btn" onclick="window.copySelectedBoothMapItem()">复制</button>
+                                        <button id="btn-save-booth-map" type="button" class="booth-map-toolbar-btn" onclick="window.saveBoothMapQuick()"><span id="booth-map-save-button-text">一键保存</span></button>
+                                    </div>
+                                    <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                                        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                            <input type="text" id="booth-map-search-input" class="w-full border px-3 py-2.5 rounded-xl bg-white font-bold uppercase tracking-wider" placeholder="搜索展位号，如：1A01" onkeypress="if(event.key==='Enter') window.searchCurrentBoothMapItem()">
+                                            <button type="button" onclick="window.searchCurrentBoothMapItem()" class="btn-secondary px-4 py-2.5 text-sm whitespace-nowrap">搜索定位</button>
+                                        </div>
+                                        <div id="booth-map-polygon-status" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500 leading-6">自由多边形：`Shift` 保持水平/垂直，`H/V` 锁定方向，`A` 取消锁定，输入数字后回车可按米数落点。</div>
+                                    </div>
+                                    <input type="file" id="booth-map-background-input" accept=".jpg,.jpeg,.png,image/jpeg,image/png" class="hidden" onchange="window.uploadBoothMapBackground(this)">
+                                    <div class="booth-map-main-layout">
+                                        <div class="booth-map-palette">
+                                            <div class="booth-map-preset-card" draggable="true" ondragstart="window.handleBoothMapPresetDragStart(event, 'rect-3x3')">
+                                                <span>3 x 3</span>
+                                                <span class="hint">标摊常用规格</span>
+                                            </div>
+                                            <div class="booth-map-preset-card" draggable="true" ondragstart="window.handleBoothMapPresetDragStart(event, 'rect-3x6')">
+                                                <span>3 x 6</span>
+                                                <span class="hint">双开长条</span>
+                                            </div>
+                                            <div class="booth-map-preset-card" draggable="true" ondragstart="window.handleBoothMapPresetDragStart(event, 'rect-custom')">
+                                                <span>自定义</span>
+                                                <span class="hint">红虚线占位矩形</span>
+                                            </div>
+                                            <div class="booth-map-preset-card" draggable="true" ondragstart="window.handleBoothMapPresetDragStart(event, 'trapezoid')">
+                                                <span>梯形</span>
+                                                <span class="hint">新增不规则展位</span>
+                                            </div>
+                                            <button type="button" class="booth-map-preset-card text-left" onclick="window.startBoothMapPolygonTool()">
+                                                <span>自由多边形</span>
+                                                <span class="hint">逐点点击闭合，按边长真实比例绘制</span>
+                                            </button>
+                                        </div>
+                                        <div class="space-y-3">
+                                            <div class="booth-map-stage-shell" id="booth-map-stage-shell" ondragover="window.handleBoothMapStageDragOver(event)" ondrop="window.handleBoothMapStageDrop(event)">
+                                                <div id="booth-map-empty-state" class="booth-map-empty">先创建或选择画布，再上传底图、设置比例尺，然后从左侧拖入展位规格到编辑区。</div>
+                                                <div id="booth-map-stage" class="booth-map-stage">
+                                                    <svg id="booth-map-svg" class="booth-map-svg" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" aria-label="展位图编辑画布"></svg>
+                                                </div>
+                                            </div>
+                                            <div class="text-xs text-slate-500 leading-6">
+                                                操作提示：比例尺用于校准真实尺寸。设置后，拖入的 3x3 / 3x6 / 梯形都会按真实尺寸落到画布中；自由多边形会按你逐段点击的真实边长闭合生成。多选后仍可继续对齐和等间距分布。
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="booth-map-panel">
+                                <div class="booth-map-panel-head">
+                                    <div class="text-xs tracking-[0.2em] text-slate-400 font-bold">展位属性</div>
+                                    <div id="booth-map-selection-title" class="text-lg font-black text-slate-900 mt-2">未选择展位</div>
+                                    <div id="booth-map-selection-meta" class="text-xs text-slate-500 mt-1">单击可单选，按住 Shift 可多选，拖拽空白区域可框选。</div>
+                                </div>
+                                <div class="booth-map-panel-body space-y-4">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="booth-map-field-label">全局边框粗细</label>
+                                            <input type="number" id="bm-field-global-stroke-width" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="1" max="12" step="0.5" oninput="window.updateBoothMapGlobalStrokeWidth(this.value)">
+                                        </div>
+                                        <div>
+                                            <label class="booth-map-field-label">当前展位保存状态</label>
+                                            <input type="text" id="bm-field-save-state" class="w-full border px-3 py-2.5 rounded-xl bg-slate-100" readonly>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="booth-map-field-label">移动吸附</label>
+                                            <button type="button" id="bm-toggle-snap" onclick="window.toggleBoothMapSnap()" class="btn-secondary w-full px-3 py-2.5 text-sm justify-center">吸附已开启</button>
+                                        </div>
+                                        <div>
+                                            <label class="booth-map-field-label">吸附距离</label>
+                                            <input type="number" id="bm-field-snap-distance" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0" max="120" step="1" oninput="window.updateBoothMapSnapTolerance(this.value)">
+                                        </div>
+                                    </div>
+                                    <div class="booth-map-collapsible">
+                                        <button type="button" class="booth-map-collapsible-btn" onclick="window.toggleBoothMapAlignTools()">
+                                            <span>对齐工具</span>
+                                            <span id="booth-map-align-toggle-text">展开</span>
+                                        </button>
+                                        <div id="booth-map-align-tools" class="booth-map-collapsible-body hidden">
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.alignSelectedBoothMapItems('left')">左对齐</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.alignSelectedBoothMapItems('hcenter')">水平居中</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.alignSelectedBoothMapItems('right')">右对齐</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.alignSelectedBoothMapItems('top')">上对齐</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.alignSelectedBoothMapItems('vcenter')">垂直居中</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.alignSelectedBoothMapItems('bottom')">下对齐</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.distributeSelectedBoothMapItems('horizontal')">横向等间距</button>
+                                                <button type="button" class="btn-secondary px-3 py-2 text-sm" onclick="window.distributeSelectedBoothMapItems('vertical')">纵向等间距</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="booth-map-field-label">展位号</label>
+                                        <input type="text" id="bm-field-code" class="w-full border px-3 py-2.5 rounded-xl bg-white uppercase" placeholder="如：1A01" oninput="window.updateSelectedBoothMapField('booth_code', this.value)">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="booth-map-field-label">展位类型</label>
+                                            <select id="bm-field-type" class="w-full border px-3 py-2.5 rounded-xl bg-white" onchange="window.updateSelectedBoothMapField('booth_type', this.value)">
+                                                <option value="标摊">标摊</option>
+                                                <option value="豪标">豪标</option>
+                                                <option value="光地">光地</option>
+                                            </select>
+                                        </div>
+                                        <div id="bm-field-opening-wrap">
+                                            <label class="booth-map-field-label">开口类型</label>
+                                            <select id="bm-field-opening" class="w-full border px-3 py-2.5 rounded-xl bg-white" onchange="window.updateSelectedBoothMapField('opening_type', this.value)">
+                                                <option value="单开口">单开口</option>
+                                                <option value="双开口">双开口</option>
+                                                <option value="三开口">三开口</option>
+                                                <option value="四面开">四面开</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="booth-map-field-label">长(m)</label>
+                                            <input type="number" id="bm-field-width" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.1" step="0.1" oninput="window.updateSelectedBoothMapField('width_m', this.value)">
+                                        </div>
+                                        <div>
+                                            <label class="booth-map-field-label">宽(m)</label>
+                                            <input type="number" id="bm-field-height" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.1" step="0.1" oninput="window.updateSelectedBoothMapField('height_m', this.value)">
+                                        </div>
+                                        <div>
+                                            <label class="booth-map-field-label">面积(㎡)</label>
+                                            <input type="text" id="bm-field-area" class="w-full border px-3 py-2.5 rounded-xl bg-slate-100" readonly>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="booth-map-field-label">当前选中数量</label>
+                                        <input type="text" id="bm-field-selection-count" class="w-full border px-3 py-2.5 rounded-xl bg-slate-100" readonly>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button id="btn-save-selected-booth-map-item" type="button" onclick="window.saveSelectedBoothMapItem()" class="btn-soft-primary px-3 py-2 text-sm">保存当前展位</button>
+                                        <button type="button" onclick="window.deleteSelectedBoothMapItem()" class="btn-soft-danger px-3 py-2 text-sm">删除展位</button>
+                                    </div>
+                                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500 leading-6">
+                                        保存规则：已保存的展位显示黑色实线，未保存的展位显示红色虚线；一键保存会优先保存当前正在编辑且数据完整的展位，其余未保存展位会继续保留在编辑区中。
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="booth-map-tab-panel-preview" class="hidden">
+                            <div class="booth-map-panel">
+                                <div class="booth-map-panel-body space-y-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <div class="text-xs tracking-[0.18em] text-slate-400 font-bold">终版预览</div>
+                                            <div id="booth-map-preview-title" class="text-lg font-black text-slate-900 mt-2">未选择画布</div>
+                                        </div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <div id="booth-map-preview-status" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded-full">未加载画布</div>
+                                            <button id="btn-refresh-booth-map-runtime" type="button" class="btn-secondary px-4 py-2 text-sm whitespace-nowrap" onclick="window.refreshBoothMapRuntime()">刷新状态</button>
+                                            <button id="btn-export-booth-map-preview" type="button" class="btn-primary px-4 py-2 text-sm whitespace-nowrap" onclick="window.exportBoothMapPreviewAsJpg()">预览导出 JPG</button>
+                                            <span class="booth-map-legend-chip"><span class="booth-map-legend-dot" style="background:#ffffff;border:1px solid #0f172a"></span>可售</span>
+                                            <span class="booth-map-legend-chip"><span class="booth-map-legend-dot" style="background:#f59e0b"></span>已预定</span>
+                                            <span class="booth-map-legend-chip"><span class="booth-map-legend-dot" style="background:#3b82f6"></span>已付定金</span>
+                                            <span class="booth-map-legend-chip"><span class="booth-map-legend-dot" style="background:#ef4444"></span>已付全款</span>
+                                            <span class="booth-map-legend-chip"><span class="booth-map-legend-dot" style="background:#6b7280"></span>已锁定</span>
+                                        </div>
+                                    </div>
+                                    <div class="booth-map-collapsible rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                        <button type="button" class="booth-map-collapsible-btn" onclick="window.toggleBoothMapPreviewTextRules()">
+                                            <span>全局文字规则</span>
+                                            <span id="booth-map-preview-text-toggle-text">展开</span>
+                                        </button>
+                                        <div id="booth-map-preview-text-rules" class="booth-map-collapsible-body hidden mt-4 space-y-3">
+                                            <div class="grid xl:grid-cols-3 gap-4">
+                                            <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4 space-y-3">
+                                                <div class="text-xs font-bold tracking-wide text-slate-500">标摊</div>
+                                                <div>
+                                                    <label class="booth-map-field-label">展位号字号</label>
+                                                    <input type="number" id="bm-global-standard-code-font" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="1" max="36" step="0.5" oninput="window.updateBoothMapDisplayConfig('standard', 'boothNo', 'fontSize', this.value)">
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">企业名字号</label>
+                                                    <input type="number" id="bm-global-standard-company-font" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="1" max="36" step="0.5" oninput="window.updateBoothMapDisplayConfig('standard', 'company', 'fontSize', this.value)">
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">展位号位置</label>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <input type="number" id="bm-global-standard-code-x" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="-0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('standard', 'boothNo', 'anchorX', this.value)">
+                                                        <input type="number" id="bm-global-standard-code-y" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="1.35" step="0.01" oninput="window.updateBoothMapDisplayConfig('standard', 'boothNo', 'anchorY', this.value)">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">企业名位置</label>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <input type="number" id="bm-global-standard-company-x" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('standard', 'company', 'anchorX', this.value)">
+                                                        <input type="number" id="bm-global-standard-company-y" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('standard', 'company', 'anchorY', this.value)">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4 space-y-3">
+                                                <div class="text-xs font-bold tracking-wide text-slate-500">光地文字</div>
+                                                <div>
+                                                    <label class="booth-map-field-label">展位号字号</label>
+                                                    <input type="number" id="bm-global-ground-code-font" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="1" max="36" step="0.5" oninput="window.updateBoothMapDisplayConfig('ground', 'boothNo', 'fontSize', this.value)">
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">企业名字号</label>
+                                                    <input type="number" id="bm-global-ground-company-font" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="1" max="36" step="0.5" oninput="window.updateBoothMapDisplayConfig('ground', 'company', 'fontSize', this.value)">
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">展位号位置</label>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <input type="number" id="bm-global-ground-code-x" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="-0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('ground', 'boothNo', 'anchorX', this.value)">
+                                                        <input type="number" id="bm-global-ground-code-y" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="1.35" step="0.01" oninput="window.updateBoothMapDisplayConfig('ground', 'boothNo', 'anchorY', this.value)">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">企业名位置</label>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <input type="number" id="bm-global-ground-company-x" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('ground', 'company', 'anchorX', this.value)">
+                                                        <input type="number" id="bm-global-ground-company-y" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('ground', 'company', 'anchorY', this.value)">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4 space-y-3">
+                                                <div class="text-xs font-bold tracking-wide text-slate-500">光地尺寸/面积</div>
+                                                <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
+                                                    <input type="checkbox" id="bm-global-ground-size-visible" onchange="window.toggleBoothMapGroundSizeVisible(this.checked)" class="h-4 w-4 rounded border-slate-300 text-blue-600">
+                                                    <span>显示标注</span>
+                                                </label>
+                                                <div>
+                                                    <label class="booth-map-field-label">标注字号</label>
+                                                    <input type="number" id="bm-global-ground-size-font" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="1" max="36" step="0.5" oninput="window.updateBoothMapDisplayConfig('ground', 'size', 'fontSize', this.value)">
+                                                </div>
+                                                <div>
+                                                    <label class="booth-map-field-label">标注位置</label>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <input type="number" id="bm-global-ground-size-x" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="0.05" max="1.05" step="0.01" oninput="window.updateBoothMapDisplayConfig('ground', 'size', 'anchorX', this.value)">
+                                                        <input type="number" id="bm-global-ground-size-y" class="w-full border px-3 py-2.5 rounded-xl bg-white" min="-0.05" max="0.95" step="0.01" oninput="window.updateBoothMapDisplayConfig('ground', 'size', 'anchorY', this.value)">
+                                                    </div>
+                                                </div>
+                                                <div class="text-xs text-slate-500 leading-6">矩形光地默认显示右上角“长*宽”，自由多边形光地默认在图形内部顶部居中显示面积，这里统一控制字号和位置。</div>
+                                            </div>
+                                            </div>
+                                            <div class="flex justify-end">
+                                                <button type="button" id="btn-save-preview-text-rules" onclick="window.saveCurrentBoothMapMeta()" class="btn-primary px-4 py-2 text-sm">保存文字规则</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="booth-map-stage-shell">
+                                        <div id="booth-map-preview-empty-state" class="booth-map-empty">先选择画布</div>
+                                        <div class="booth-map-stage">
+                                            <svg id="booth-map-runtime-svg" class="booth-map-svg" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" aria-label="展位图终版预览"></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <section id="sec-booth" class="page-section">
                     <div class="bg-white p-4 rounded shadow border-l-4 border-red-500 mb-4 flex flex-wrap items-center justify-between gap-4"><div class="flex items-center gap-2"><span class="font-bold text-gray-700">全局单价策略:</span></div><div class="flex gap-4 text-sm items-center"><div class="flex items-center bg-gray-50 p-1 rounded border">标摊 <input type="number" id="price-bt" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">豪标 <input type="number" id="price-hb" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/个</div><div class="flex items-center bg-gray-50 p-1 rounded border">光地 <input type="number" id="price-gd" class="bg-transparent text-center w-16 text-red-600 font-bold ml-1 outline-none border-b border-red-200"> 元/㎡</div><button id="btn-save-prices" onclick="window.savePrices()" class="btn-soft-danger px-4 py-1.5">保存策略</button></div></div>
                     
@@ -1068,13 +1720,16 @@
                         </div>
 
                     <div class="bg-white p-6 rounded shadow border-t-4 border-orange-500">
-                        <div class="mb-6 border rounded border-orange-200"><button onclick="window.toggleEntrySection()" class="btn-soft-amber w-full p-3 text-left justify-between rounded-t"><span>展开【单条新增】与【Excel批量导入】面板</span><span id="entry-arrow" class="section-toggle-chevron"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></button><div id="entry-section" class="hidden p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white rounded-b"><div class="col-span-1 border-r pr-6 space-y-3"><h4 class="font-bold text-gray-700 mb-2 border-b pb-1">手动新增单条</h4><input type="text" id="s-id" placeholder="展位号 (如 1A01)" class="w-full border p-2 rounded text-sm font-bold"><div class="flex items-center"><input type="number" id="s-hall-num" placeholder="展馆数字 (如 1)" class="w-full border p-2 rounded-l text-sm"><span class="bg-gray-200 border border-l-0 p-2 rounded-r text-sm text-gray-700 shrink-0 whitespace-nowrap">号馆</span></div><select id="s-type" class="w-full border p-2 rounded text-sm font-bold text-blue-700"><option>标摊</option><option>豪标</option><option>光地</option></select><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 shrink-0 whitespace-nowrap">总面积(㎡)</span><input type="number" id="s-area" placeholder="录入实际面积" class="w-full border p-2 rounded-r text-sm"></div><button id="btn-add-booth" onclick="window.addSingleBooth()" class="btn-dark w-full p-2 text-sm mt-2">存入库中</button></div><div class="col-span-2 relative pl-2"><div class="flex justify-between items-center mb-2"><h4 class="font-bold text-gray-700">Excel批量导入</h4><button onclick="window.downloadTemplate()" class="btn-soft-primary px-3 py-1 text-xs">下载模板</button></div><textarea id="booth-import-text" rows="5" class="w-full border p-3 rounded text-sm font-mono bg-orange-50/30" placeholder="复制Excel包含4列：展位号 | 馆号(数字) | 类型 | 总面积(㎡)"></textarea><button id="btn-import-booth" onclick="window.parseAndImportBooths()" class="btn-soft-amber absolute bottom-2 right-2 px-4 py-1.5 text-sm shadow-md">解析导入</button></div></div></div>
+                        <div class="mb-6 rounded-2xl border border-cyan-200 bg-cyan-50/80 px-5 py-4">
+                            <div class="text-sm font-bold text-cyan-900">展位库数据来源</div>
+                            <div class="text-xs text-slate-600 mt-2 leading-6">展位库现在只接收“展位图管理”里已保存的展位，不再提供手动新增或 Excel 批量导入入口。若要新增、删改展位，请回到展位图中维护；在本页仍可单条调整某个展位的独立单价。</div>
+                        </div>
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
                             <div class="flex items-center gap-2 bg-gray-50 p-1.5 rounded border">
                                 <input type="text" id="filter-search" placeholder="搜索展位号..." class="border p-1.5 rounded text-sm w-32" onkeyup="window.renderBooths()">
                                 <select id="filter-hall" class="border p-1.5 rounded text-sm text-gray-600 font-bold" onchange="window.renderBooths()"><option value="">所有展馆</option></select>
                                 <select id="filter-type" class="border p-1.5 rounded text-sm text-gray-600" onchange="window.renderBooths()"><option value="">所有类型</option><option value="标摊">标摊</option><option value="豪标">豪标</option><option value="光地">光地</option></select>
-                                <select id="filter-status" class="border p-1.5 rounded text-sm text-gray-600" onchange="window.renderBooths()"><option value="">所有状态</option><option value="可售">未售</option><option>已锁定</option><option>已预订</option><option>已成交</option></select>
+                                <select id="filter-status" class="border p-1.5 rounded text-sm text-gray-600" onchange="window.renderBooths()"><option value="">所有状态</option><option value="可售">未售</option><option>已锁定</option><option>已预定</option><option>已付定金</option><option>已付全款</option></select>
                             </div>
                             <div class="flex items-center gap-2"><select id="batch-status-select" class="border p-1.5 rounded text-sm border-blue-400 text-blue-700 font-bold"><option value="可售">置为: 未售</option><option value="已锁定">置为: 锁定</option></select><button onclick="window.batchUpdateStatus()" class="btn-soft-primary px-3 py-1.5 text-sm"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12h15"/><path d="m12.75 6.75 5.25 5.25-5.25 5.25"/></svg><span>批量改状态</span></button><button onclick="window.batchDelete()" class="btn-soft-danger px-3 py-1.5 text-sm"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.75 7.5h10.5"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5"/><path d="M8.25 7.5l.75 10.5h6l.75-10.5"/></svg><span>批量删除</span></button></div>
                         </div>
@@ -1101,7 +1756,7 @@
                                 <div class="max-w-3xl">
                                     <div class="order-step-kicker"><span class="order-step-chip">录</span><span>订单信息录入</span></div>
                                     <h3 class="text-2xl font-black text-slate-900 mt-3">用更顺手的流程完成客户、展位与费用录入</h3>
-                                    <p class="text-sm text-slate-500 mt-2 leading-7">先确认招展来源和客户信息，再搜索并锁定展位，最后检查应收结构和合同附件。页面右侧会实时汇总本单关键信息，提交前不用来回滚动确认。</p>
+                                    <p class="text-sm text-slate-500 mt-2 leading-7">先确认招展来源和客户信息，再从已保存展位图中点选展位，最后检查应收结构和合同附件。页面右侧会实时汇总本单关键信息，提交前不用来回滚动确认。</p>
                                 </div>
                                 <div class="grid gap-3 sm:grid-cols-3 xl:w-[380px]">
                                     <div class="order-summary-tile">
@@ -1294,7 +1949,7 @@
                                         <div class="flex flex-col gap-2">
                                             <div class="order-step-kicker"><span class="order-step-chip">2</span><span>展位与费用</span></div>
                                             <div class="flex flex-col gap-1">
-                                                <h3 class="text-xl font-black text-slate-900">锁定展位后再确认应收结构</h3>
+                                                <h3 class="text-xl font-black text-slate-900">先从展位图点选展位，再确认应收结构</h3>
                                                 <p class="text-sm text-slate-500">支持连续录入多个展位，系统会按“一个展位一笔订单”自动拆分，同时保留统一的客户资料和费用结构；也支持纯其他应收的无展位订单。</p>
                                             </div>
                                         </div>
@@ -1303,7 +1958,7 @@
                                             <div class="flex items-start justify-between gap-4">
                                                 <div>
                                                     <label class="block text-slate-800 font-bold mb-1.5">选择展位 <span id="order-required-booth_selection" class="text-red-500">*</span></label>
-                                                    <p class="text-xs text-slate-500">按准确展位号搜索。若展位已成交或已预订，系统会提示联合参展面积分配；联合参展面积允许填写 0㎡，此时展位费固定为 0。</p>
+                                                    <p class="text-xs text-slate-500">点击按钮打开已保存的展位图，从图上直接点选展位。若展位已有订单，系统会提示联合参展面积分配；联合参展面积允许填写 0㎡，此时展位费固定为 0。</p>
                                                 </div>
                                                 <div id="selected-booth-count" class="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">0 个</div>
                                             </div>
@@ -1314,9 +1969,12 @@
                                                 </label>
                                                 <p class="text-xs text-slate-500 leading-5">适用于纯代收/杂费订单。不锁定展位，展位费固定为 0，必须至少添加一项其他应收费用。</p>
                                             </div>
-                                            <div id="order-booth-picker-wrap" class="flex flex-nowrap items-center gap-2">
-                                                <input type="text" id="booth-search-inp" class="min-w-0 flex-1 border-2 border-blue-400 px-4 py-3 rounded-xl text-lg font-bold uppercase tracking-wider shadow-inner" placeholder="输入准确的展位号 (如: 1A01)">
-                                                <button onclick="window.searchAndSelectBooth()" class="btn-primary inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-5 py-3 shadow-md"><svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span>搜索并锁定</span></button>
+                                            <div id="order-booth-picker-wrap" class="flex flex-col sm:flex-row sm:items-center gap-3">
+                                                <button type="button" onclick="window.openOrderBoothMapPicker()" class="btn-primary inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-3 shadow-md">
+                                                    <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.75 12 3.75l7.5 3v10.5l-7.5 3-7.5-3V6.75Z"/><path d="M12 3.75v16.5"/><path d="m4.5 6.75 7.5 3 7.5-3"/></svg>
+                                                    <span>选择展位</span>
+                                                </button>
+                                                <div class="text-xs text-slate-500 leading-6">可在弹窗中切换已保存画布，直接点选一个或多个展位后确认加入订单。</div>
                                             </div>
                                             <input type="hidden" id="selected-booth-id">
                                             <div id="order-no-booth-hint" class="hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600 leading-6">
@@ -1330,6 +1988,30 @@
                                                     </div>
                                                 </div>
                                                 <div id="selected-booth-list" class="mt-3 flex flex-wrap gap-2"></div>
+                                            </div>
+                                            <div id="order-booth-display-name-block" class="hidden rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-4">
+                                                <div class="flex flex-col gap-1">
+                                                    <div class="text-xs font-bold tracking-wide text-cyan-700">展位图显示名称</div>
+                                                    <p class="text-xs text-slate-600">标准展位建议填写简称，光地可留空使用企业全称。输入会同步到展位图运行态显示。</p>
+                                                </div>
+                                                <div class="grid lg:grid-cols-2 gap-4 mt-4">
+                                                    <div id="order-standard-display-name-wrap" class="hidden">
+                                                        <label class="block text-slate-800 font-bold mb-1.5">标准展位简称 <span class="text-red-500">*</span></label>
+                                                        <input type="text" id="order-standard-display-name" oninput="window.handleBoothDisplayNameInput('standard')" class="w-full border px-3 py-3 rounded-xl bg-white" placeholder="最多 4 个汉字或 8 个英文字符">
+                                                        <div class="mt-1 flex items-center justify-between gap-3 text-[11px]">
+                                                            <span class="text-slate-500">用于标摊 / 豪标在展位图中的企业简称</span>
+                                                            <span id="order-standard-display-name-count" class="font-bold text-slate-500">0 / 8 单位</span>
+                                                        </div>
+                                                    </div>
+                                                    <div id="order-ground-display-name-wrap" class="hidden">
+                                                        <label class="block text-slate-800 font-bold mb-1.5">光地显示名称</label>
+                                                        <input type="text" id="order-ground-display-name" oninput="window.handleBoothDisplayNameInput('ground')" class="w-full border px-3 py-3 rounded-xl bg-white" placeholder="留空时默认显示企业全称">
+                                                        <div class="mt-1 flex items-center justify-between gap-3 text-[11px]">
+                                                            <span class="text-slate-500">适用于光地在展位图中的显示文字</span>
+                                                            <span id="order-ground-display-name-count" class="font-bold text-slate-500">0 / 24 单位</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -1530,6 +2212,7 @@
     <script src="./js/auth.js"></script>
     <script src="./js/config.js"></script>
     <script src="./js/booth.js"></script>
+    <script src="./js/booth-map.js"></script>
     <script src="./js/order.js"></script>
     <script src="./js/finance.js"></script>
     <script src="./js/home.js"></script>

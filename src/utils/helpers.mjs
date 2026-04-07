@@ -2,6 +2,9 @@ const BOOTH_UNIT_AREA = 9;
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['pdf']);
 const ALLOWED_UPLOAD_MIME_TYPES = new Set(['application/pdf', 'application/x-pdf', '']);
 const MAX_UPLOAD_SIZE = 6 * 1024 * 1024;
+const ALLOWED_BOOTH_MAP_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
+const ALLOWED_BOOTH_MAP_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', '']);
+const MAX_BOOTH_MAP_IMAGE_SIZE = 10 * 1024 * 1024;
 
 export const STAFF_SORT_ORDER = `CASE WHEN name = 'admin' THEN 0 ELSE 1 END ASC, display_order ASC, name COLLATE NOCASE ASC`;
 
@@ -91,6 +94,25 @@ export function validateUploadFile(file) {
     return '';
 }
 
+export function validateBoothMapImageFile(file) {
+    if (!file || typeof file.name !== 'string') return '没有找到文件';
+    const fileExt = normalizeUploadExtension(file.name);
+    if (!ALLOWED_BOOTH_MAP_IMAGE_EXTENSIONS.has(fileExt)) {
+        return '展位图底图仅支持 JPG / JPEG / PNG';
+    }
+    const fileType = String(file.type || '').trim().toLowerCase();
+    if (!ALLOWED_BOOTH_MAP_IMAGE_MIME_TYPES.has(fileType)) {
+        return '展位图底图仅支持 JPG / JPEG / PNG';
+    }
+    if (Number(file.size || 0) <= 0) {
+        return '文件不能为空';
+    }
+    if (Number(file.size || 0) > MAX_BOOTH_MAP_IMAGE_SIZE) {
+        return '底图大小不能超过 10MB';
+    }
+    return '';
+}
+
 export function toNonNegativeNumber(value) {
     const num = Number(value);
     return Number.isFinite(num) ? num : NaN;
@@ -110,6 +132,34 @@ export function normalizeBoothIds(rawBoothIds) {
     return rawBoothIds
         .map((item) => String(item || '').trim())
         .filter(Boolean);
+}
+
+export function roundTo(value, digits = 2) {
+    const normalized = Number(value || 0);
+    if (!Number.isFinite(normalized)) return 0;
+    const factor = 10 ** digits;
+    return Math.round(normalized * factor) / factor;
+}
+
+export function clampNumber(value, min, max) {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized)) return min;
+    return Math.min(Math.max(normalized, min), max);
+}
+
+export function countDisplayNameUnits(value) {
+    return Array.from(String(value || '')).reduce((total, char) => {
+        return total + (/[\u0000-\u00ff]/.test(char) ? 1 : 2);
+    }, 0);
+}
+
+export function validateStandardBoothDisplayName(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '标准展位/豪标必须填写展位图简称';
+    if (countDisplayNameUnits(normalized) > 8) {
+        return '标准展位简称最多 4 个汉字或 8 个英文字符';
+    }
+    return '';
 }
 
 function formatProvinceLabel(rawProvince) {
