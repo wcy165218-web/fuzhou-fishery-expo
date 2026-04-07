@@ -190,6 +190,7 @@ export async function handleOrderRoutes({
                     fees_json: index === 0 ? JSON.stringify(normalizedFees) : '[]'
                 };
             });
+            const boothIdsToSync = new Set();
 
             for (const boothItem of distributedBooths) {
                 let existingOrder = null;
@@ -199,9 +200,10 @@ export async function handleOrderRoutes({
                 }
                 if (existingOrder && boothItem.is_joint && boothItem.area > 0) {
                     statements.push(
-                        env.DB.prepare('UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ?')
+                        env.DB.prepare("UPDATE Orders SET area = ROUND(area - ?, 2) WHERE id = ? AND status = '正常'")
                             .bind(boothItem.area, existingOrder.id)
                     );
+                    boothIdsToSync.add(String(boothItem.booth_id || '').trim());
                 }
 
                 statements.push(env.DB.prepare(`
@@ -217,16 +219,13 @@ export async function handleOrderRoutes({
                     boothItem.total_booth_fee, payload.discount_reason, boothItem.other_income, boothItem.fees_json, payload.profile, boothItem.total_amount, 0,
                     payload.contract_url || null, resolveBoothDisplayName(boothItem.type, payload), payload.sales_name, '正常'
                 ));
-
-                if (boothItem.booth_id) {
-                    statements.push(
-                        env.DB.prepare("UPDATE Booths SET status = '已预定' WHERE id = ? AND project_id = ? AND status NOT IN ('已预定', '已付定金', '已付全款', '已锁定')")
-                            .bind(boothItem.booth_id, payload.project_id)
-                    );
-                }
+                if (boothItem.booth_id) boothIdsToSync.add(String(boothItem.booth_id || '').trim());
             }
 
             await env.DB.batch(statements);
+            for (const boothId of boothIdsToSync) {
+                await syncBoothStatusByBoothId(env, Number(payload.project_id), boothId);
+            }
             return new Response(JSON.stringify({ success: true, created_count: distributedBooths.length }), { headers: corsHeaders });
         } catch (error) {
             return internalErrorResponse(error, corsHeaders, '提交订单失败');

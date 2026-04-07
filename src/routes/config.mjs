@@ -208,14 +208,23 @@ export async function handleConfigRoutes({
                 affectedOrderPairs.add(`${Number(item.project_id)}::${Number(item.order_id)}`);
             }
 
-            const fullyPaidOrders = (await env.DB.prepare(`
-            SELECT id, booth_id
-            FROM Orders
-            WHERE project_id = ? AND paid_amount >= total_amount AND status NOT IN ('已退订', '已作废')
-          `).bind(project_id).all()).results || [];
+            const affectedBoothPairs = new Set();
+            for (const pair of affectedOrderPairs) {
+                const [syncedProjectId, syncedOrderId] = pair.split('::');
+                const orderRow = await env.DB.prepare(`
+                  SELECT booth_id
+                  FROM Orders
+                  WHERE id = ? AND project_id = ? AND status NOT IN ('已退订', '已作废')
+                `).bind(Number(syncedOrderId), Number(syncedProjectId)).first();
+                const boothId = String(orderRow?.booth_id || '').trim();
+                if (boothId) {
+                    affectedBoothPairs.add(`${Number(syncedProjectId)}::${boothId}`);
+                }
+            }
 
-            for (const order of fullyPaidOrders) {
-                await syncBoothStatusByBoothId(env, Number(project_id), String(order.booth_id || ''));
+            for (const boothPair of affectedBoothPairs) {
+                const [syncedProjectId, boothId] = boothPair.split('::');
+                await syncBoothStatusByBoothId(env, Number(syncedProjectId), String(boothId || ''));
             }
 
             for (const pair of affectedOrderPairs) {

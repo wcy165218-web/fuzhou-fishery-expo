@@ -19,6 +19,9 @@ window.orderBoothMapPicker = window.orderBoothMapPicker || {
     initialized: false
 };
 window.orderBoothMapPointerUpHandler = window.orderBoothMapPointerUpHandler || (() => window.onOrderBoothMapPointerUp());
+window.orderBoothMapPointerDownHandler = window.orderBoothMapPointerDownHandler || ((event) => window.onOrderBoothMapPointerDown(event));
+window.orderBoothMapPointerMoveHandler = window.orderBoothMapPointerMoveHandler || ((event) => window.onOrderBoothMapPointerMove(event));
+window.orderBoothMapWheelHandler = window.orderBoothMapWheelHandler || ((event) => window.onOrderBoothMapWheel(event));
 
 window.formatOrderMoney = function(value) {
     if (window.formatCurrency) return window.formatCurrency(Number(value || 0));
@@ -142,9 +145,9 @@ window.ensureOrderBoothMapPickerInitialized = function() {
     if (state.initialized) return;
     const svg = document.getElementById('order-booth-map-svg');
     if (!svg) return;
-    svg.addEventListener('pointerdown', (event) => window.onOrderBoothMapPointerDown(event));
-    svg.addEventListener('pointermove', (event) => window.onOrderBoothMapPointerMove(event));
-    svg.addEventListener('wheel', (event) => window.onOrderBoothMapWheel(event), { passive: false });
+    svg.addEventListener('pointerdown', window.orderBoothMapPointerDownHandler);
+    svg.addEventListener('pointermove', window.orderBoothMapPointerMoveHandler);
+    svg.addEventListener('wheel', window.orderBoothMapWheelHandler, { passive: false });
     window.addEventListener('pointerup', window.orderBoothMapPointerUpHandler);
     state.initialized = true;
 }
@@ -449,6 +452,14 @@ window.openOrderBoothMapPicker = async function() {
 
 window.closeOrderBoothMapPicker = function() {
     const state = window.getOrderBoothMapPickerState();
+    const svg = document.getElementById('order-booth-map-svg');
+    if (svg && state.initialized) {
+        svg.removeEventListener('pointerdown', window.orderBoothMapPointerDownHandler);
+        svg.removeEventListener('pointermove', window.orderBoothMapPointerMoveHandler);
+        svg.removeEventListener('wheel', window.orderBoothMapWheelHandler);
+        window.removeEventListener('pointerup', window.orderBoothMapPointerUpHandler);
+        state.initialized = false;
+    }
     state.focusedBoothCode = '';
     state.pointerMode = '';
     state.pointerStartClient = null;

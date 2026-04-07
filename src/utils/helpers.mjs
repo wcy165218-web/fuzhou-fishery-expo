@@ -1,9 +1,9 @@
 const BOOTH_UNIT_AREA = 9;
 const ALLOWED_UPLOAD_EXTENSIONS = new Set(['pdf']);
-const ALLOWED_UPLOAD_MIME_TYPES = new Set(['application/pdf', 'application/x-pdf', '']);
+const ALLOWED_UPLOAD_MIME_TYPES = new Set(['application/pdf', 'application/x-pdf']);
 const MAX_UPLOAD_SIZE = 6 * 1024 * 1024;
 const ALLOWED_BOOTH_MAP_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png']);
-const ALLOWED_BOOTH_MAP_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', '']);
+const ALLOWED_BOOTH_MAP_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png']);
 const MAX_BOOTH_MAP_IMAGE_SIZE = 10 * 1024 * 1024;
 
 export const STAFF_SORT_ORDER = `CASE WHEN name = 'admin' THEN 0 ELSE 1 END ASC, display_order ASC, name COLLATE NOCASE ASC`;
