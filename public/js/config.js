@@ -84,6 +84,9 @@ window.onProjectChange = function() {
         window.loadPrices();
         window.loadBooths();
     }
+    if (document.getElementById('sec-booth-map')?.classList.contains('active')) {
+        window.initBoothMapPage?.();
+    }
     if (document.getElementById('sec-order-entry')?.classList.contains('active')) {
         window.initOrderForm();
     }

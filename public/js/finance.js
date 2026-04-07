@@ -467,7 +467,7 @@ window.renderOrderList = function() {
             `;
         }
 
-        const safeCompany = window.escapeHtml ? window.escapeHtml(o.company_name) : o.company_name;
+        const safeCompany = window.escapeHtml(o.company_name || '');
         const safeHall = window.escapeHtml(o.hall || '');
         const safeBoothId = window.escapeHtml(o.booth_id || '');
         const boothDisplay = window.getOrderBoothDisplay(o);
@@ -1169,7 +1169,7 @@ window.searchSwapBooth = async function() {
         if (String(targetBooth.status || '') === '已锁定') {
             throw new Error('目标展位已被临时锁定，请稍后再试');
         }
-        if (String(targetBooth.status || '') === '已预订' || String(targetBooth.status || '') === '已成交') {
+        if (['已预定', '已付定金', '已付全款'].includes(String(targetBooth.status || ''))) {
             throw new Error('目标展位当前已被其他订单占用，请重新选择');
         }
         const area = Number(targetBooth.area || 0);

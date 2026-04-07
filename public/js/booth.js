@@ -20,6 +20,19 @@ window.savePrices = async function() {
     }
 }
 
+window.ORDER_LINKED_BOOTH_STATUSES = ['已预定', '已付定金', '已付全款'];
+
+window.isOrderLinkedBoothStatus = function(status) {
+    return window.ORDER_LINKED_BOOTH_STATUSES.includes(String(status || '').trim());
+}
+
+window.deriveBoothHallLabel = function(boothId, fallback = '') {
+    const normalizedId = String(boothId || '').trim().toUpperCase();
+    const matched = normalizedId.match(/^(\d+)/);
+    if (matched) return `${matched[1]}号馆`;
+    return String(fallback || '').trim();
+}
+
 window.toggleEntrySection = function() { 
     const sec = document.getElementById('entry-section'); const arr = document.getElementById('entry-arrow'); 
     if(sec.classList.contains('hidden')) {
@@ -33,47 +46,24 @@ window.toggleEntrySection = function() {
 }
 
 window.addSingleBooth = async function() { 
-    const pid = document.getElementById('global-project-select').value; const idVal = document.getElementById('s-id').value.trim(); const hallNum = document.getElementById('s-hall-num').value.trim(); 
-    if(!idVal || !hallNum) return window.showToast("请输入完整展位号和展馆", 'error'); 
-    const type = document.getElementById('s-type').value; const area = parseFloat(document.getElementById('s-area').value); 
-    if(isNaN(area) || area <= 0) return window.showToast("请输入正确面积", 'error'); 
-    await window.withButtonLoading('btn-add-booth', async () => {
-        const res = await window.apiFetch('/api/add-booth', { method: 'POST', body: JSON.stringify({ project_id: pid, id: idVal, hall: `${hallNum}号馆`, type: type, area: area, price_unit: type==='光地'?'平米':'个', base_price: 0 }) }); 
-        if (res.ok) { document.getElementById('s-id').value = ''; document.getElementById('s-area').value = ''; window.showToast("展位添加成功"); window.loadBooths(); }
-        else { const err = await res.json(); window.showToast(err.error, 'error'); }
-    });
+    window.showToast('展位库仅接收展位图中已保存的展位，请到展位图管理中新增', 'info');
 }
 
 window.downloadTemplate = function() { 
-    const blob = new Blob(["\uFEFF展位号,展馆数字(如1),类型(标摊/光地/豪标),面积(㎡)\nA01,1,标摊,18\nA02,1,光地,36\n"], { type: "text/csv;charset=utf-8;" }); 
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "展位导入模板.csv"; link.click(); 
+    window.showToast('展位库不再支持 Excel 导入，请到展位图管理中维护', 'info');
 }
 
 window.parseAndImportBooths = async function() { 
-    const pid = document.getElementById('global-project-select').value; const text = document.getElementById('booth-import-text').value.trim(); 
-    if(!text) return window.showToast('请输入数据', 'error'); 
-    const rows = text.split('\n'); const booths = []; 
-    for(let r of rows) { 
-        if(!r.trim()) continue; 
-        const cols = r.split(/[\s,]+/).filter(c => c.trim() !== ""); 
-        if(cols.length >= 4 && cols[0] !== '展位号') booths.push({ id: cols[0], hall: cols[1].replace(/馆|号/g, '') + '号馆', type: cols[2], area: parseFloat(cols[3]) || 0, price_unit: cols[2]==='光地'?'平米':'个' }); 
-    } 
-    if(booths.length === 0) return window.showToast('未解析到有效数据', 'error'); 
-    
-    try {
-        await window.withButtonLoading('btn-import-booth', async () => {
-            await window.apiFetch('/api/import-booths', { method: 'POST', body: JSON.stringify({projectId: pid, booths}) }); 
-            document.getElementById('booth-import-text').value = ''; window.loadBooths(); 
-            window.showToast(`批量导入成功，共解析 ${booths.length} 条数据`);
-        });
-    } catch (e) {
-        window.showToast("导入失败，请检查数据格式", 'error');
-    }
+    window.showToast('展位库不再支持 Excel 导入，请到展位图管理中维护', 'info');
 }
 
 window.loadBooths = async function() { 
     const pid = document.getElementById('global-project-select').value; if(!pid) return; 
-    allBooths = await (await window.apiFetch(`/api/booths?projectId=${pid}`)).json(); 
+    allBooths = await (await window.apiFetch(`/api/booths?projectId=${pid}`)).json();
+    allBooths = (Array.isArray(allBooths) ? allBooths : []).map((booth) => ({
+        ...booth,
+        hall: window.deriveBoothHallLabel(booth.id, booth.hall)
+    }));
     const halls = [...new Set(allBooths.map(b => b.hall))].sort(); 
     const hallFilter = document.getElementById('filter-hall'); 
     hallFilter.innerHTML = '<option value="">所有展馆</option>'; 
@@ -110,7 +100,7 @@ window.renderStats = function(boothData) {
         unsoldArea: 0,
         soldArea: 0
     };
-    const isSoldOrBooked = (status) => status === '已预订' || status === '已成交';
+    const isSoldOrBooked = (status) => window.isOrderLinkedBoothStatus(status);
 
     boothData.forEach((booth) => {
         const area = Number(booth.area) || 0;
@@ -153,11 +143,11 @@ window.renderStats = function(boothData) {
                     <div class="text-sm text-slate-300 mt-2">总计预期展位费收入</div>
                     <div class="mt-5 bg-white/10 rounded-2xl border border-white/10 p-4">
                         <div class="flex items-center justify-between text-sm font-bold text-emerald-200">
-                            <span>已成交/预订比例</span>
+                            <span>已下单面积比例</span>
                             <span>${soldPercent}</span>
                         </div>
                         ${renderBar(soldPercentNumber, 'bg-gradient-to-r from-emerald-300 via-cyan-300 to-blue-300')}
-                        <div class="text-xs text-slate-300 mt-2">已成交/预订 ${summary.soldArea}㎡，未售 ${summary.unsoldArea}㎡</div>
+                        <div class="text-xs text-slate-300 mt-2">已下单 ${summary.soldArea}㎡，未售 ${summary.unsoldArea}㎡</div>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 flex-1">
@@ -182,7 +172,7 @@ window.renderStats = function(boothData) {
                         <div class="text-xs text-amber-200 mt-1">折 ${toBoothCount(summary.unsoldArea)} 个标准展位</div>
                     </div>
                     <div class="bg-emerald-400/10 backdrop-blur-sm rounded-2xl border border-emerald-300/20 p-4">
-                        <div class="text-xs text-emerald-200 font-bold">已成交/预订</div>
+                        <div class="text-xs text-emerald-200 font-bold">已下单面积</div>
                         <div class="text-2xl font-black text-emerald-100 mt-2">${summary.soldArea}㎡</div>
                         <div class="text-xs text-emerald-200 mt-1">折 ${toBoothCount(summary.soldArea)} 个标准展位</div>
                     </div>
@@ -208,7 +198,7 @@ window.renderBooths = function() {
     const tbody = document.getElementById('booth-list-tbody');
     document.getElementById('check-all').checked = false;
     tbody.innerHTML = window.renderHtmlCollection(filtered, (b) => {
-        const unit = b.type === '光地' ? '㎡' : '个'; const bCount = Number((b.area / 9).toFixed(2)).toString(); const isLockedByOrder = b.status === '已预订' || b.status === '已成交';
+        const unit = b.type === '光地' ? '㎡' : '个'; const bCount = Number((b.area / 9).toFixed(2)).toString(); const isLockedByOrder = window.isOrderLinkedBoothStatus(b.status); const isMapManaged = Number(b.map_managed || 0) === 1;
         
         let pStr = '';
         if (isLockedByOrder && b.total_booth_fee != null) {
@@ -227,8 +217,14 @@ window.renderBooths = function() {
             ['可售', '已锁定'].forEach(opt => selectHtml += `<option value="${opt}" ${b.status===opt?'selected':''}>${window.getBoothStatusLabel(opt)}</option>`); 
             selectHtml += `</select>`; 
         }
-        const actionHtml = isLockedByOrder ? `<span class="badge-readonly">订单锁定</span>` : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)})' class="btn-soft-primary px-3 py-1 text-xs mr-2">修改</button><button onclick='window.deleteSingleBooth(${JSON.stringify(String(b.id))})' class="btn-soft-danger px-3 py-1 text-xs">删除</button>`; 
-        const checkHtml = isLockedByOrder ? `<input type="checkbox" disabled title="不可批量操作">` : `<input type="checkbox" class="booth-check" value="${window.escapeAttr(b.id)}">`; 
+        const actionHtml = isLockedByOrder
+            ? `<span class="badge-readonly">订单锁定</span>`
+            : isMapManaged
+                ? `<div class="inline-flex items-center gap-2"><button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)}, true)' class="btn-soft-primary px-3 py-1 text-xs">改单价</button><span class="badge-readonly" title="展位号、面积和类型请回到展位图管理中维护">展位图维护</span></div>`
+                : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)}, false)' class="btn-soft-primary px-3 py-1 text-xs mr-2">修改</button><button onclick='window.deleteSingleBooth(${JSON.stringify(String(b.id))})' class="btn-soft-danger px-3 py-1 text-xs">删除</button>`;
+        const checkHtml = (isLockedByOrder || isMapManaged)
+            ? `<input type="checkbox" disabled title="${isMapManaged ? '该展位由展位图维护，请在展位图管理中修改' : '不可批量操作'}">`
+            : `<input type="checkbox" class="booth-check" value="${window.escapeAttr(b.id)}">`;
         return `<tr class="border-b"><td class="p-3">${checkHtml}</td><td class="p-3 font-bold">${window.escapeHtml(b.id)}</td><td class="p-3">${window.escapeHtml(b.hall)}</td><td class="p-3">${window.escapeHtml(b.type)}</td><td class="p-3">${b.area}㎡</td><td class="p-3">${bCount}个</td><td class="p-3">${pStr}</td><td class="p-3 text-center">${selectHtml}</td><td class="p-3 text-center">${actionHtml}</td></tr>`; 
     }, '<tr><td colspan="9" class="p-6 text-center text-gray-400">暂无符合条件的展位</td></tr>');
 }
@@ -240,7 +236,28 @@ window.batchUpdateStatus = async function() { const ids = window.getCheckedIds()
 window.deleteSingleBooth = async function(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await window.apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); window.showToast("展位删除成功"); window.loadBooths(); }
 window.batchDelete = async function() { const ids = window.getCheckedIds(); if(ids.length === 0) return window.showToast("请勾选展位", 'error'); if(!confirm(`🚨 危险操作：确定永久删除选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await window.apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); window.showToast(`成功删除了 ${ids.length} 个展位！`); window.loadBooths(); }
 
-window.openEditBooth = function(id, type, area, bp) { document.getElementById('eb-id').innerText = id; document.getElementById('eb-type').value = type; document.getElementById('eb-area').value = area; document.getElementById('eb-custom-price').value = bp > 0 ? bp : ''; document.getElementById('edit-booth-modal').classList.remove('hidden'); }
+window.openEditBooth = function(id, type, area, bp, mapManaged = false) {
+    document.getElementById('eb-id').innerText = id;
+    document.getElementById('eb-type').value = type;
+    document.getElementById('eb-area').value = area;
+    document.getElementById('eb-custom-price').value = bp > 0 ? bp : '';
+    document.getElementById('eb-map-managed').value = mapManaged ? '1' : '0';
+    const hintEl = document.getElementById('eb-mode-hint');
+    const typeEl = document.getElementById('eb-type');
+    const areaEl = document.getElementById('eb-area');
+    if (hintEl) hintEl.classList.toggle('hidden', !mapManaged);
+    if (typeEl) {
+        typeEl.disabled = !!mapManaged;
+        typeEl.classList.toggle('bg-gray-100', !!mapManaged);
+        typeEl.classList.toggle('cursor-not-allowed', !!mapManaged);
+    }
+    if (areaEl) {
+        areaEl.readOnly = !!mapManaged;
+        areaEl.classList.toggle('bg-gray-100', !!mapManaged);
+        areaEl.classList.toggle('cursor-not-allowed', !!mapManaged);
+    }
+    document.getElementById('edit-booth-modal').classList.remove('hidden');
+}
 window.submitEditBooth = async function() { 
     const pid = document.getElementById('global-project-select').value; 
     const id = document.getElementById('eb-id').innerText; 
@@ -248,17 +265,19 @@ window.submitEditBooth = async function() {
     const area = parseFloat(document.getElementById('eb-area').value); 
     const cp = parseFloat(document.getElementById('eb-custom-price').value);
     const finalCustomPrice = isNaN(cp) ? 0 : cp;
+    const mapManaged = Number(document.getElementById('eb-map-managed')?.value || 0) === 1;
 
-    if (isNaN(area) || area <= 0) return window.showToast("面积必须大于0", 'error');
+    if (!mapManaged && (isNaN(area) || area <= 0)) return window.showToast("面积必须大于0", 'error');
 
     await window.withButtonLoading('btn-save-booth', async () => {
         const res = await window.apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({project_id: pid, id: id, type: type, area: area, base_price: finalCustomPrice}) }); 
         if(res.ok) {
             window.closeModal('edit-booth-modal'); 
-            window.showToast("展位信息修改成功"); 
+            window.showToast(mapManaged ? "展位单价修改成功" : "展位信息修改成功");
             await window.loadBooths();
         } else {
-            window.showToast("修改失败", 'error');
+            const data = await res.json().catch(() => ({}));
+            window.showToast(data.error || "修改失败", 'error');
         }
     });
 }
