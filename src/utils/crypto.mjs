@@ -1,5 +1,5 @@
 const PASSWORD_HASH_VERSION = 'pbkdf2_sha256';
-const PASSWORD_PBKDF2_ITERATIONS = 150000;
+const PASSWORD_PBKDF2_ITERATIONS = 100000;
 const PASSWORD_SALT_BYTES = 16;
 const PASSWORD_HASH_BYTES = 32;
 const ERP_SECRET_VERSION = 'erpenc_v1';
@@ -74,6 +74,12 @@ export async function hashPassword(password) {
     ].join('$');
 }
 
+function normalizePasswordIterations(iterationsRaw) {
+    const iterations = Number.parseInt(iterationsRaw, 10);
+    if (!Number.isFinite(iterations) || iterations <= 0) return null;
+    return iterations;
+}
+
 export async function verifyPassword(password, storedHash) {
     const normalizedHash = String(storedHash || '').trim();
     if (!normalizedHash) return false;
@@ -82,13 +88,21 @@ export async function verifyPassword(password, storedHash) {
         return legacyHash === normalizedHash;
     }
     const [, iterationsRaw, saltHex, hashHex] = normalizedHash.split('$');
-    const iterations = Number.parseInt(iterationsRaw, 10);
+    const iterations = normalizePasswordIterations(iterationsRaw);
     const saltBytes = hexToUint8(saltHex);
     const expectedHashBytes = hexToUint8(hashHex);
     if (!Number.isFinite(iterations) || iterations <= 0 || !saltBytes || !expectedHashBytes) {
         return false;
     }
-    const derivedBytes = await derivePasswordHash(password, saltBytes, iterations);
+    let derivedBytes = null;
+    try {
+        derivedBytes = await derivePasswordHash(password, saltBytes, iterations);
+    } catch (error) {
+        console.warn('Password verification fallback: unsupported PBKDF2 iteration count', {
+            iterations
+        });
+        return false;
+    }
     if (derivedBytes.length !== expectedHashBytes.length) return false;
     let diff = 0;
     for (let index = 0; index < derivedBytes.length; index += 1) {
