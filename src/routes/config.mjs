@@ -6,6 +6,10 @@ import { getOrderFieldSettings, saveOrderFieldSettings } from '../services/order
 import { refreshOrderOverpaymentIssue } from '../services/overpayment.mjs';
 import { syncBoothStatusByBoothId } from '../services/booth-sync.mjs';
 
+function getChangedRows(result) {
+    return Number(result?.meta?.changes || 0);
+}
+
 export async function handleConfigRoutes({
     request,
     env,
@@ -236,6 +240,57 @@ export async function handleConfigRoutes({
             synced_count: plan.importableItems.length,
             summary: plan.summary,
             preview: plan.preview.slice(0, 50)
+        }), { headers: corsHeaders });
+    }
+
+    if (url.pathname === '/api/clear-project-rollout-data' && request.method === 'POST') {
+        const denied = requireSuperAdmin(currentUser, corsHeaders);
+        if (denied) return denied;
+
+        const { project_id } = await request.json();
+        const normalizedProjectId = Number(project_id);
+        if (!normalizedProjectId) return errorResponse('缺少项目 ID', 400, corsHeaders);
+
+        const deletedCounts = {
+            payments: 0,
+            expenses: 0,
+            order_overpayment_issues: 0,
+            order_booth_changes: 0,
+            orders: 0,
+            booth_map_items: 0,
+            booth_maps: 0,
+            booths: 0
+        };
+
+        deletedCounts.payments = getChangedRows(
+            await env.DB.prepare('DELETE FROM Payments WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.expenses = getChangedRows(
+            await env.DB.prepare('DELETE FROM Expenses WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.order_overpayment_issues = getChangedRows(
+            await env.DB.prepare('DELETE FROM OrderOverpaymentIssues WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.order_booth_changes = getChangedRows(
+            await env.DB.prepare('DELETE FROM OrderBoothChanges WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.orders = getChangedRows(
+            await env.DB.prepare('DELETE FROM Orders WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.booth_map_items = getChangedRows(
+            await env.DB.prepare('DELETE FROM BoothMapItems WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.booth_maps = getChangedRows(
+            await env.DB.prepare('DELETE FROM BoothMaps WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+        deletedCounts.booths = getChangedRows(
+            await env.DB.prepare('DELETE FROM Booths WHERE project_id = ?').bind(normalizedProjectId).run()
+        );
+
+        return new Response(JSON.stringify({
+            success: true,
+            project_id: normalizedProjectId,
+            deleted_counts: deletedCounts
         }), { headers: corsHeaders });
     }
 

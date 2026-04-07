@@ -597,6 +597,40 @@ window.runErpSync = async function() {
     }
 };
 
+window.clearProjectRolloutData = async function() {
+    const pid = document.getElementById('global-project-select').value;
+    const projectName = document.getElementById('global-project-select')?.selectedOptions?.[0]?.textContent?.trim() || `项目 ${pid}`;
+    if (!pid) return window.showToast('请先选择项目', 'error');
+
+    const firstConfirm = window.confirm(`将清空“${projectName}”下的订单、收款、展位图和展位库数据。此操作不可撤销，是否继续？`);
+    if (!firstConfirm) return;
+    const secondConfirm = window.confirm(`请再次确认：真的要清空“${projectName}”的业务数据吗？`);
+    if (!secondConfirm) return;
+
+    try {
+        await window.withButtonLoading('btn-clear-project-rollout-data', async () => {
+            const res = await window.apiFetch('/api/clear-project-rollout-data', {
+                method: 'POST',
+                body: JSON.stringify({ project_id: Number(pid) })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || '清空失败');
+
+            const counts = result.deleted_counts || {};
+            window.showToast(`项目业务数据已清空：订单 ${Number(counts.orders || 0)} 条，展位 ${Number(counts.booths || 0)} 条`);
+            await Promise.allSettled([
+                window.loadHomeDashboard?.(),
+                window.loadBooths?.(),
+                window.loadOrderList?.(),
+                window.initOrderForm?.(),
+                window.initBoothMapPage?.()
+            ]);
+        });
+    } catch (e) {
+        window.showToast(e.message || '清空失败', 'error');
+    }
+};
+
 window.renderOrderFieldSettings = function() {
     const tbody = document.getElementById('order-field-settings-tbody');
     if (!tbody) return;

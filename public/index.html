@@ -1345,6 +1345,18 @@
                                     </div>
                                     <div id="erp-sync-result" class="mt-4 hidden bg-slate-950 text-slate-100 rounded-2xl p-4 text-sm whitespace-pre-wrap leading-6"></div>
                                 </div>
+                                <div class="bg-rose-50 p-6 rounded-2xl border border-rose-200 shadow-sm">
+                                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                                        <div>
+                                            <h3 class="text-lg font-bold text-rose-900 flex items-center gap-2">项目业务数据清理</h3>
+                                            <p class="text-xs text-rose-700 mt-1 leading-6">仅用于上线前切换到新展位图逻辑。会清空当前项目下的订单、收款、展位图和展位库数据，不影响系统账号、项目配置和字段设置。</p>
+                                        </div>
+                                        <button id="btn-clear-project-rollout-data" onclick="window.clearProjectRolloutData()" class="btn-soft-danger px-4 py-2 text-sm whitespace-nowrap">
+                                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.75 3.75h4.5"/><path d="M4.5 6.75h15"/><path d="m6 6.75.75 11.25A1.5 1.5 0 0 0 8.25 19.5h7.5a1.5 1.5 0 0 0 1.5-1.5L18 6.75"/><path d="M10.5 10.5v5.25"/><path d="M13.5 10.5v5.25"/></svg>
+                                            <span>清空当前项目业务数据</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div id="config-panel-staff" class="config-panel hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                                 <h3 class="text-lg font-bold mb-4 flex justify-between items-center"><span>业务员与目标管理</span></h3>
