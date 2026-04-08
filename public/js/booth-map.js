@@ -2474,7 +2474,11 @@ window.rotateSelectedBoothMapItem = function(delta) {
 window.deleteSelectedBoothMapItem = function() {
     const selectedItems = window.getSelectedBoothMapItems();
     if (selectedItems.length === 0) return;
-    const occupiedItems = selectedItems.filter((item) => Number(item.active_order_count || 0) > 0);
+    const occupiedItems = selectedItems.filter((item) => {
+        if (Number(item.active_order_count || 0) > 0) return true;
+        const runtimeItem = window.getBoothMapRuntimeItem(item.booth_code);
+        return ['reserved', 'deposit', 'full_paid'].includes(String(runtimeItem?.status_code || ''));
+    });
     if (occupiedItems.length > 0) {
         const previewText = occupiedItems.slice(0, 5).map((item) => item.booth_code || '未命名').join('、');
         const suffix = occupiedItems.length > 5 ? ' 等' : '';
@@ -2922,12 +2926,28 @@ window.buildBoothMapItemsPayload = function(items = []) {
     }));
 }
 
+window.getBlockedBoothMapRemovedCodes = function(boothCodes = []) {
+    const state = window.getBoothMapState();
+    const runtimeMap = state.runtimeByBoothCode || {};
+    return Array.from(new Set((Array.isArray(boothCodes) ? boothCodes : [])
+        .map((code) => String(code || '').trim().toUpperCase())
+        .filter(Boolean)))
+        .filter((code) => ['reserved', 'deposit', 'full_paid'].includes(String(runtimeMap[code]?.status_code || '')));
+}
+
 window.persistBoothMapChanges = async function(options = {}) {
     if (!currentBoothMapId || !currentBoothMap) throw new Error('请先新建或选择一个画布');
     const projectId = window.getBoothMapProjectId();
     const state = window.getBoothMapState();
     const items = Array.isArray(options.items) ? options.items : (currentBoothMapItems || []);
     const replaceAll = options.replaceAll !== false;
+    const deletedBoothCodes = Array.isArray(options.deletedBoothCodes) ? options.deletedBoothCodes : (state.removedPersistedCodes || []);
+    const blockedRemovedCodes = window.getBlockedBoothMapRemovedCodes(deletedBoothCodes);
+    if (blockedRemovedCodes.length > 0) {
+        const previewText = blockedRemovedCodes.slice(0, 5).join('、');
+        const suffix = blockedRemovedCodes.length > 5 ? ' 等' : '';
+        throw new Error(`以下展位已被订单占用，不能删除：${previewText}${suffix}。如刚删除过，请刷新画布后重试。`);
+    }
     const zoom = Number((Number(currentBoothMap.canvas_width || 1600) / Math.max(Number(state.viewBox.width || 1), 1)).toFixed(4));
 
     const metaRes = await window.apiFetch('/api/update-booth-map', {
@@ -2956,7 +2976,7 @@ window.persistBoothMapChanges = async function(options = {}) {
             projectId,
             mapId: currentBoothMapId,
             replaceAll,
-            deleted_booth_codes: Array.isArray(options.deletedBoothCodes) ? options.deletedBoothCodes : (window.getBoothMapState().removedPersistedCodes || []),
+            deleted_booth_codes: deletedBoothCodes,
             items: window.buildBoothMapItemsPayload(items)
         })
     });
