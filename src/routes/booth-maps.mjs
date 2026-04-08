@@ -14,7 +14,7 @@ import {
 
 const ALLOWED_BOOTH_TYPES = new Set(['标摊', '豪标', '光地']);
 const ALLOWED_OPENING_TYPES = new Set(['单开口', '双开口', '三开口', '四面开']);
-const SQL_IN_CHUNK_SIZE = 200;
+const SQL_IN_CHUNK_SIZE = 80;
 
 function jsonResponse(payload, corsHeaders) {
     return new Response(JSON.stringify(payload), { headers: corsHeaders });

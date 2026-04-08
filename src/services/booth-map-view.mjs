@@ -4,7 +4,7 @@ import {
 } from '../utils/helpers.mjs';
 
 const DEFAULT_SCALE_PIXELS_PER_METER = 40;
-const SQL_IN_CHUNK_SIZE = 200;
+const SQL_IN_CHUNK_SIZE = 80;
 
 const STATUS_META = {
     locked: {
