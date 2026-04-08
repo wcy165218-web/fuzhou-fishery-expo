@@ -3,6 +3,15 @@ import { errorResponse } from '../utils/response.mjs';
 import { deriveBoothRuntimeStatus } from '../services/booth-map-view.mjs';
 
 const MANUAL_BOOTH_STATUSES = new Set(['可售', '已锁定']);
+const SQL_IN_CHUNK_SIZE = 80;
+
+function chunkItems(items = [], chunkSize = SQL_IN_CHUNK_SIZE) {
+    const output = [];
+    for (let index = 0; index < items.length; index += chunkSize) {
+        output.push(items.slice(index, index + chunkSize));
+    }
+    return output;
+}
 
 function deriveHallFromBoothId(boothId, fallback = '') {
     const normalizedBoothId = String(boothId || '').trim().toUpperCase();
@@ -16,15 +25,22 @@ async function getReferencedBoothIds(env, projectId, boothIds) {
         ? boothIds.map((id) => String(id || '').trim()).filter(Boolean)
         : [];
     if (normalizedBoothIds.length === 0) return [];
-    const placeholders = normalizedBoothIds.map(() => '?').join(',');
-    const results = await env.DB.prepare(`
-      SELECT booth_id
-      FROM Orders
-      WHERE project_id = ?
-        AND booth_id IN (${placeholders})
-      GROUP BY booth_id
-    `).bind(Number(projectId), ...normalizedBoothIds).all();
-    return (results.results || []).map((row) => String(row.booth_id || '').trim()).filter(Boolean);
+    const referencedBoothIds = new Set();
+    for (const boothIdChunk of chunkItems(normalizedBoothIds)) {
+        const placeholders = boothIdChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT booth_id
+          FROM Orders
+          WHERE project_id = ?
+            AND booth_id IN (${placeholders})
+          GROUP BY booth_id
+        `).bind(Number(projectId), ...boothIdChunk).all();
+        (results.results || []).forEach((row) => {
+            const boothId = String(row.booth_id || '').trim();
+            if (boothId) referencedBoothIds.add(boothId);
+        });
+    }
+    return Array.from(referencedBoothIds);
 }
 
 async function getActiveOrdersMap(env, projectId, boothIds) {
@@ -35,22 +51,24 @@ async function getActiveOrdersMap(env, projectId, boothIds) {
     ));
     const orderMap = new Map();
     if (normalizedBoothIds.length === 0) return orderMap;
-    const placeholders = normalizedBoothIds.map(() => '?').join(',');
-    const results = await env.DB.prepare(`
-      SELECT booth_id, paid_amount, total_amount
-      FROM Orders
-      WHERE project_id = ?
-        AND booth_id IN (${placeholders})
-        AND status = '正常'
-    `).bind(Number(projectId), ...normalizedBoothIds).all();
-    (results.results || []).forEach((row) => {
-        const boothId = String(row.booth_id || '').trim();
-        if (!boothId) return;
-        if (!orderMap.has(boothId)) {
-            orderMap.set(boothId, []);
-        }
-        orderMap.get(boothId).push(row);
-    });
+    for (const boothIdChunk of chunkItems(normalizedBoothIds)) {
+        const placeholders = boothIdChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT booth_id, paid_amount, total_amount
+          FROM Orders
+          WHERE project_id = ?
+            AND booth_id IN (${placeholders})
+            AND status = '正常'
+        `).bind(Number(projectId), ...boothIdChunk).all();
+        (results.results || []).forEach((row) => {
+            const boothId = String(row.booth_id || '').trim();
+            if (!boothId) return;
+            if (!orderMap.has(boothId)) {
+                orderMap.set(boothId, []);
+            }
+            orderMap.get(boothId).push(row);
+        });
+    }
     return orderMap;
 }
 
@@ -61,15 +79,22 @@ async function getMapManagedBoothIds(env, projectId, boothIds) {
             .filter(Boolean)
     ));
     if (normalizedBoothIds.length === 0) return [];
-    const placeholders = normalizedBoothIds.map(() => '?').join(',');
-    const results = await env.DB.prepare(`
-      SELECT id
-      FROM Booths
-      WHERE project_id = ?
-        AND id IN (${placeholders})
-        AND (source = 'map' OR booth_map_id IS NOT NULL)
-    `).bind(Number(projectId), ...normalizedBoothIds).all();
-    return (results.results || []).map((row) => String(row.id || '').trim()).filter(Boolean);
+    const mapManagedBoothIds = new Set();
+    for (const boothIdChunk of chunkItems(normalizedBoothIds)) {
+        const placeholders = boothIdChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT id
+          FROM Booths
+          WHERE project_id = ?
+            AND id IN (${placeholders})
+            AND (source = 'map' OR booth_map_id IS NOT NULL)
+        `).bind(Number(projectId), ...boothIdChunk).all();
+        (results.results || []).forEach((row) => {
+            const boothId = String(row.id || '').trim();
+            if (boothId) mapManagedBoothIds.add(boothId);
+        });
+    }
+    return Array.from(mapManagedBoothIds);
 }
 
 export async function handleBoothRoutes({
@@ -171,9 +196,11 @@ export async function handleBoothRoutes({
         if (!MANUAL_BOOTH_STATUSES.has(String(status || '').trim())) {
             return errorResponse('仅允许手动设置为未售或已锁定', 400, corsHeaders);
         }
-        const placeholders = normalizedBoothIds.map(() => '?').join(',');
-        const query = `UPDATE Booths SET status = ? WHERE project_id = ? AND id IN (${placeholders})`;
-        await env.DB.prepare(query).bind(status, projectId, ...normalizedBoothIds).run();
+        for (const boothIdChunk of chunkItems(normalizedBoothIds)) {
+            const placeholders = boothIdChunk.map(() => '?').join(',');
+            const query = `UPDATE Booths SET status = ? WHERE project_id = ? AND id IN (${placeholders})`;
+            await env.DB.prepare(query).bind(status, projectId, ...boothIdChunk).run();
+        }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
@@ -197,9 +224,11 @@ export async function handleBoothRoutes({
             const suffix = referencedBoothIds.length > 5 ? ' 等' : '';
             return errorResponse(`以下展位已被历史订单引用，不能删除：${previewText}${suffix}`, 400, corsHeaders);
         }
-        const placeholders = normalizedBoothIds.map(() => '?').join(',');
-        await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND id IN (${placeholders})`)
-            .bind(projectId, ...normalizedBoothIds).run();
+        for (const boothIdChunk of chunkItems(normalizedBoothIds)) {
+            const placeholders = boothIdChunk.map(() => '?').join(',');
+            await env.DB.prepare(`DELETE FROM Booths WHERE project_id = ? AND id IN (${placeholders})`)
+                .bind(projectId, ...boothIdChunk).run();
+        }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 

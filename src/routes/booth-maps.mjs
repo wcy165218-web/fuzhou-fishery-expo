@@ -15,6 +15,7 @@ import {
 const ALLOWED_BOOTH_TYPES = new Set(['标摊', '豪标', '光地']);
 const ALLOWED_OPENING_TYPES = new Set(['单开口', '双开口', '三开口', '四面开']);
 const SQL_IN_CHUNK_SIZE = 80;
+const BATCH_CHUNK_SIZE = 40;
 
 function jsonResponse(payload, corsHeaders) {
     return new Response(JSON.stringify(payload), { headers: corsHeaders });
@@ -152,6 +153,13 @@ function chunkItems(items = [], chunkSize = SQL_IN_CHUNK_SIZE) {
         output.push(items.slice(index, index + chunkSize));
     }
     return output;
+}
+
+async function executeStatementsInChunks(env, statements = [], chunkSize = BATCH_CHUNK_SIZE) {
+    for (const statementChunk of chunkItems(statements, chunkSize)) {
+        if (statementChunk.length === 0) continue;
+        await env.DB.batch(statementChunk);
+    }
 }
 
 async function getReferencedBoothCodes(env, projectId, boothCodes) {
@@ -665,7 +673,7 @@ export async function handleBoothMapRoutes({
                     .bind(nowText, mapId, projectId)
             );
 
-            await env.DB.batch(statements);
+            await executeStatementsInChunks(env, statements);
             return jsonResponse({
                 success: true,
                 saved_count: normalizedItems.length,

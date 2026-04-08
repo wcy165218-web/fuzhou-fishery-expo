@@ -12,6 +12,16 @@ import { errorResponse, internalErrorResponse } from '../utils/response.mjs';
 import { syncBoothStatusByBoothId } from '../services/booth-sync.mjs';
 import { refreshOrderOverpaymentIssue } from '../services/overpayment.mjs';
 
+const BATCH_CHUNK_SIZE = 40;
+
+function chunkItems(items = [], chunkSize = BATCH_CHUNK_SIZE) {
+    const output = [];
+    for (let index = 0; index < items.length; index += chunkSize) {
+        output.push(items.slice(index, index + chunkSize));
+    }
+    return output;
+}
+
 function resolveBoothDisplayName(boothType, payload) {
     const normalizedBoothType = String(boothType || '').trim();
     const standardName = String(payload.standard_booth_display_name || '').trim();
@@ -222,7 +232,10 @@ export async function handleOrderRoutes({
                 if (boothItem.booth_id) boothIdsToSync.add(String(boothItem.booth_id || '').trim());
             }
 
-            await env.DB.batch(statements);
+            for (const statementChunk of chunkItems(statements)) {
+                if (statementChunk.length === 0) continue;
+                await env.DB.batch(statementChunk);
+            }
             for (const boothId of boothIdsToSync) {
                 await syncBoothStatusByBoothId(env, Number(payload.project_id), boothId);
             }
