@@ -1987,8 +1987,9 @@ window.onBoothMapPointerDown = function(event) {
     const resizeHandleEl = event.target.closest('[data-resize-handle]');
     const itemGroup = event.target.closest('[data-item-id]');
     const isAdditiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+    const shouldPanWithModifier = event.altKey || event.metaKey;
 
-    if (state.tool === 'pan') {
+    if (state.tool === 'pan' || shouldPanWithModifier) {
         state.pointerMode = 'pan';
         state.pointerStartClient = { x: event.clientX, y: event.clientY };
         state.pointerStartViewBox = { ...state.viewBox };
