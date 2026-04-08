@@ -4,6 +4,7 @@ import {
 } from '../utils/helpers.mjs';
 
 const DEFAULT_SCALE_PIXELS_PER_METER = 40;
+const SQL_IN_CHUNK_SIZE = 200;
 
 const STATUS_META = {
     locked: {
@@ -58,6 +59,14 @@ function getDefaultCompanyRotation(widthPx, heightPx) {
     const ratio = Number(widthPx || 0) / safeHeight;
     if (ratio <= 0.8) return 90;
     return 0;
+}
+
+function chunkItems(items = [], chunkSize = SQL_IN_CHUNK_SIZE) {
+    const output = [];
+    for (let index = 0; index < items.length; index += chunkSize) {
+        output.push(items.slice(index, index + chunkSize));
+    }
+    return output;
 }
 
 export function getBoothStatusMeta(code) {
@@ -209,24 +218,26 @@ export async function getProjectBoothOrdersMap(env, projectId, boothCodes = []) 
     const ordersMap = new Map();
     if (normalizedBoothCodes.length === 0) return ordersMap;
 
-    const placeholders = normalizedBoothCodes.map(() => '?').join(',');
-    const results = await env.DB.prepare(`
-      SELECT booth_id, company_name, booth_display_name, paid_amount, total_amount, created_at
-      FROM Orders
-      WHERE project_id = ?
-        AND status = '正常'
-        AND booth_id IN (${placeholders})
-      ORDER BY datetime(created_at) ASC, id ASC
-    `).bind(Number(projectId), ...normalizedBoothCodes).all();
+    for (const boothCodeChunk of chunkItems(normalizedBoothCodes)) {
+        const placeholders = boothCodeChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT booth_id, company_name, booth_display_name, paid_amount, total_amount, created_at
+          FROM Orders
+          WHERE project_id = ?
+            AND status = '正常'
+            AND booth_id IN (${placeholders})
+          ORDER BY datetime(created_at) ASC, id ASC
+        `).bind(Number(projectId), ...boothCodeChunk).all();
 
-    (results.results || []).forEach((row) => {
-        const boothCode = String(row.booth_id || '').trim();
-        if (!boothCode) return;
-        if (!ordersMap.has(boothCode)) {
-            ordersMap.set(boothCode, []);
-        }
-        ordersMap.get(boothCode).push(row);
-    });
+        (results.results || []).forEach((row) => {
+            const boothCode = String(row.booth_id || '').trim();
+            if (!boothCode) return;
+            if (!ordersMap.has(boothCode)) {
+                ordersMap.set(boothCode, []);
+            }
+            ordersMap.get(boothCode).push(row);
+        });
+    }
 
     return ordersMap;
 }

@@ -14,6 +14,7 @@ import {
 
 const ALLOWED_BOOTH_TYPES = new Set(['标摊', '豪标', '光地']);
 const ALLOWED_OPENING_TYPES = new Set(['单开口', '双开口', '三开口', '四面开']);
+const SQL_IN_CHUNK_SIZE = 200;
 
 function jsonResponse(payload, corsHeaders) {
     return new Response(JSON.stringify(payload), { headers: corsHeaders });
@@ -145,6 +146,14 @@ function normalizeBooleanFlag(rawValue) {
     return Number(rawValue || 0) ? 1 : 0;
 }
 
+function chunkItems(items = [], chunkSize = SQL_IN_CHUNK_SIZE) {
+    const output = [];
+    for (let index = 0; index < items.length; index += chunkSize) {
+        output.push(items.slice(index, index + chunkSize));
+    }
+    return output;
+}
+
 async function getReferencedBoothCodes(env, projectId, boothCodes) {
     const normalizedBoothCodes = Array.from(new Set(
         (Array.isArray(boothCodes) ? boothCodes : [])
@@ -152,15 +161,44 @@ async function getReferencedBoothCodes(env, projectId, boothCodes) {
             .filter(Boolean)
     ));
     if (normalizedBoothCodes.length === 0) return [];
-    const placeholders = normalizedBoothCodes.map(() => '?').join(',');
-    const results = await env.DB.prepare(`
-      SELECT booth_id
-      FROM Orders
-      WHERE project_id = ?
-        AND booth_id IN (${placeholders})
-      GROUP BY booth_id
-    `).bind(Number(projectId), ...normalizedBoothCodes).all();
-    return (results.results || []).map((row) => normalizeBoothCode(row.booth_id)).filter(Boolean);
+    const referencedCodes = new Set();
+    for (const boothCodeChunk of chunkItems(normalizedBoothCodes)) {
+        const placeholders = boothCodeChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT booth_id
+          FROM Orders
+          WHERE project_id = ?
+            AND booth_id IN (${placeholders})
+          GROUP BY booth_id
+        `).bind(Number(projectId), ...boothCodeChunk).all();
+        (results.results || []).forEach((row) => {
+            const normalized = normalizeBoothCode(row.booth_id);
+            if (normalized) referencedCodes.add(normalized);
+        });
+    }
+    return Array.from(referencedCodes);
+}
+
+async function getOccupiedBoothMapRows(env, projectId, mapId, boothCodes) {
+    const normalizedBoothCodes = Array.from(new Set(
+        (Array.isArray(boothCodes) ? boothCodes : [])
+            .map((code) => normalizeBoothCode(code))
+            .filter(Boolean)
+    ));
+    if (normalizedBoothCodes.length === 0) return [];
+    const occupiedRows = [];
+    for (const boothCodeChunk of chunkItems(normalizedBoothCodes)) {
+        const placeholders = boothCodeChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT booth_code, map_id
+          FROM BoothMapItems
+          WHERE project_id = ?
+            AND booth_code IN (${placeholders})
+            AND map_id <> ?
+        `).bind(Number(projectId), ...boothCodeChunk, Number(mapId)).all();
+        occupiedRows.push(...(results.results || []));
+    }
+    return occupiedRows;
 }
 
 function ensureAdmin(currentUser, corsHeaders) {
@@ -495,14 +533,7 @@ export async function handleBoothMapRoutes({
             }
 
             if (boothCodes.length > 0) {
-                const placeholders = boothCodes.map(() => '?').join(',');
-                const occupiedRows = ((await env.DB.prepare(`
-                  SELECT booth_code, map_id
-                  FROM BoothMapItems
-                  WHERE project_id = ?
-                    AND booth_code IN (${placeholders})
-                    AND map_id <> ?
-                `).bind(projectId, ...boothCodes, mapId).all()).results || []);
+                const occupiedRows = await getOccupiedBoothMapRows(env, projectId, mapId, boothCodes);
                 if (occupiedRows.length > 0) {
                     return errorResponse(`展位 ${occupiedRows[0].booth_code} 已存在于其他展位图中`, 400, corsHeaders);
                 }
