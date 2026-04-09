@@ -22,7 +22,12 @@ export async function handleFileRoutes({
         const fileExt = normalizeUploadExtension(file.name);
         const fileKey = `contract_${Date.now()}_${crypto.randomUUID()}.${fileExt}`;
         try {
-            await env.BUCKET.put(fileKey, file.stream());
+            const fileBuffer = await file.arrayBuffer();
+            await env.BUCKET.put(fileKey, fileBuffer, {
+                httpMetadata: {
+                    contentType: String(file.type || 'application/pdf').trim() || 'application/pdf'
+                }
+            });
         } catch (error) {
             console.error('File upload failed:', error);
             return errorResponse('合同上传失败，请稍后重试', 500, corsHeaders);

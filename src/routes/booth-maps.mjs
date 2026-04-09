@@ -464,7 +464,12 @@ export async function handleBoothMapRoutes({
         const fileExt = normalizeUploadExtension(file.name);
         const fileKey = `booth_map_${projectId}_${mapId}_${Date.now()}_${crypto.randomUUID()}.${fileExt}`;
         try {
-            await env.BUCKET.put(fileKey, file.stream());
+            const fileBuffer = await file.arrayBuffer();
+            await env.BUCKET.put(fileKey, fileBuffer, {
+                httpMetadata: {
+                    contentType: String(file.type || 'application/octet-stream').trim() || 'application/octet-stream'
+                }
+            });
             await env.DB.prepare(`
               UPDATE BoothMaps
               SET background_image_key = ?, updated_at = ?
