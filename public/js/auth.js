@@ -47,33 +47,31 @@ window.handleLogin = async function() {
 
     window.toggleBtnLoading('login-btn', true);
     try {
-        const res = await fetch('/api/login', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({username: u, password: p}) 
-        }); 
-        if (res.ok) { 
-            currentUser = (await res.json()).user; 
-            window.setStoredUser(currentUser); 
-            window.showToast('登录成功！');
-            window.enterMainView(); 
-        } else { 
-            let errorMessage = '登录失败，账号或密码错误';
-            try {
-                const err = await res.json();
-                errorMessage = err.error || errorMessage;
-            } catch (e) { /* ignore */ }
-            window.showToast(errorMessage, 'error'); 
-        } 
+        const loginData = await window.readApiJson(
+            await fetch('/api/login', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({username: u, password: p}) 
+            }),
+            '登录失败，账号或密码错误',
+            {}
+        );
+        if (!loginData?.user) {
+            throw new Error('登录失败，返回数据异常');
+        }
+        window.setCurrentAuthUser(loginData.user);
+        window.showToast('登录成功！');
+        window.enterMainView(); 
     } catch(e) {
-        window.showToast('网络请求失败', 'error');
+        const message = e?.message && e.message !== 'Failed to fetch' ? e.message : '网络请求失败';
+        window.showToast(message, 'error');
     } finally {
         window.toggleBtnLoading('login-btn', false);
     }
 }
 
 window.handleLogout = function() { 
-    window.clearStoredUser(); 
+    window.clearCurrentAuthUser();
     location.reload(); 
 }
 
@@ -290,18 +288,17 @@ window.submitPasswordChange = async function() {
     if(!op || !np) return window.showToast("请填写完整", 'error'); 
     window.toggleBtnLoading('btn-change-pass', true);
     try {
-        const res = await window.apiFetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }); 
-        if(res.ok) { 
-            currentUser.must_change_password = false;
-            window.setStoredUser(currentUser);
-            window.showToast("修改成功，请重新登录"); 
-            window.closeModal('password-modal'); 
-            setTimeout(() => window.handleLogout(), 1500); 
-        } 
-        else {
-            const err = await res.json();
-            window.showToast(err.error || err.message || "原密码错误", 'error');
-        } 
+        await window.ensureApiSuccess(
+            await window.apiFetch('/api/change-password', { method: 'POST', body: JSON.stringify({staffName: currentUser.name, oldPass: op, newPass: np}) }),
+            '原密码错误'
+        );
+        const nextUser = { ...(window.getCurrentAuthUser?.() || currentUser || {}), must_change_password: false };
+        window.setCurrentAuthUser(nextUser);
+        window.showToast("修改成功，请重新登录"); 
+        window.closeModal('password-modal'); 
+        setTimeout(() => window.handleLogout(), 1500); 
+    } catch (e) {
+        window.showToast(e.message || "原密码错误", 'error');
     } finally {
         window.toggleBtnLoading('btn-change-pass', false);
     }

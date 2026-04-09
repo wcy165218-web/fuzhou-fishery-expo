@@ -4,14 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nav-change-pass')?.addEventListener('click', window.openPasswordModal);
     document.getElementById('logout-btn')?.addEventListener('click', window.handleLogout);
     
-    // 【核心修复】：从本地缓存恢复用户状态，并挂载到 window 全局对象上
-    const savedUser = window.getStoredUser?.();
+    // 启动时统一走共享认证恢复逻辑，避免各处各自解析缓存用户。
+    const savedUser = window.getCurrentAuthUser?.();
     if (savedUser) {
-        try {
-            window.currentUser = JSON.parse(savedUser);
-            window.enterMainView();
-        } catch (e) {
-            window.clearStoredUser?.();
-        }
+        window.enterMainView();
     }
 });

@@ -4,6 +4,7 @@ window.selectedOrderBooths = [];
 window.orderNoBooth = false;
 window.orderFieldSettingsMap = window.orderFieldSettingsMap || {};
 window.orderBoothMapPicker = window.orderBoothMapPicker || {
+    mode: 'order',
     maps: [],
     currentMapId: 0,
     currentMap: null,
@@ -16,7 +17,8 @@ window.orderBoothMapPicker = window.orderBoothMapPicker || {
     pointerDownBoothCode: '',
     dragMoved: false,
     focusedBoothCode: '',
-    initialized: false
+    initialized: false,
+    onConfirm: null
 };
 window.orderBoothMapPointerUpHandler = window.orderBoothMapPointerUpHandler || (() => window.onOrderBoothMapPointerUp());
 window.orderBoothMapPointerDownHandler = window.orderBoothMapPointerDownHandler || ((event) => window.onOrderBoothMapPointerDown(event));
@@ -24,8 +26,7 @@ window.orderBoothMapPointerMoveHandler = window.orderBoothMapPointerMoveHandler 
 window.orderBoothMapWheelHandler = window.orderBoothMapWheelHandler || ((event) => window.onOrderBoothMapWheel(event));
 
 window.formatOrderMoney = function(value) {
-    if (window.formatCurrency) return window.formatCurrency(Number(value || 0));
-    return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    return window.formatCurrency(Number(value || 0));
 }
 
 window.isOrderFieldEnabled = function(fieldKey) {
@@ -292,10 +293,14 @@ window.renderOrderBoothMapSelectedList = function() {
     const state = window.getOrderBoothMapPickerState();
     const listEl = document.getElementById('order-booth-map-selected-list');
     const countEl = document.getElementById('order-booth-map-selected-count');
-    if (countEl) countEl.innerText = `暂选 ${state.tempSelectedBooths.length} 个`;
+    if (countEl) {
+        countEl.innerText = state.mode === 'swap'
+            ? `已选目标 ${state.tempSelectedBooths.length} 个`
+            : `暂选 ${state.tempSelectedBooths.length} 个`;
+    }
     if (!listEl) return;
     if (!state.tempSelectedBooths.length) {
-        listEl.innerHTML = '<span class="text-xs text-slate-400 italic">暂未选择展位</span>';
+        listEl.innerHTML = `<span class="text-xs text-slate-400 italic">${state.mode === 'swap' ? '暂未选择目标展位' : '暂未选择展位'}</span>`;
         return;
     }
     listEl.innerHTML = state.tempSelectedBooths.map((item) => `
@@ -321,7 +326,9 @@ window.renderOrderBoothMapSvg = function() {
         svg.innerHTML = '';
         if (emptyEl) emptyEl.classList.remove('hidden');
         if (titleEl) titleEl.innerText = '未选择画布';
-        if (tipEl) tipEl.innerText = '先选择一张已保存的展位图，再从右侧画布中点选展位。';
+        if (tipEl) tipEl.innerText = state.mode === 'swap'
+            ? '先选择一张已保存的展位图，再从右侧画布中点选一个目标展位。'
+            : '先选择一张已保存的展位图，再从右侧画布中点选展位。';
         window.renderOrderBoothMapSelectedList();
         return;
     }
@@ -329,7 +336,11 @@ window.renderOrderBoothMapSvg = function() {
     const { width, height } = window.getOrderBoothMapSize(map);
     if (emptyEl) emptyEl.classList.add('hidden');
     if (titleEl) titleEl.innerText = map.name || '未命名画布';
-    if (tipEl) tipEl.innerText = state.runtimeItems.length ? '点击右侧展位即可加入或移出本次订单。' : '当前画布暂未保存展位。';
+    if (tipEl) {
+        tipEl.innerText = state.runtimeItems.length
+            ? (state.mode === 'swap' ? '点击右侧可售展位，作为本次换展位的目标展位。' : '点击右侧展位即可加入或移出本次订单。')
+            : '当前画布暂未保存展位。';
+    }
     const selectedIds = new Set((state.tempSelectedBooths || []).map((item) => String(item.id || '').trim().toUpperCase()));
     const focusedBoothCode = String(state.focusedBoothCode || '').trim().toUpperCase();
     const backgroundHref = window.getAuthorizedAssetUrl(
@@ -377,9 +388,11 @@ window.loadOrderBoothMapPickerMaps = async function(preferredMapId = 0) {
     const projectId = Number(document.getElementById('global-project-select')?.value || 0);
     if (!projectId) return window.showToast('请先选择项目', 'error');
     const state = window.getOrderBoothMapPickerState();
-    const res = await window.apiFetch(`/api/booth-maps?projectId=${projectId}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error || '加载展位图失败');
+    const data = await window.readApiSuccessJson(
+        await window.apiFetch(`/api/booth-maps?projectId=${projectId}`),
+        '加载展位图失败',
+        {}
+    );
     state.maps = Array.isArray(data.items) ? data.items : [];
     window.populateOrderBoothMapSelectOptions();
     const targetMap = state.maps.find((map) => Number(map.id) === Number(preferredMapId || 0)) || state.maps[0] || null;
@@ -406,9 +419,11 @@ window.selectOrderBoothMapForPicker = async function(mapId) {
         window.renderOrderBoothMapSvg();
         return;
     }
-    const res = await window.apiFetch(`/api/booth-map-runtime-view?id=${Number(mapId)}&projectId=${projectId}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error || '加载展位图失败');
+    const data = await window.readApiSuccessJson(
+        await window.apiFetch(`/api/booth-map-runtime-view?id=${Number(mapId)}&projectId=${projectId}`),
+        '加载展位图失败',
+        {}
+    );
     state.currentMapId = Number(mapId);
     state.currentMap = data.map || null;
     state.runtimeItems = Array.isArray(data.items) ? data.items : [];
@@ -437,6 +452,8 @@ window.openOrderBoothMapPicker = async function() {
     if (!projectId) return window.showToast('请先选择项目', 'error');
     window.ensureOrderBoothMapPickerInitialized();
     const state = window.getOrderBoothMapPickerState();
+    state.mode = 'order';
+    state.onConfirm = null;
     state.tempSelectedBooths = window.cloneOrderBoothSelectionList(window.selectedOrderBooths);
     try {
         const preferredBoothId = String(state.tempSelectedBooths[0]?.id || '').trim().toUpperCase();
@@ -444,6 +461,8 @@ window.openOrderBoothMapPicker = async function() {
             ? Number((Array.isArray(allBooths) ? allBooths : []).find((item) => String(item.id || '').trim().toUpperCase() === preferredBoothId)?.booth_map_id || 0)
             : 0;
         await window.loadOrderBoothMapPickerMaps(preferredMapId);
+        const confirmBtn = document.getElementById('btn-confirm-order-booth-map');
+        if (confirmBtn) confirmBtn.innerText = '确认加入订单';
         document.getElementById('order-booth-map-modal')?.classList.remove('hidden');
     } catch (error) {
         window.showToast(error.message, 'error');
@@ -483,8 +502,50 @@ window.clearOrderBoothMapTempSelection = function() {
     window.renderOrderBoothMapSvg();
 }
 
+window.buildSwapBoothCandidate = function(runtimeItem) {
+    const sourceBooth = window.getOrderBoothMapSourceBooth(runtimeItem);
+    const area = Number(runtimeItem?.area || sourceBooth.area || 0);
+    const boothPricing = window.calculateBoothStandardFee(sourceBooth, area);
+    return {
+        id: String(sourceBooth.id || ''),
+        hall: String(sourceBooth.hall || ''),
+        type: String(sourceBooth.type || ''),
+        area,
+        price_unit: sourceBooth.type === '光地' ? '平米' : '个',
+        unit_price: Number(boothPricing.priceUnit || 0),
+        standard_fee: Number(boothPricing.standardFee || 0)
+    };
+}
+
+window.selectSwapBoothByCode = function(boothCode) {
+    const state = window.getOrderBoothMapPickerState();
+    const runtimeItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === boothCode);
+    const currentOrder = window.currentFinanceOrder;
+    if (!runtimeItem || !currentOrder) return;
+    if (String(runtimeItem.booth_code || '').trim().toUpperCase() === String(currentOrder.booth_id || '').trim().toUpperCase()) {
+        return window.showToast('目标展位与当前展位相同，无需换展位', 'error');
+    }
+    if (String(runtimeItem.status_code || '') === 'locked') {
+        return window.showToast(`展位 [${boothCode}] 已锁定，当前不可选择`, 'error');
+    }
+    if (['reserved', 'deposit', 'full_paid'].includes(String(runtimeItem.status_code || ''))) {
+        return window.showToast(`展位 [${boothCode}] 当前已被其他订单占用，请重新选择`, 'error');
+    }
+    const area = Number(runtimeItem.area || 0);
+    if (!Number.isFinite(area) || area <= 0) {
+        return window.showToast('目标展位面积异常，无法换展位', 'error');
+    }
+    state.tempSelectedBooths = [window.buildSwapBoothCandidate(runtimeItem)];
+    state.focusedBoothCode = boothCode;
+    window.renderOrderBoothMapSvg();
+    window.showToast(`已选中目标展位：${boothCode}`);
+}
+
 window.toggleOrderBoothMapSelectionByCode = function(boothCode) {
     const state = window.getOrderBoothMapPickerState();
+    if (state.mode === 'swap') {
+        return window.selectSwapBoothByCode(boothCode);
+    }
     const runtimeItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === boothCode);
     if (!runtimeItem) return;
 
@@ -577,6 +638,13 @@ window.onOrderBoothMapWheel = function(event) {
 
 window.confirmOrderBoothMapSelection = function() {
     const state = window.getOrderBoothMapPickerState();
+    if (typeof state.onConfirm === 'function') {
+        const selection = window.cloneOrderBoothSelectionList(state.tempSelectedBooths);
+        const handled = state.onConfirm(selection);
+        if (handled === false) return;
+        window.closeOrderBoothMapPicker();
+        return;
+    }
     window.selectedOrderBooths = window.cloneOrderBoothSelectionList(state.tempSelectedBooths);
     window.currentAllocatedArea = window.selectedOrderBooths.reduce((sum, item) => sum + Number(item.area || 0), 0);
     window.renderSelectedBooths();
@@ -1213,9 +1281,11 @@ window.submitOrderForm = async function() {
         if (window.isOrderFieldEnabled('contract_upload') && fileInput.files.length > 0) {
             const file = fileInput.files[0]; 
             const formData = new FormData(); formData.append('file', file);
-            const uploadRes = await window.apiFetch('/api/upload', { method: 'POST', body: formData }); 
-            const uploadData = await uploadRes.json();
-            if (!uploadRes.ok || !uploadData.success) throw new Error(uploadData.error || "上传失败"); 
+            const uploadData = await window.readApiSuccessJson(
+                await window.apiFetch('/api/upload', { method: 'POST', body: formData }),
+                '上传失败',
+                {}
+            );
             uploadedFileKey = uploadData.fileKey;
         }
         const orderData = {
@@ -1237,18 +1307,16 @@ window.submitOrderForm = async function() {
             standard_fee: item.standard_fee,
             is_joint: item.is_joint
         }));
-        const res = await window.apiFetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) });
-        if(res.ok) { 
-            const result = await res.json().catch(() => ({ success: true }));
-            const createdCount = Number(result.created_count || selectedBooths.length || 1);
-            window.showToast(`🎉 订单录入成功，已生成 ${createdCount} 笔订单并锁定对应展位！`); 
-            window.initOrderForm(); 
-        } else { 
-            const err = await res.json(); 
-            throw new Error(err.error); 
-        }
+        const result = await window.readApiJson(
+            await window.apiFetch('/api/submit-order', { method: 'POST', body: JSON.stringify(orderData) }),
+            '订单录入失败',
+            {}
+        );
+        const createdCount = Number(result.created_count || selectedBooths.length || 1);
+        window.showToast(`🎉 订单录入成功，已生成 ${createdCount} 笔订单并锁定对应展位！`); 
+        window.initOrderForm(); 
     } catch (error) { 
-        window.showToast(error.message, 'error'); 
+        window.showToast(error.message || '订单录入失败', 'error'); 
     } finally { 
         window.toggleBtnLoading('submit-btn', false);
     }

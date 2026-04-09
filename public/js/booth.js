@@ -1,17 +1,32 @@
 // ================= js/booth.js =================
 window.loadPrices = async function() { 
-    const pid = document.getElementById('global-project-select').value; if(!pid) return; 
-    const res = await window.apiFetch(`/api/prices?projectId=${pid}`); const data = await res.json(); 
-    globalPrices = { '标摊': data['标摊']||0, '豪标': data['豪标']||0, '光地': data['光地']||0 }; 
-    document.getElementById('price-bt').value = globalPrices['标摊']; document.getElementById('price-hb').value = globalPrices['豪标']; document.getElementById('price-gd').value = globalPrices['光地']; 
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
+    try {
+        const data = await window.readApiJson(
+            await window.apiFetch(`/api/prices?projectId=${pid}`),
+            '加载价格策略失败',
+            {}
+        );
+        globalPrices = { '标摊': data['标摊'] || 0, '豪标': data['豪标'] || 0, '光地': data['光地'] || 0 };
+        document.getElementById('price-bt').value = globalPrices['标摊'];
+        document.getElementById('price-hb').value = globalPrices['豪标'];
+        document.getElementById('price-gd').value = globalPrices['光地'];
+    } catch (e) {
+        window.showToast(e.message || '加载价格策略失败', 'error');
+    }
 }
 
 window.savePrices = async function() { 
-    const pid = document.getElementById('global-project-select').value; if(!pid) return; 
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
     const prices = { '标摊': Number(document.getElementById('price-bt').value)||0, '豪标': Number(document.getElementById('price-hb').value)||0, '光地': Number(document.getElementById('price-gd').value)||0 }; 
     try {
         await window.withButtonLoading('btn-save-prices', async () => {
-            await window.apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }); 
+            await window.ensureApiSuccess(
+                await window.apiFetch('/api/prices', { method: 'POST', body: JSON.stringify({projectId: pid, prices}) }),
+                '保存失败'
+            );
             window.showToast("全局策略保存成功！"); 
             window.loadPrices(); window.loadBooths(); 
         }); 
@@ -58,22 +73,31 @@ window.parseAndImportBooths = async function() {
 }
 
 window.loadBooths = async function() { 
-    const pid = document.getElementById('global-project-select').value; if(!pid) return; 
-    allBooths = await (await window.apiFetch(`/api/booths?projectId=${pid}`)).json();
-    allBooths = (Array.isArray(allBooths) ? allBooths : []).map((booth) => ({
-        ...booth,
-        hall: window.deriveBoothHallLabel(booth.id, booth.hall)
-    }));
-    const halls = [...new Set(allBooths.map(b => b.hall))].sort(); 
-    const hallFilter = document.getElementById('filter-hall'); 
-    hallFilter.innerHTML = '<option value="">所有展馆</option>'; 
-    halls.forEach(h => {
-        const option = document.createElement('option');
-        option.value = h;
-        option.textContent = h;
-        hallFilter.appendChild(option);
-    });
-    window.renderBooths(); 
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
+    try {
+        allBooths = await window.readApiJson(
+            await window.apiFetch(`/api/booths?projectId=${pid}`),
+            '加载展位失败',
+            []
+        );
+        allBooths = (Array.isArray(allBooths) ? allBooths : []).map((booth) => ({
+            ...booth,
+            hall: window.deriveBoothHallLabel(booth.id, booth.hall)
+        }));
+        const halls = [...new Set(allBooths.map(b => b.hall))].sort(); 
+        const hallFilter = document.getElementById('filter-hall'); 
+        hallFilter.innerHTML = '<option value="">所有展馆</option>'; 
+        halls.forEach(h => {
+            const option = document.createElement('option');
+            option.value = h;
+            option.textContent = h;
+            hallFilter.appendChild(option);
+        });
+        window.renderBooths();
+    } catch (e) {
+        window.showToast(e.message || '加载展位失败', 'error');
+    }
 }
 
 window.updateStatsTitle = function() {
@@ -231,10 +255,85 @@ window.renderBooths = function() {
 
 window.toggleAllChecks = function(source) { document.querySelectorAll('.booth-check:not(:disabled)').forEach(cb => cb.checked = source.checked); } 
 window.getCheckedIds = function() { return Array.from(document.querySelectorAll('.booth-check:checked')).map(cb => cb.value); }
-window.updateSingleBoothStatus = async function(bid, st) { const label = window.getBoothStatusLabel(st); if(!confirm(`确定将展位 [${bid}] 修改为【${label}】吗？`)) { window.loadBooths(); return; } const pid = document.getElementById('global-project-select').value; await window.apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [bid], status: st}) }); window.loadBooths(); window.showToast(`已更新为 ${label}`);}
-window.batchUpdateStatus = async function() { const ids = window.getCheckedIds(); if(ids.length === 0) return window.showToast("请勾选要操作的展位", 'error'); const st = document.getElementById('batch-status-select').value; const label = window.getBoothStatusLabel(st); if(!confirm(`确定批量修改选中的 ${ids.length} 个展位状态为【${label}】吗？`)) return; const pid = document.getElementById('global-project-select').value; await window.apiFetch('/api/update-booth-status', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids, status: st}) }); window.showToast(`成功更新了 ${ids.length} 个展位状态！`); window.loadBooths(); }
-window.deleteSingleBooth = async function(id) { if(!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return; const pid = document.getElementById('global-project-select').value; await window.apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: [id]}) }); window.showToast("展位删除成功"); window.loadBooths(); }
-window.batchDelete = async function() { const ids = window.getCheckedIds(); if(ids.length === 0) return window.showToast("请勾选展位", 'error'); if(!confirm(`🚨 危险操作：确定永久删除选中的 ${ids.length} 个展位吗？`)) return; const pid = document.getElementById('global-project-select').value; await window.apiFetch('/api/delete-booths', { method: 'POST', body: JSON.stringify({projectId: pid, boothIds: ids}) }); window.showToast(`成功删除了 ${ids.length} 个展位！`); window.loadBooths(); }
+window.updateSingleBoothStatus = async function(bid, st) {
+    const label = window.getBoothStatusLabel(st);
+    if (!confirm(`确定将展位 [${bid}] 修改为【${label}】吗？`)) {
+        window.loadBooths();
+        return;
+    }
+    const pid = document.getElementById('global-project-select').value;
+    try {
+        await window.ensureApiSuccess(
+            await window.apiFetch('/api/update-booth-status', {
+                method: 'POST',
+                body: JSON.stringify({ projectId: pid, boothIds: [bid], status: st })
+            }),
+            '更新展位状态失败'
+        );
+        window.loadBooths();
+        window.showToast(`已更新为 ${label}`);
+    } catch (e) {
+        await window.loadBooths();
+        window.showToast(e.message || '更新展位状态失败', 'error');
+    }
+}
+window.batchUpdateStatus = async function() {
+    const ids = window.getCheckedIds();
+    if (ids.length === 0) return window.showToast("请勾选要操作的展位", 'error');
+    const st = document.getElementById('batch-status-select').value;
+    const label = window.getBoothStatusLabel(st);
+    if (!confirm(`确定批量修改选中的 ${ids.length} 个展位状态为【${label}】吗？`)) return;
+    const pid = document.getElementById('global-project-select').value;
+    try {
+        await window.ensureApiSuccess(
+            await window.apiFetch('/api/update-booth-status', {
+                method: 'POST',
+                body: JSON.stringify({ projectId: pid, boothIds: ids, status: st })
+            }),
+            '批量更新展位状态失败'
+        );
+        window.showToast(`成功更新了 ${ids.length} 个展位状态！`);
+        window.loadBooths();
+    } catch (e) {
+        window.showToast(e.message || '批量更新展位状态失败', 'error');
+    }
+}
+window.deleteSingleBooth = async function(id) {
+    if (!confirm(`🚨 危险操作：永久删除展位 [${id}]？`)) return;
+    const pid = document.getElementById('global-project-select').value;
+    try {
+        await window.ensureApiSuccess(
+            await window.apiFetch('/api/delete-booths', {
+                method: 'POST',
+                body: JSON.stringify({ projectId: pid, boothIds: [id] })
+            }),
+            '展位删除失败'
+        );
+        window.showToast("展位删除成功");
+        window.loadBooths();
+    } catch (e) {
+        window.showToast(e.message || '展位删除失败', 'error');
+    }
+}
+window.batchDelete = async function() {
+    const ids = window.getCheckedIds();
+    if (ids.length === 0) return window.showToast("请勾选展位", 'error');
+    if (!confirm(`🚨 危险操作：确定永久删除选中的 ${ids.length} 个展位吗？`)) return;
+    const pid = document.getElementById('global-project-select').value;
+    try {
+        await window.ensureApiSuccess(
+            await window.apiFetch('/api/delete-booths', {
+                method: 'POST',
+                body: JSON.stringify({ projectId: pid, boothIds: ids })
+            }),
+            '批量删除展位失败'
+        );
+        window.showToast(`成功删除了 ${ids.length} 个展位！`);
+        window.loadBooths();
+    } catch (e) {
+        window.showToast(e.message || '批量删除展位失败', 'error');
+    }
+}
 
 window.openEditBooth = function(id, type, area, bp, mapManaged = false) {
     document.getElementById('eb-id').innerText = id;
@@ -270,14 +369,15 @@ window.submitEditBooth = async function() {
     if (!mapManaged && (isNaN(area) || area <= 0)) return window.showToast("面积必须大于0", 'error');
 
     await window.withButtonLoading('btn-save-booth', async () => {
-        const res = await window.apiFetch('/api/edit-booth', { method: 'POST', body: JSON.stringify({project_id: pid, id: id, type: type, area: area, base_price: finalCustomPrice}) }); 
-        if(res.ok) {
-            window.closeModal('edit-booth-modal'); 
-            window.showToast(mapManaged ? "展位单价修改成功" : "展位信息修改成功");
-            await window.loadBooths();
-        } else {
-            const data = await res.json().catch(() => ({}));
-            window.showToast(data.error || "修改失败", 'error');
-        }
+        await window.ensureApiSuccess(
+            await window.apiFetch('/api/edit-booth', {
+                method: 'POST',
+                body: JSON.stringify({project_id: pid, id: id, type: type, area: area, base_price: finalCustomPrice})
+            }),
+            '修改失败'
+        );
+        window.closeModal('edit-booth-modal'); 
+        window.showToast(mapManaged ? "展位单价修改成功" : "展位信息修改成功");
+        await window.loadBooths();
     });
 }

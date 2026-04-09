@@ -44,6 +44,14 @@ window.formatCurrency = function(value, prefix = '¥') {
     return `${prefix}${window.formatMoneyNumber(value)}`;
 }
 
+window.formatCompactCount = function(value) {
+    return Number(value || 0).toFixed(2).replace(/\.00$/, '');
+}
+
+window.formatCompactPercent = function(value) {
+    return `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+}
+
 window.getStoredUser = function() {
     const sessionValue = sessionStorage.getItem(AUTH_STORAGE_KEY);
     if (sessionValue) return sessionValue;
@@ -67,6 +75,162 @@ window.clearStoredUser = function() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
+window.setCurrentAuthUser = function(user) {
+    const normalizedUser = user && typeof user === 'object' ? user : null;
+    window.currentUser = normalizedUser;
+    currentUser = normalizedUser;
+    if (normalizedUser) {
+        window.setStoredUser(normalizedUser);
+    } else {
+        window.clearStoredUser();
+    }
+    return normalizedUser;
+}
+
+window.clearCurrentAuthUser = function() {
+    return window.setCurrentAuthUser(null);
+}
+
+window.getCurrentAuthUser = function() {
+    if (window.currentUser?.token) return window.currentUser;
+    if (currentUser?.token) return currentUser;
+    const savedUser = window.getStoredUser?.();
+    if (!savedUser) return null;
+    try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed?.token) {
+            return window.setCurrentAuthUser(parsed);
+        }
+    } catch (error) {
+        window.clearCurrentAuthUser();
+        return null;
+    }
+    return null;
+}
+
+window.fetchWithAuth = async function(url, options = {}) {
+    const requestOptions = { ...options };
+    const headers = { ...(requestOptions.headers || {}) };
+    const authUser = window.getCurrentAuthUser();
+    if (authUser?.token) {
+        headers['Authorization'] = `Bearer ${authUser.token}`;
+    }
+    if (!headers['Content-Type'] && !(requestOptions.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+    requestOptions.headers = headers;
+    return fetch(url, requestOptions);
+}
+
+function getOrderAuthUser(user = null) {
+    return user || window.getCurrentAuthUser?.() || window.currentUser || currentUser || null;
+}
+
+// Shared order helpers live here so finance/home/order pages follow one client-side rule set.
+window.isOwnOrder = function(order, user = null) {
+    const authUser = getOrderAuthUser(user);
+    return !!order && !!authUser && String(order.sales_name || '') === String(authUser.name || '');
+}
+
+window.canViewSensitiveOrderFields = function(order, user = null) {
+    const authUser = getOrderAuthUser(user);
+    return !!order && (!!window.isSuperAdmin?.(authUser) || window.isOwnOrder(order, authUser));
+}
+
+window.canManageOrder = function(order, user = null) {
+    const authUser = getOrderAuthUser(user);
+    return !!order && !!authUser && (String(authUser.role || '') === 'admin' || Number(order.can_manage) === 1);
+}
+
+window.getOrderBoothDisplay = function(order) {
+    if (!order) return '无展位订单';
+    const hall = String(order.hall || '').trim();
+    const boothId = String(order.booth_id || '').trim();
+    if (!boothId) return '无展位订单';
+    return hall ? `${hall} - ${boothId}` : boothId;
+}
+
+window.getOverpaidAmount = function(order) {
+    if (!order) return 0;
+    const explicit = Number(order.overpaid_amount || 0);
+    if (explicit > 0) return explicit;
+    return Math.max(0, Number((Number(order.paid_amount || 0) - Number(order.total_amount || 0)).toFixed(2)));
+}
+
+window.hasOverpaymentIssue = function(order) {
+    return window.getOverpaidAmount(order) > 0.01;
+}
+
+window.canHandleOverpayment = function(order, user = null) {
+    const authUser = getOrderAuthUser(user);
+    return !!order && (!!window.isSuperAdmin?.(authUser) || window.isOwnOrder(order, authUser));
+}
+
+window.getOverpaymentStatusLabel = function(order) {
+    switch (order?.overpayment_status) {
+        case 'resolved_as_fx_diff':
+            return '已按汇率差确认';
+        case 'on_hold':
+            return '已暂挂待核销';
+        case 'resolved_by_fee_update':
+            return '已通过补录应收解除';
+        default:
+            return '超收异常待处理';
+    }
+}
+
+window.formatOverpaymentMeta = function(order) {
+    const handledBy = order?.overpayment_handled_by || '';
+    const handledAt = order?.overpayment_handled_at || '';
+    const note = String(order?.overpayment_note || '').trim();
+    if (order?.overpayment_status === 'resolved_as_fx_diff') {
+        return `${handledBy ? `处理人：${handledBy}` : '已确认汇率差'}${handledAt ? ` | 时间：${handledAt}` : ''}${note ? ` | 说明：${note}` : ''}`;
+    }
+    if (order?.overpayment_status === 'on_hold') {
+        return `${handledBy ? `处理人：${handledBy}` : '已暂挂处理'}${handledAt ? ` | 时间：${handledAt}` : ''}${note ? ` | 说明：${note}` : ''}`;
+    }
+    if (order?.overpayment_status === 'resolved_by_fee_update') {
+        return '已通过补录其他应收自动解除超收异常。';
+    }
+    return '请业务员尽快处理：补录应收、确认汇率差或暂挂说明。';
+}
+
+window.readApiErrorMessage = async function(response, fallback = '请求失败') {
+    if (!response) return fallback;
+    try {
+        const data = await response.clone().json();
+        if (typeof data?.error === 'string' && data.error.trim()) return data.error.trim();
+        if (typeof data?.message === 'string' && data.message.trim()) return data.message.trim();
+    } catch (error) {}
+    try {
+        const text = String(await response.clone().text() || '').trim();
+        if (text) return text;
+    } catch (error) {}
+    return fallback;
+}
+
+window.ensureApiSuccess = async function(response, fallback = '请求失败') {
+    if (response.ok) return response;
+    throw new Error(await window.readApiErrorMessage(response, fallback));
+}
+
+window.readApiJson = async function(response, fallback = '请求失败', defaultValue = null) {
+    await window.ensureApiSuccess(response, fallback);
+    try {
+        return await response.json();
+    } catch (error) {
+        return defaultValue;
+    }
+}
+
+window.readApiSuccessJson = async function(response, fallback = '请求失败', defaultValue = null) {
+    const data = await window.readApiJson(response, fallback, defaultValue);
+    if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, 'success') && !data.success) {
+        throw new Error(String(data.error || data.message || fallback));
+    }
+    return data;
+}
+
 window.revokeAuthorizedAssetUrl = function(rawUrl) {
     const normalizedUrl = String(rawUrl || '').trim();
     if (!normalizedUrl) return;
@@ -85,7 +249,7 @@ window.getAuthorizedAssetDataUrl = async function(rawUrl) {
     if (assetDataUrlCache[normalizedUrl]) return assetDataUrlCache[normalizedUrl];
     if (pendingAssetDataUrlRequests[normalizedUrl]) return pendingAssetDataUrlRequests[normalizedUrl];
 
-    pendingAssetDataUrlRequests[normalizedUrl] = window.apiFetch(normalizedUrl)
+    pendingAssetDataUrlRequests[normalizedUrl] = window.fetchWithAuth(normalizedUrl)
         .then(async (res) => {
             if (!res.ok) {
                 let message = '资源加载失败';
@@ -125,7 +289,7 @@ window.getAuthorizedAssetUrl = function(rawUrl, onReady = null) {
     if (assetObjectUrlCache[normalizedUrl]) return assetObjectUrlCache[normalizedUrl];
     if (pendingAssetObjectUrlRequests[normalizedUrl]) return '';
 
-    pendingAssetObjectUrlRequests[normalizedUrl] = window.apiFetch(normalizedUrl)
+    pendingAssetObjectUrlRequests[normalizedUrl] = window.fetchWithAuth(normalizedUrl)
         .then(async (res) => {
             if (!res.ok) {
                 let message = '资源加载失败';
@@ -289,20 +453,14 @@ window.showToast = function(message, type = 'success') {
 
 // 全局 API 拦截器 (携带 Token，处理过期)
 window.apiFetch = async function(url, options = {}) {
-    const headers = options.headers || {};
-    if (currentUser && currentUser.token) {
-        headers['Authorization'] = `Bearer ${currentUser.token}`;
-    }
-    if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
-        headers['Content-Type'] = 'application/json';
-    }
-    options.headers = headers;
-
-    const res = await fetch(url, options);
+    const requestOptions = { ...options };
+    const res = await window.fetchWithAuth(url, requestOptions);
     if (res.status === 401) {
+        if (requestOptions.skipUnauthorizedHandler) {
+            return res;
+        }
         window.showToast("登录状态已过期或被管理员修改，请重新登录！", 'error');
-        window.clearStoredUser();
-        window.currentUser = null; // 彻底清除内存中的用户信息
+        window.clearCurrentAuthUser();
         setTimeout(() => location.reload(), 1500);
         throw new Error("Unauthorized");
     }

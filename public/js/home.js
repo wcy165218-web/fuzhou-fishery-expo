@@ -185,9 +185,9 @@ window.renderHomeProgressSummary = function(progress) {
     const container = document.getElementById('home-progress-summary');
     if (!container) return;
 
-    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
-    const fmtMoney = (value) => window.formatCurrency(value);
-    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const fmtCount = window.formatCompactCount;
+    const fmtMoney = window.formatCurrency;
+    const fmtPercent = window.formatCompactPercent;
     const targetRate = Number(progress.target_total || 0) > 0
         ? ((Number(progress.deposit_booth_count || 0) + Number(progress.full_paid_booth_count || 0)) / Number(progress.target_total || 0)) * 100
         : 0;
@@ -289,9 +289,9 @@ window.renderHomeSalesSummary = function(periodMap) {
     const fixedReceivedTotal = Number(fixedTotal.received_total || 0);
     const fixedCollectionRate = fixedReceivableTotal > 0 ? (fixedReceivedTotal / fixedReceivableTotal) * 100 : 0;
     const fixedUnpaidTotal = Math.max(fixedReceivableTotal - fixedReceivedTotal, 0);
-    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
-    const fmtMoney = (value) => window.formatCurrency(value);
-    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const fmtCount = window.formatCompactCount;
+    const fmtMoney = window.formatCurrency;
+    const fmtPercent = window.formatCompactPercent;
     const currentPaidBooths = Number((Number(current.deposit_booth_count || 0) + Number(current.full_paid_booth_count || 0)).toFixed(2));
     const currentCompletionRate = fixedTargetTotal > 0 ? (currentPaidBooths / fixedTargetTotal) * 100 : 0;
     const currentUnpaidTotal = Math.max(Number(current.receivable_total || 0) - Number(current.received_total || 0), 0);
@@ -592,9 +592,9 @@ window.getHomeSalesListExportContext = function(view) {
     const projectSelect = document.getElementById('global-project-select');
     const projectName = projectSelect?.options?.[projectSelect.selectedIndex]?.text || '未选择项目';
     const exportTime = new Date().toLocaleString('zh-CN', { hour12: false });
-    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
-    const fmtMoney = (value) => window.formatCurrency(value);
-    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const fmtCount = window.formatCompactCount;
+    const fmtMoney = window.formatCurrency;
+    const fmtPercent = window.formatCompactPercent;
     const sortSummary = window.homeSalesListSortKey
         ? `当前排序：${({
             target_booths: '目标展位数',
@@ -1040,9 +1040,9 @@ window.renderHomeSalesList = function(periodMap, metaMap = {}) {
         return;
     }
 
-    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
-    const fmtMoney = (value) => window.formatCurrency(value);
-    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const fmtCount = window.formatCompactCount;
+    const fmtMoney = window.formatCurrency;
+    const fmtPercent = window.formatCompactPercent;
 
     container.innerHTML = `
         <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
@@ -1390,9 +1390,9 @@ window.renderHomeHallTable = function(halls, isAdmin) {
         ? window.activeHomeHallTab
         : 'booth';
     window.activeHomeHallTab = activeId;
-    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
-    const fmtMoney = (value) => window.formatCurrency(value);
-    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const fmtCount = window.formatCompactCount;
+    const fmtMoney = window.formatCurrency;
+    const fmtPercent = window.formatCompactPercent;
 
     const totals = halls.reduce((acc, hall) => {
         acc.configuredStandard += Number(hall.configured_standard_booth_count || 0);
@@ -1554,11 +1554,10 @@ window.loadHomeDashboard = async function() {
     }, 60000);
 
     try {
-        const res = await window.apiFetch(`/api/home-dashboard?projectId=${pid}`);
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || '首页数据加载失败');
-        }
+        const res = await window.ensureApiSuccess(
+            await window.apiFetch(`/api/home-dashboard?projectId=${pid}`),
+            '首页数据加载失败'
+        );
         const data = await res.json();
         window.homeDashboardData = data;
         const defaultYear = window.getHomeDefaultYear();

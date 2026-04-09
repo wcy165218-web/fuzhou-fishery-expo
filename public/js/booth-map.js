@@ -386,11 +386,17 @@ window.escapeBoothMapText = function(text) {
     return window.escapeHtml ? window.escapeHtml(text) : String(text || '');
 }
 
+window.BOOTH_MAP_TEXT_FONT_FAMILY = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Source Han Sans SC",sans-serif';
+
+window.getBoothMapTextFontFamily = function() {
+    return window.BOOTH_MAP_TEXT_FONT_FAMILY;
+}
+
 window.measureBoothMapText = function(text, fontSize, letterSpacingEm = 0) {
     window.boothMapMeasureCanvas = window.boothMapMeasureCanvas || document.createElement('canvas');
     const ctx = window.boothMapMeasureCanvas.getContext('2d');
     const normalized = String(text || '');
-    ctx.font = `${Number(fontSize || 12)}px sans-serif`;
+    ctx.font = `${Number(fontSize || 12)}px ${window.getBoothMapTextFontFamily()}`;
     const baseWidth = ctx.measureText(normalized).width;
     if (!normalized || normalized.length <= 1 || !Number.isFinite(Number(letterSpacingEm))) return baseWidth;
     return baseWidth + (normalized.length - 1) * Number(fontSize || 12) * Number(letterSpacingEm || 0);
@@ -449,6 +455,31 @@ window.fitBoothMapCompanyBlock = function(text, fontSize, maxWidth, maxHeight, m
         lines: [],
         fontSize: 1,
         lineHeight: 0.98
+    };
+}
+
+window.fitBoothMapSingleLineBlock = function(text, fontSize, maxWidth, maxHeight, letterSpacingEm = 0, minFontSize = 1) {
+    const normalized = String(text || '').trim();
+    const safeWidth = Math.max(Number(maxWidth || 0), 8);
+    const safeHeight = Math.max(Number(maxHeight || 0), 6);
+    let nextFontSize = Math.max(Number(fontSize || 12), Number(minFontSize || 1));
+    while (nextFontSize >= Number(minFontSize || 1)) {
+        const lineHeight = nextFontSize * 0.98;
+        const fullFits = window.measureBoothMapText(normalized, nextFontSize, letterSpacingEm) <= safeWidth && lineHeight <= safeHeight;
+        if (fullFits || nextFontSize <= Number(minFontSize || 1)) {
+            const textValue = fullFits ? normalized : window.fitBoothMapSingleLine(normalized, nextFontSize, safeWidth, letterSpacingEm);
+            return {
+                text: textValue,
+                fontSize: Number(nextFontSize.toFixed(2)),
+                lineHeight: Number(lineHeight.toFixed(2))
+            };
+        }
+        nextFontSize = Number((nextFontSize - 0.5).toFixed(2));
+    }
+    return {
+        text: window.fitBoothMapSingleLine(normalized, Number(minFontSize || 1), safeWidth, letterSpacingEm),
+        fontSize: Number(Number(minFontSize || 1).toFixed(2)),
+        lineHeight: Number((Number(minFontSize || 1) * 0.98).toFixed(2))
     };
 }
 
@@ -531,8 +562,8 @@ window.normalizeBoothMapDisplayConfig = function(rawConfig, map = currentBoothMa
     const getAnchorBounds = (blockKey, axis) => {
         if (axis === 'x' && blockKey === 'boothNo') return { min: -0.05, max: 0.95 };
         if (axis === 'x' && blockKey === 'size') return { min: 0.05, max: 1.05 };
-        if (axis === 'y' && blockKey === 'size') return { min: -0.05, max: 0.95 };
-        if (axis === 'y' && blockKey === 'boothNo') return { min: 0.05, max: 1.35 };
+        if (axis === 'y' && blockKey === 'size') return { min: -0.2, max: 0.95 };
+        if (axis === 'y' && blockKey === 'boothNo') return { min: 0.05, max: 1.6 };
         return { min: 0.05, max: 0.95 };
     };
     const normalizeBlock = (source, fallback, blockKey = '', legacyDefaults = null) => {
@@ -761,9 +792,24 @@ window.getBoothMapDisplayConfigForMap = function(map = null) {
     return map.display_config;
 }
 
+window.mergeBoothMapTextBlock = function(baseBlock, overrideBlock = null) {
+    const fallback = baseBlock && typeof baseBlock === 'object' ? baseBlock : {};
+    const override = overrideBlock && typeof overrideBlock === 'object' ? overrideBlock : {};
+    return {
+        ...fallback,
+        anchorX: Number.isFinite(Number(override.anchorX)) ? Number(override.anchorX) : Number(fallback.anchorX ?? 0.5),
+        anchorY: Number.isFinite(Number(override.anchorY)) ? Number(override.anchorY) : Number(fallback.anchorY ?? 0.5),
+        fontSize: Number.isFinite(Number(override.fontSize)) ? Number(override.fontSize) : Number(fallback.fontSize ?? 12),
+        rotation: Number.isFinite(Number(override.rotation)) ? Number(override.rotation) : Number(fallback.rotation ?? 0),
+        visible: override.visible === undefined ? (fallback.visible !== false) : Number(override.visible) !== 0
+    };
+}
+
 window.getBoothMapTextConfigForItem = function(item, map = null) {
     const config = window.getBoothMapDisplayConfigForMap(map);
-    return String(item?.booth_type || '').trim() === '光地' ? config.ground : config.standard;
+    return window.cloneBoothMapLabelStyle(
+        String(item?.booth_type || '').trim() === '光地' ? config.ground : config.standard
+    ) || {};
 }
 
 window.extractHallFromBoothMapName = function(name) {
@@ -1302,9 +1348,9 @@ window.updateBoothMapDisplayConfig = function(scopeKey, blockKey, field, value) 
     } else {
         const minAnchor = field === 'anchorX' && blockKey === 'boothNo'
             ? -0.05
-            : (field === 'anchorY' && blockKey === 'size' ? -0.05 : 0.05);
+            : (field === 'anchorY' && blockKey === 'size' ? -0.2 : 0.05);
         const maxAnchor = field === 'anchorY' && blockKey === 'boothNo'
-            ? 1.35
+            ? 1.6
             : (field === 'anchorX' && blockKey === 'size' ? 1.05 : 0.95);
         block[field] = Number(Math.min(Math.max(normalized, minAnchor), maxAnchor).toFixed(3));
     }
@@ -1596,25 +1642,27 @@ window.persistCurrentBoothMapMeta = async function() {
     if (!name) throw new Error('请填写画布名称');
     const state = window.getBoothMapState();
     const zoom = Number((Number(currentBoothMap.canvas_width || 1600) / Math.max(Number(state.viewBox.width || 1), 1)).toFixed(4));
-    const res = await window.apiFetch('/api/update-booth-map', {
-        method: 'POST',
-        body: JSON.stringify({
-            id: currentBoothMapId,
-            projectId: window.getBoothMapProjectId(),
-            name,
-            scale_pixels_per_meter: Number(currentBoothMap.scale_pixels_per_meter || 0),
-            default_stroke_width: window.getBoothMapStrokeWidth(),
-            canvas_width: currentBoothMap.canvas_width,
-            canvas_height: currentBoothMap.canvas_height,
-            viewport_x: Number(state.viewBox.x || 0),
-            viewport_y: Number(state.viewBox.y || 0),
-            viewport_zoom: zoom,
-            calibration_json: currentBoothMap.calibration_json || {},
-            display_config_json: window.ensureCurrentBoothMapDisplayConfig()
-        })
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error || '保存画布失败');
+    const data = await window.readApiSuccessJson(
+        await window.apiFetch('/api/update-booth-map', {
+            method: 'POST',
+            body: JSON.stringify({
+                id: currentBoothMapId,
+                projectId: window.getBoothMapProjectId(),
+                name,
+                scale_pixels_per_meter: Number(currentBoothMap.scale_pixels_per_meter || 0),
+                default_stroke_width: window.getBoothMapStrokeWidth(),
+                canvas_width: currentBoothMap.canvas_width,
+                canvas_height: currentBoothMap.canvas_height,
+                viewport_x: Number(state.viewBox.x || 0),
+                viewport_y: Number(state.viewBox.y || 0),
+                viewport_zoom: zoom,
+                calibration_json: currentBoothMap.calibration_json || {},
+                display_config_json: window.ensureCurrentBoothMapDisplayConfig()
+            })
+        }),
+        '保存画布失败',
+        {}
+    );
     currentBoothMap.updated_at = data.updated_at || currentBoothMap.updated_at;
     boothMapDirty = (currentBoothMapItems || []).some((item) => item._dirty) || (window.getBoothMapState().removedPersistedCodes || []).length > 0;
     window.renderCurrentBoothMap();
@@ -1638,12 +1686,14 @@ window.createBoothMap = async function() {
     if (!name) return window.showToast('请填写画布名称', 'error');
     try {
         await window.withButtonLoading('btn-create-booth-map', async () => {
-            const res = await window.apiFetch('/api/create-booth-map', {
-                method: 'POST',
-                body: JSON.stringify({ projectId, name })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error || '新建画布失败');
+            const data = await window.readApiSuccessJson(
+                await window.apiFetch('/api/create-booth-map', {
+                    method: 'POST',
+                    body: JSON.stringify({ projectId, name })
+                }),
+                '新建画布失败',
+                {}
+            );
             document.getElementById('new-booth-map-name').value = '';
             await window.loadBoothMaps(data.id);
             window.showToast('画布创建成功');
@@ -1667,8 +1717,20 @@ window.loadBoothMaps = async function(preferredMapId = currentBoothMapId) {
         return;
     }
 
-    const res = await window.apiFetch(`/api/booth-maps?projectId=${projectId}`);
-    const data = await res.json();
+    let data = {};
+    try {
+        data = await window.readApiSuccessJson(
+            await window.apiFetch(`/api/booth-maps?projectId=${projectId}`),
+            '加载画布列表失败',
+            {}
+        );
+    } catch (error) {
+        if (selectEl && !(boothMaps || []).length) {
+            selectEl.innerHTML = '<option value="">加载画布失败，请重试</option>';
+        }
+        window.showToast(error.message || '加载画布列表失败', 'error');
+        return;
+    }
     boothMaps = Array.isArray(data.items) ? data.items : [];
     window.renderBoothMapSelectOptions();
 
@@ -1702,12 +1764,14 @@ window.deleteBoothMap = async function(mapId) {
     if (!map) return;
     if (!confirm(`确定删除画布【${map.name}】吗？未被订单引用的地图展位也会一起移除。`)) return;
     try {
-        const res = await window.apiFetch('/api/delete-booth-map', {
-            method: 'POST',
-            body: JSON.stringify({ id: mapId, projectId: window.getBoothMapProjectId() })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || '删除画布失败');
+        await window.readApiSuccessJson(
+            await window.apiFetch('/api/delete-booth-map', {
+                method: 'POST',
+                body: JSON.stringify({ id: mapId, projectId: window.getBoothMapProjectId() })
+            }),
+            '删除画布失败',
+            {}
+        );
         if (Number(currentBoothMapId) === Number(mapId)) {
             currentBoothMap = null;
             currentBoothMapItems = [];
@@ -1786,10 +1850,15 @@ window.selectBoothMap = async function(mapId, options = {}) {
     }
     const projectId = window.getBoothMapProjectId();
     if (!projectId || !mapId) return;
-    const res = await window.apiFetch(`/api/booth-map-detail?id=${mapId}&projectId=${projectId}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-        window.showToast(data.error || '加载展位图失败', 'error');
+    let data = {};
+    try {
+        data = await window.readApiSuccessJson(
+            await window.apiFetch(`/api/booth-map-detail?id=${mapId}&projectId=${projectId}`),
+            '加载展位图失败',
+            {}
+        );
+    } catch (error) {
+        window.showToast(error.message || '加载展位图失败', 'error');
         return;
     }
 
@@ -1840,10 +1909,15 @@ window.refreshBoothMapRuntime = async function(options = {}) {
         window.renderCurrentBoothMap();
         return;
     }
-    const res = await window.apiFetch(`/api/booth-map-runtime-view?id=${currentBoothMapId}&projectId=${window.getBoothMapProjectId()}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-        if (!options.silent) window.showToast(data.error || '刷新运行态失败', 'error');
+    let data = {};
+    try {
+        data = await window.readApiSuccessJson(
+            await window.apiFetch(`/api/booth-map-runtime-view?id=${currentBoothMapId}&projectId=${window.getBoothMapProjectId()}`),
+            '刷新运行态失败',
+            {}
+        );
+    } catch (error) {
+        if (!options.silent) window.showToast(error.message || '刷新运行态失败', 'error');
         return;
     }
     currentBoothMapRuntimeItems = Array.isArray(data.items) ? data.items : [];
@@ -2602,7 +2676,144 @@ window.searchCurrentBoothMapItem = function() {
     window.showToast(`已定位到展位：${matchedItem.booth_code}`);
 }
 
+window.getBoothMapLabelYOffsetFromEdge = function(anchorY, shortSide, baseAnchorY, rangeMultiplier = 0.42) {
+    const travel = Math.max(shortSide * rangeMultiplier, 8);
+    return Number(((Number(anchorY) - Number(baseAnchorY)) * travel).toFixed(2));
+}
+
+window.getBoothMapPolygonHorizontalRanges = function(points = [], y = 0) {
+    const safePoints = Array.isArray(points) ? points : [];
+    if (safePoints.length < 3) return [];
+    const scanY = Number(y);
+    const intersections = [];
+    safePoints.forEach((point, index) => {
+        const next = safePoints[(index + 1) % safePoints.length];
+        const y1 = Number(point?.y);
+        const y2 = Number(next?.y);
+        const x1 = Number(point?.x);
+        const x2 = Number(next?.x);
+        if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+        if (Math.abs(y1 - y2) < 0.0001) return;
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+        const adjustedY = scanY === maxY ? scanY - 0.01 : scanY;
+        if (adjustedY < minY || adjustedY >= maxY) return;
+        const ratio = (adjustedY - y1) / (y2 - y1);
+        intersections.push(x1 + (x2 - x1) * ratio);
+    });
+    intersections.sort((a, b) => a - b);
+    const ranges = [];
+    for (let index = 0; index + 1 < intersections.length; index += 2) {
+        const left = Number(intersections[index]);
+        const right = Number(intersections[index + 1]);
+        if (!Number.isFinite(left) || !Number.isFinite(right) || right <= left) continue;
+        ranges.push({
+            left: Number(left.toFixed(2)),
+            right: Number(right.toFixed(2)),
+            width: Number((right - left).toFixed(2))
+        });
+    }
+    return ranges;
+}
+
+window.findBoothMapPolygonLabelPlacement = function(localPoints = [], options = {}) {
+    const safePoints = Array.isArray(localPoints) ? localPoints : [];
+    if (safePoints.length < 3) return null;
+    const prefer = String(options.prefer || 'bottom-left');
+    const paddingX = Math.max(Number(options.paddingX || 0), 0);
+    const paddingY = Math.max(Number(options.paddingY || 0), 0);
+    const targetWidth = Math.max(Number(options.targetWidth || 0), 0);
+    const textHeight = Math.max(Number(options.textHeight || 0), 8);
+    const minWidth = Math.max(Number(options.minWidth || 12), 12);
+    const shortSide = Math.max(Number(options.shortSide || 0), 12);
+    const defaultAnchorX = Number(options.defaultAnchorX ?? 0.02);
+    const defaultAnchorY = Number(options.defaultAnchorY ?? 0.93);
+    const anchorX = Number(options.anchorX ?? defaultAnchorX);
+    const anchorY = Number(options.anchorY ?? defaultAnchorY);
+    const lockPosition = !!options.lockPosition;
+    const minY = Math.min(...safePoints.map((point) => Number(point.y || 0)));
+    const maxY = Math.max(...safePoints.map((point) => Number(point.y || 0)));
+    const sampleCount = 28;
+    const isBottom = prefer.startsWith('bottom');
+    const isLeft = prefer.endsWith('left');
+    const sampleOffsets = isBottom
+        ? [0, -textHeight * 0.45, -textHeight * 0.9]
+        : [0, textHeight * 0.45, textHeight * 0.9];
+    const candidates = [];
+
+    for (let index = 0; index < sampleCount; index += 1) {
+        const progress = sampleCount === 1 ? 0 : index / (sampleCount - 1);
+        const startY = isBottom
+            ? maxY - paddingY - textHeight * 0.28
+            : minY + paddingY + textHeight * 0.18;
+        const y = isBottom
+            ? startY - progress * Math.max(maxY - minY - paddingY * 2 - textHeight, 1)
+            : startY + progress * Math.max(maxY - minY - paddingY * 2 - textHeight, 1);
+        const sampledRanges = sampleOffsets.map((offset) => {
+            const sampleY = Number((y + offset).toFixed(2));
+            const ranges = window.getBoothMapPolygonHorizontalRanges(safePoints, sampleY);
+            return ranges.length ? (isLeft ? ranges[0] : ranges[ranges.length - 1]) : null;
+        });
+        if (sampledRanges.some((range) => !range)) continue;
+        const left = Math.max(...sampledRanges.map((range) => Number(range.left || 0)));
+        const right = Math.min(...sampledRanges.map((range) => Number(range.right || 0)));
+        const usableWidth = Math.max(right - left - paddingX * 2, 0);
+        const candidate = {
+            range: {
+                left: Number(left.toFixed(2)),
+                right: Number(right.toFixed(2)),
+                width: Number((right - left).toFixed(2))
+            },
+            y: Number(y.toFixed(2)),
+            usableWidth: Number(usableWidth.toFixed(2)),
+            fits: usableWidth >= Math.max(targetWidth, minWidth)
+        };
+        candidates.push(candidate);
+    }
+
+    if (!candidates.length) return null;
+    const fittingCandidates = candidates.filter((candidate) => candidate.fits);
+    let best = null;
+    if (fittingCandidates.length > 0) {
+        if (prefer === 'top-right') {
+            best = fittingCandidates.sort((a, b) => {
+                if (b.range.right !== a.range.right) return b.range.right - a.range.right;
+                return a.y - b.y;
+            })[0];
+        } else {
+            best = fittingCandidates[0];
+        }
+    } else {
+        best = candidates.sort((a, b) => {
+            if (b.usableWidth !== a.usableWidth) return b.usableWidth - a.usableWidth;
+            if (prefer === 'top-right') {
+                if (b.range.right !== a.range.right) return b.range.right - a.range.right;
+                return a.y - b.y;
+            }
+            return b.y - a.y;
+        })[0];
+    }
+    if (!best) return null;
+    const deltaX = lockPosition ? 0 : (anchorX - defaultAnchorX);
+    const deltaY = lockPosition ? 0 : (anchorY - defaultAnchorY);
+    const travelX = Math.max(shortSide * 0.45, 10);
+    const travelY = Math.max(shortSide * 0.5, 10);
+    const leftLimit = best.range.left + paddingX;
+    const rightLimit = best.range.right - paddingX;
+    const baseX = isLeft ? leftLimit : rightLimit;
+    const shiftedX = isLeft
+        ? Math.min(Math.max(baseX + deltaX * travelX, leftLimit), rightLimit)
+        : Math.max(Math.min(baseX + deltaX * travelX, rightLimit), leftLimit);
+    return {
+        x: Number(shiftedX.toFixed(2)),
+        y: Number((best.y + deltaY * travelY).toFixed(2)),
+        maxWidth: Math.max(best.usableWidth, minWidth),
+        range: best.range
+    };
+}
+
 window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, mode = 'editor', map = null, clipPathId = '') {
+    const shortSide = Math.max(Math.min(widthPx, heightPx), 16);
     const paddingX = Math.max(2.5, Math.min(widthPx, heightPx) * 0.038);
     const paddingY = Math.max(2.5, Math.min(widthPx, heightPx) * 0.034);
     const edgeInsetX = Math.max(0.8, Math.min(widthPx, heightPx) * 0.012);
@@ -2611,31 +2822,63 @@ window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, m
     const boothNoConfig = textConfig.boothNo;
     const companyConfig = textConfig.company;
     const sizeConfig = textConfig.size || { anchorX: 0.93, anchorY: 0.08, fontSize: 13, visible: false };
-    const boothNoLetterSpacing = -0.1;
+    const isSpecialShape = String(item.shape_type || 'rect').trim() !== 'rect';
+    const boothNoLetterSpacing = isSpecialShape ? -0.08 : -0.14;
     const companyLetterSpacing = -0.08;
-    const boothText = window.fitBoothMapSingleLine(
+    const fontFamily = window.getBoothMapTextFontFamily();
+    const localPoints = isSpecialShape ? window.getBoothMapLocalPoints(item, widthPx, heightPx) : [];
+    const boothPlacement = isSpecialShape
+        ? window.findBoothMapPolygonLabelPlacement(localPoints, {
+            prefer: 'bottom-left',
+            paddingX,
+            paddingY,
+            targetWidth: window.measureBoothMapText(item.booth_code || '', boothNoConfig.fontSize, boothNoLetterSpacing),
+            textHeight: boothNoConfig.fontSize,
+            minWidth: 18,
+            shortSide,
+            anchorX: boothNoConfig.anchorX,
+            anchorY: boothNoConfig.anchorY,
+            defaultAnchorX: 0.02,
+            defaultAnchorY: 0.93,
+            lockPosition: true
+        })
+        : null;
+    const boothLine = window.fitBoothMapSingleLineBlock(
         item.booth_code || '',
         boothNoConfig.fontSize,
-        Math.max(widthPx - paddingX * 2, 20),
+        Math.max(isSpecialShape ? Number(boothPlacement?.maxWidth || 20) : widthPx - edgeInsetX * 1.2, 20),
+        Math.max(shortSide * (isSpecialShape ? 0.34 : 0.46), 10),
         boothNoLetterSpacing
     );
     const companyText = mode === 'preview' ? (runtimeItem?.company_text || '') : '';
     const textMarkup = [];
+    const escapedFontFamily = window.escapeAttr ? window.escapeAttr(fontFamily) : fontFamily.replace(/"/g, '&quot;');
 
-    if (boothNoConfig.visible && boothText) {
-        const x = edgeInsetX + (widthPx - edgeInsetX * 2) * boothNoConfig.anchorX;
-        const y = edgeInsetY + (heightPx - edgeInsetY * 2) * boothNoConfig.anchorY;
+    if (boothNoConfig.visible && boothLine.text) {
+        const boothAnchor = 'start';
+        const boothX = isSpecialShape
+            ? Number(boothPlacement?.x || edgeInsetX + (widthPx - edgeInsetX * 2) * boothNoConfig.anchorX)
+            : edgeInsetX + (widthPx - edgeInsetX * 2) * boothNoConfig.anchorX;
+        const boothY = isSpecialShape
+            ? Number(boothPlacement?.y || (heightPx - Math.max(edgeInsetY + shortSide * 0.14, 8)))
+            : heightPx - Math.max(edgeInsetY + shortSide * 0.14, 8) + window.getBoothMapLabelYOffsetFromEdge(
+                boothNoConfig.anchorY,
+                shortSide,
+                0.93,
+                0.5
+            );
         textMarkup.push(`
             <text
-                x="${x.toFixed(2)}"
-                y="${y.toFixed(2)}"
-                font-size="${boothNoConfig.fontSize}"
+                x="${boothX.toFixed(2)}"
+                y="${boothY.toFixed(2)}"
+                font-size="${boothLine.fontSize}"
                 font-weight="800"
+                font-family="${escapedFontFamily}"
                 fill="#0f172a"
-                text-anchor="start"
+                text-anchor="${boothAnchor}"
                 dominant-baseline="ideographic"
                 letter-spacing="${boothNoLetterSpacing}em"
-            >${window.escapeBoothMapText(boothText)}</text>
+            >${window.escapeBoothMapText(boothLine.text)}</text>
         `);
     }
 
@@ -2654,6 +2897,7 @@ window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, m
                     y="${(baseY + lineOffset).toFixed(2)}"
                     font-size="${companyBlock.fontSize}"
                     font-weight="700"
+                    font-family="${escapedFontFamily}"
                     fill="#0f172a"
                     text-anchor="middle"
                     dominant-baseline="middle"
@@ -2667,20 +2911,51 @@ window.renderBoothMapItemText = function(item, widthPx, heightPx, runtimeItem, m
         const sizeText = String(item.shape_type || '').trim() === 'polygon'
             ? `${window.formatBoothMapMetricText(item.area || 0)}㎡`
             : `${window.formatBoothMapMetricText(item.width_m || 0)}*${window.formatBoothMapMetricText(item.height_m || 0)}`;
-        const effectiveAnchorX = sizeConfig.anchorX;
-        const effectiveAnchorY = sizeConfig.anchorY;
-        const sizeX = edgeInsetX + (widthPx - edgeInsetX * 2) * effectiveAnchorX;
-        const sizeY = edgeInsetY + (heightPx - edgeInsetY * 2) * effectiveAnchorY;
+        const sizePlacement = isSpecialShape
+            ? window.findBoothMapPolygonLabelPlacement(localPoints, {
+            prefer: 'top-right',
+            paddingX,
+            paddingY,
+            targetWidth: window.measureBoothMapText(sizeText, sizeConfig.fontSize, 0),
+            textHeight: sizeConfig.fontSize,
+            minWidth: 22,
+                shortSide,
+                anchorX: sizeConfig.anchorX,
+                anchorY: sizeConfig.anchorY,
+                defaultAnchorX: 0.98,
+                defaultAnchorY: 0.02,
+                lockPosition: true
+            })
+            : null;
+        const sizeLine = window.fitBoothMapSingleLineBlock(
+            sizeText,
+            sizeConfig.fontSize,
+            Math.max((isSpecialShape ? Number(sizePlacement?.maxWidth || (widthPx * 0.72)) : widthPx - paddingX * 2), 20),
+            Math.max(shortSide * 0.3, 10),
+            0
+        );
+        const sizeX = isSpecialShape
+            ? Number(sizePlacement?.x || (edgeInsetX + (widthPx - edgeInsetX * 2) * sizeConfig.anchorX))
+            : edgeInsetX + (widthPx - edgeInsetX * 2) * sizeConfig.anchorX;
+        const sizeY = isSpecialShape
+            ? Number(sizePlacement?.y || Math.max(edgeInsetY + shortSide * 0.08, 5))
+            : Math.max(edgeInsetY + shortSide * 0.08, 5) + window.getBoothMapLabelYOffsetFromEdge(
+                sizeConfig.anchorY,
+                shortSide,
+                0.02,
+                0.34
+            );
         textMarkup.push(`
             <text
                 x="${sizeX.toFixed(2)}"
                 y="${sizeY.toFixed(2)}"
-                font-size="${sizeConfig.fontSize}"
+                font-size="${sizeLine.fontSize}"
                 font-weight="700"
+                font-family="${escapedFontFamily}"
                 fill="#334155"
                 text-anchor="end"
                 dominant-baseline="hanging"
-            >${window.escapeBoothMapText(sizeText)}</text>
+            >${window.escapeBoothMapText(sizeLine.text)}</text>
         `);
     }
 
@@ -2951,38 +3226,42 @@ window.persistBoothMapChanges = async function(options = {}) {
     }
     const zoom = Number((Number(currentBoothMap.canvas_width || 1600) / Math.max(Number(state.viewBox.width || 1), 1)).toFixed(4));
 
-    const metaRes = await window.apiFetch('/api/update-booth-map', {
-        method: 'POST',
-        body: JSON.stringify({
-            id: currentBoothMapId,
-            projectId,
-            name: currentBoothMap.name,
-            scale_pixels_per_meter: Number(currentBoothMap.scale_pixels_per_meter || 0),
-            default_stroke_width: window.getBoothMapStrokeWidth(),
-            canvas_width: currentBoothMap.canvas_width,
-            canvas_height: currentBoothMap.canvas_height,
-            viewport_x: Number(state.viewBox.x || 0),
-            viewport_y: Number(state.viewBox.y || 0),
-            viewport_zoom: zoom,
-            calibration_json: currentBoothMap.calibration_json || {},
-            display_config_json: window.ensureCurrentBoothMapDisplayConfig()
-        })
-    });
-    const metaData = await metaRes.json();
-    if (!metaRes.ok || !metaData.success) throw new Error(metaData.error || '保存画布信息失败');
+    const metaData = await window.readApiSuccessJson(
+        await window.apiFetch('/api/update-booth-map', {
+            method: 'POST',
+            body: JSON.stringify({
+                id: currentBoothMapId,
+                projectId,
+                name: currentBoothMap.name,
+                scale_pixels_per_meter: Number(currentBoothMap.scale_pixels_per_meter || 0),
+                default_stroke_width: window.getBoothMapStrokeWidth(),
+                canvas_width: currentBoothMap.canvas_width,
+                canvas_height: currentBoothMap.canvas_height,
+                viewport_x: Number(state.viewBox.x || 0),
+                viewport_y: Number(state.viewBox.y || 0),
+                viewport_zoom: zoom,
+                calibration_json: currentBoothMap.calibration_json || {},
+                display_config_json: window.ensureCurrentBoothMapDisplayConfig()
+            })
+        }),
+        '保存画布信息失败',
+        {}
+    );
 
-    const itemRes = await window.apiFetch('/api/save-booth-map-items', {
-        method: 'POST',
-        body: JSON.stringify({
-            projectId,
-            mapId: currentBoothMapId,
-            replaceAll,
-            deleted_booth_codes: deletedBoothCodes,
-            items: window.buildBoothMapItemsPayload(items)
-        })
-    });
-    const itemData = await itemRes.json();
-    if (!itemRes.ok || !itemData.success) throw new Error(itemData.error || '保存展位图失败');
+    const itemData = await window.readApiSuccessJson(
+        await window.apiFetch('/api/save-booth-map-items', {
+            method: 'POST',
+            body: JSON.stringify({
+                projectId,
+                mapId: currentBoothMapId,
+                replaceAll,
+                deleted_booth_codes: deletedBoothCodes,
+                items: window.buildBoothMapItemsPayload(items)
+            })
+        }),
+        '保存展位图失败',
+        {}
+    );
     currentBoothMap.updated_at = itemData.updated_at || metaData.updated_at || currentBoothMap.updated_at;
     return itemData;
 }
@@ -3118,12 +3397,14 @@ window.uploadBoothMapBackground = async function(input) {
             formData.append('file', file);
             formData.append('projectId', String(window.getBoothMapProjectId()));
             formData.append('mapId', String(currentBoothMapId));
-            const res = await window.apiFetch('/api/upload-booth-map-background', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error || '底图上传失败');
+            const data = await window.readApiSuccessJson(
+                await window.apiFetch('/api/upload-booth-map-background', {
+                    method: 'POST',
+                    body: formData
+                }),
+                '底图上传失败',
+                {}
+            );
             window.revokeAuthorizedAssetUrl(previousAssetUrl);
             currentBoothMap.background_image_key = data.fileKey;
             if (shouldPromoteWorkspaceToImage) {
@@ -3163,12 +3444,14 @@ window.deleteBoothMapBackground = async function() {
     if (!confirm('确定移除当前画布底图吗？')) return;
     try {
         const previousAssetUrl = window.getBoothMapBackgroundApiUrl(currentBoothMap);
-        const res = await window.apiFetch('/api/delete-booth-map-background', {
-            method: 'POST',
-            body: JSON.stringify({ mapId: currentBoothMapId, projectId: window.getBoothMapProjectId() })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || '删除底图失败');
+        await window.readApiSuccessJson(
+            await window.apiFetch('/api/delete-booth-map-background', {
+                method: 'POST',
+                body: JSON.stringify({ mapId: currentBoothMapId, projectId: window.getBoothMapProjectId() })
+            }),
+            '删除底图失败',
+            {}
+        );
         window.revokeAuthorizedAssetUrl(previousAssetUrl);
         currentBoothMap.background_image_key = '';
         window.setBoothMapDirty(true);

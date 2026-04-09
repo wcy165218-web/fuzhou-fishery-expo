@@ -222,9 +222,10 @@ export async function handlePaymentRoutes({
     }
 
     if (url.pathname === '/api/update-order-fees' && request.method === 'POST') {
-        if (currentUser.role !== 'admin') return errorResponse('权限不足', 403, corsHeaders);
         try {
             const payload = await request.json();
+            const hasPermission = await canManageOrder(env, currentUser, payload.order_id);
+            if (!hasPermission) return errorResponse('权限不足：不能变更他人订单费用', 403, corsHeaders);
             const actualFee = toNonNegativeNumber(payload.actual_fee);
             const otherFeeTotal = toNonNegativeNumber(payload.other_fee_total);
             if (!Number.isFinite(actualFee) || actualFee < 0) {

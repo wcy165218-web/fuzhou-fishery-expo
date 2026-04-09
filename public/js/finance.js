@@ -1,68 +1,4 @@
 // ================= js/finance.js =================
-window.isOwnOrder = function(order) {
-    return order && order.sales_name === window.currentUser.name;
-}
-
-window.canViewSensitiveOrderFields = function(order) {
-    return !!order && (window.isSuperAdmin() || window.isOwnOrder(order));
-}
-
-window.canManageOrder = function(order) {
-    return !!order && (window.currentUser.role === 'admin' || Number(order.can_manage) === 1);
-}
-
-window.getOrderBoothDisplay = function(order) {
-    if (!order) return '无展位订单';
-    const hall = String(order.hall || '').trim();
-    const boothId = String(order.booth_id || '').trim();
-    if (!boothId) return '无展位订单';
-    return hall ? `${hall} - ${boothId}` : boothId;
-}
-
-window.getOverpaidAmount = function(order) {
-    if (!order) return 0;
-    const explicit = Number(order.overpaid_amount || 0);
-    if (explicit > 0) return explicit;
-    return Math.max(0, Number(order.paid_amount || 0) - Number(order.total_amount || 0));
-}
-
-window.hasOverpaymentIssue = function(order) {
-    return window.getOverpaidAmount(order) > 0.01;
-}
-
-window.canHandleOverpayment = function(order) {
-    return !!order && (window.isSuperAdmin() || window.isOwnOrder(order));
-}
-
-window.getOverpaymentStatusLabel = function(order) {
-    switch (order?.overpayment_status) {
-        case 'resolved_as_fx_diff':
-            return '已按汇率差确认';
-        case 'on_hold':
-            return '已暂挂待核销';
-        case 'resolved_by_fee_update':
-            return '已通过补录应收解除';
-        default:
-            return '超收异常待处理';
-    }
-}
-
-window.formatOverpaymentMeta = function(order) {
-    const handledBy = order?.overpayment_handled_by || '';
-    const handledAt = order?.overpayment_handled_at || '';
-    const note = String(order?.overpayment_note || '').trim();
-    if (order?.overpayment_status === 'resolved_as_fx_diff') {
-        return `${handledBy ? `处理人：${handledBy}` : '已确认汇率差'}${handledAt ? ` | 时间：${handledAt}` : ''}${note ? ` | 说明：${note}` : ''}`;
-    }
-    if (order?.overpayment_status === 'on_hold') {
-        return `${handledBy ? `处理人：${handledBy}` : '已暂挂处理'}${handledAt ? ` | 时间：${handledAt}` : ''}${note ? ` | 说明：${note}` : ''}`;
-    }
-    if (order?.overpayment_status === 'resolved_by_fee_update') {
-        return '已通过补录其他应收自动解除超收异常。';
-    }
-    return '请业务员尽快处理：补录应收、确认汇率差或暂挂说明。';
-}
-
 window.buildOverpaymentActionsHtml = function(order, context = 'detail') {
     if (!window.canHandleOverpayment(order)) {
         return '<span class="badge-readonly">待所属业务员处理</span>';
@@ -275,26 +211,34 @@ window.loadOrderSalesFilterOptions = async function() {
     const pid = document.getElementById('global-project-select').value;
     if (!pid) return;
 
-    const previousValue = select.value;
-    const staff = await (await window.apiFetch(`/api/staff?projectId=${pid}`)).json();
-    select.innerHTML = '<option value="">全部业务员</option>';
-    staff.forEach((member) => {
-        const option = document.createElement('option');
-        option.value = member.name;
-        option.textContent = member.name;
-        select.appendChild(option);
-    });
-    select.value = staff.some((member) => member.name === previousValue) ? previousValue : '';
-    select.classList.remove('hidden');
+    try {
+        const previousValue = select.value;
+        const staff = await window.readApiJson(
+            await window.apiFetch(`/api/staff?projectId=${pid}`),
+            '加载业务员筛选失败',
+            []
+        );
+        select.innerHTML = '<option value="">全部业务员</option>';
+        staff.forEach((member) => {
+            const option = document.createElement('option');
+            option.value = member.name;
+            option.textContent = member.name;
+            select.appendChild(option);
+        });
+        select.value = staff.some((member) => member.name === previousValue) ? previousValue : '';
+        select.classList.remove('hidden');
+    } catch (e) {
+        window.showToast(e.message || '加载业务员筛选失败', 'error');
+    }
 }
 
 window.renderOrderDashboardStats = function(stats) {
     const panel = document.getElementById('order-dashboard-panel');
     if (!panel) return;
 
-    const fmtMoney = (value) => window.formatCurrency(value);
-    const fmtCount = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
-    const fmtPercent = (value) => `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+    const fmtMoney = window.formatCurrency;
+    const fmtCount = window.formatCompactCount;
+    const fmtPercent = window.formatCompactPercent;
     const clampPercent = (value) => Math.max(0, Math.min(Number(value || 0), 100));
     const renderProgressBar = (value, colorClass) => `
         <div class="mt-2 h-2.5 rounded-full bg-white/80 overflow-hidden">
@@ -563,11 +507,10 @@ window.toggleAllOrderChecks = function(source) {
 window.previewSingleContract = async function(fileKey, orderId) {
     try {
         window.showToast("正在获取云端合同，准备预览...", "info");
-        const response = await window.apiFetch(`/api/file/${fileKey}?orderId=${encodeURIComponent(orderId)}`);
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || "获取失败或无预览权限");
-        }
+        const response = await window.ensureApiSuccess(
+            await window.apiFetch(`/api/file/${fileKey}?orderId=${encodeURIComponent(orderId)}`),
+            '获取失败或无预览权限'
+        );
         const blob = await response.blob();
         const objectUrl = window.URL.createObjectURL(blob);
         window.open(objectUrl, '_blank');
@@ -829,12 +772,12 @@ window.handleSilentUpload = async function(input) {
     const formData = new FormData(); formData.append('file', input.files[0]);
     try {
         const upRes = await window.apiFetch('/api/upload', {method:'POST', body: formData});
-        if (!upRes.ok) throw new Error("云端存储失败");
+        await window.ensureApiSuccess(upRes, '云端存储失败');
         const upData = await upRes.json();
         const order = window.allOrders.find(o => String(o.id) === String(window.currentSilentOrderId));
         const data = { project_id: document.getElementById('global-project-select').value, order_id: window.currentSilentOrderId, contact_person: order.contact_person, phone: order.phone, region: order.region, main_business: order.main_business, profile: order.profile, category: order.category, is_agent: order.is_agent === 1, agent_name: order.agent_name, contract_url: upData.fileKey };
         const updateRes = await window.apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
-        if (!updateRes.ok) throw new Error("数据库更新失败");
+        await window.ensureApiSuccess(updateRes, '数据库更新失败');
         window.showToast("合同处理成功！"); window.loadOrderList();
     } catch (e) { window.showToast("上传失败: " + e.message, 'error'); } finally { input.value = ''; window.currentSilentOrderId = null; }
 }
@@ -931,7 +874,7 @@ window.saveDetailEdit = async function() {
     window.toggleBtnLoading('btn-save-detail', true);
     try {
         const res = await window.apiFetch('/api/update-customer-info', { method: 'POST', body: JSON.stringify(updatedData) });
-        if(!res.ok) throw new Error("修改失败，请重试");
+        await window.ensureApiSuccess(res, '修改失败，请重试');
         window.showToast("资料更新成功！");
         Object.assign(window.currentViewOrder, updatedData);
         window.currentViewOrder.is_agent = updatedData.is_agent ? 1 : 0;
@@ -1141,7 +1084,6 @@ window.resetFmSwapDraft = function(order) {
     document.getElementById('fm-swap-next-booth').innerText = '待选择';
     document.getElementById('fm-swap-next-area').innerText = '-';
     document.getElementById('fm-swap-next-total').innerText = '-';
-    document.getElementById('fm-swap-booth-search').value = '';
     document.getElementById('fm-swap-actual-fee').value = Number(currentOrder.total_booth_fee || 0);
     document.getElementById('fm-swap-price-reason').value = '';
     document.getElementById('fm-swap-reason').value = '';
@@ -1152,57 +1094,71 @@ window.resetFmSwapDraft = function(order) {
     window.fmSwapRenderFees();
 }
 
-window.searchSwapBooth = async function() {
-    const projectId = document.getElementById('global-project-select').value;
-    const currentOrder = window.currentFinanceOrder;
-    const searchValue = document.getElementById('fm-swap-booth-search').value.trim().toUpperCase();
-    if (!currentOrder || !projectId) return window.showToast('未找到当前订单，无法换展位', 'error');
-    if (!searchValue) return window.showToast('请先输入准确展位号', 'error');
-    window.toggleBtnLoading('btn-search-swap-booth', true, '搜索新展位');
-    try {
-        await window.ensureSwapInventoryLoaded(projectId);
-        const targetBooth = (window.allBooths || []).find((item) => String(item.id || '').trim().toUpperCase() === searchValue);
-        if (!targetBooth) throw new Error(`未找到展位：${searchValue}`);
-        if (String(targetBooth.id || '') === String(currentOrder.booth_id || '')) {
-            throw new Error('目标展位与当前展位相同，无需换展位');
-        }
-        if (String(targetBooth.status || '') === '已锁定') {
-            throw new Error('目标展位已被临时锁定，请稍后再试');
-        }
-        if (['已预定', '已付定金', '已付全款'].includes(String(targetBooth.status || ''))) {
-            throw new Error('目标展位当前已被其他订单占用，请重新选择');
-        }
-        const area = Number(targetBooth.area || 0);
-        if (!Number.isFinite(area) || area <= 0) throw new Error('目标展位面积异常，无法换展位');
-        const boothPricing = window.calculateBoothStandardFee(targetBooth, area);
-        window.fmSwapCandidateBooth = {
-            id: String(targetBooth.id || ''),
-            hall: String(targetBooth.hall || ''),
-            type: String(targetBooth.type || ''),
-            area,
-            price_unit: String(targetBooth.price_unit || (String(targetBooth.type || '') === '光地' ? '平米' : '个')),
-            unit_price: Number(boothPricing.priceUnit || 0),
-            standard_fee: Number(boothPricing.standardFee || 0)
-        };
-        document.getElementById('fm-swap-target-name').innerText = `${window.fmSwapCandidateBooth.hall} - ${window.fmSwapCandidateBooth.id}`;
-        document.getElementById('fm-swap-target-meta').innerText = `${window.fmSwapCandidateBooth.type} | 面积 ${area.toLocaleString()}㎡ | ${window.fmSwapCandidateBooth.price_unit === '平米' ? `${window.formatCurrency(window.fmSwapCandidateBooth.unit_price)}/平米` : `${window.formatCurrency(window.fmSwapCandidateBooth.unit_price)}/个(9㎡)`}`;
-        document.getElementById('fm-swap-target-standard').innerText = window.formatCurrency(window.fmSwapCandidateBooth.standard_fee);
-        document.getElementById('fm-swap-target-card').classList.remove('hidden');
-        document.getElementById('fm-swap-next-booth').innerText = `${window.fmSwapCandidateBooth.hall} - ${window.fmSwapCandidateBooth.id}`;
-        document.getElementById('fm-swap-next-area').innerText = `${area.toLocaleString()}㎡`;
-        document.getElementById('fm-swap-actual-fee').value = window.fmSwapCandidateBooth.standard_fee;
-        document.getElementById('fm-swap-price-reason').value = '';
-        window.calculateSwapDraftTotal();
-        window.showToast(`已选中目标展位：${window.fmSwapCandidateBooth.id}`);
-    } catch (e) {
+window.applySwapBoothCandidate = function(candidate) {
+    if (!candidate) {
         window.fmSwapCandidateBooth = null;
         document.getElementById('fm-swap-target-card').classList.add('hidden');
         document.getElementById('fm-swap-next-booth').innerText = '待选择';
         document.getElementById('fm-swap-next-area').innerText = '-';
         document.getElementById('fm-swap-next-total').innerText = '-';
-        window.showToast(e.message, 'error');
-    } finally {
-        window.toggleBtnLoading('btn-search-swap-booth', false, '搜索新展位');
+        return;
+    }
+    const area = Number(candidate.area || 0);
+    window.fmSwapCandidateBooth = {
+        id: String(candidate.id || ''),
+        hall: String(candidate.hall || ''),
+        type: String(candidate.type || ''),
+        area,
+        price_unit: String(candidate.price_unit || (String(candidate.type || '') === '光地' ? '平米' : '个')),
+        unit_price: Number(candidate.unit_price || 0),
+        standard_fee: Number(candidate.standard_fee || 0)
+    };
+    document.getElementById('fm-swap-target-name').innerText = `${window.fmSwapCandidateBooth.hall} - ${window.fmSwapCandidateBooth.id}`;
+    document.getElementById('fm-swap-target-meta').innerText = `${window.fmSwapCandidateBooth.type} | 面积 ${area.toLocaleString()}㎡ | ${window.fmSwapCandidateBooth.price_unit === '平米' ? `${window.formatCurrency(window.fmSwapCandidateBooth.unit_price)}/平米` : `${window.formatCurrency(window.fmSwapCandidateBooth.unit_price)}/个(9㎡)`}`;
+    document.getElementById('fm-swap-target-standard').innerText = window.formatCurrency(window.fmSwapCandidateBooth.standard_fee);
+    document.getElementById('fm-swap-target-card').classList.remove('hidden');
+    document.getElementById('fm-swap-next-booth').innerText = `${window.fmSwapCandidateBooth.hall} - ${window.fmSwapCandidateBooth.id}`;
+    document.getElementById('fm-swap-next-area').innerText = `${area.toLocaleString()}㎡`;
+    document.getElementById('fm-swap-actual-fee').value = window.fmSwapCandidateBooth.standard_fee;
+    document.getElementById('fm-swap-price-reason').value = '';
+    window.calculateSwapDraftTotal();
+}
+
+window.openSwapBoothMapPicker = async function() {
+    const currentOrder = window.currentFinanceOrder;
+    const projectId = Number(document.getElementById('global-project-select')?.value || 0);
+    if (!currentOrder || !projectId) return window.showToast('未找到当前订单，无法换展位', 'error');
+    if (typeof window.ensureOrderBoothMapPickerInitialized !== 'function') {
+        return window.showToast('展位图选择器尚未就绪，请刷新页面后重试', 'error');
+    }
+    window.ensureOrderBoothMapPickerInitialized();
+    const state = window.getOrderBoothMapPickerState();
+    state.mode = 'swap';
+    state.tempSelectedBooths = window.fmSwapCandidateBooth ? [JSON.parse(JSON.stringify(window.fmSwapCandidateBooth))] : [];
+    state.onConfirm = (selection) => {
+        const candidate = Array.isArray(selection) ? selection[0] : null;
+        if (!candidate) {
+            window.showToast('请先从展位图中选择一个目标展位', 'error');
+            return false;
+        }
+        window.applySwapBoothCandidate(candidate);
+        window.showToast(`已选中目标展位：${candidate.id}`);
+        return true;
+    };
+    try {
+        await window.ensureSwapInventoryLoaded(projectId);
+        const preferredMapId = Number(
+            window.fmSwapCandidateBooth?.booth_map_id
+            || (window.allBooths || []).find((item) => String(item.id || '').trim().toUpperCase() === String(window.fmSwapCandidateBooth?.id || '').trim().toUpperCase())?.booth_map_id
+            || (window.allBooths || []).find((item) => String(item.id || '').trim().toUpperCase() === String(currentOrder.booth_id || '').trim().toUpperCase())?.booth_map_id
+            || 0
+        );
+        await window.loadOrderBoothMapPickerMaps(preferredMapId);
+        const confirmBtn = document.getElementById('btn-confirm-order-booth-map');
+        if (confirmBtn) confirmBtn.innerText = '确认目标展位';
+        document.getElementById('order-booth-map-modal')?.classList.remove('hidden');
+    } catch (error) {
+        window.showToast(error.message, 'error');
     }
 }
 
@@ -1243,10 +1199,7 @@ window.submitBoothSwap = async function() {
                 fees_json: feeRows
             })
         });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || '换展位失败，请稍后再试');
-        }
+        await window.ensureApiSuccess(res, '换展位失败，请稍后再试');
         window.showToast('换展位成功，订单与统计已同步更新');
         await window.loadOrderList();
         await window.loadPaymentHistory(window.currentModalOrderId);
@@ -1296,10 +1249,7 @@ window.submitOverpaymentHandling = async function() {
             method: 'POST',
             body: JSON.stringify({ order_id: orderId, project_id: projectId, action, note })
         });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || '保存处理结果失败');
-        }
+        await window.ensureApiSuccess(res, '保存处理结果失败');
         window.showToast('超收处理结果已保存，并已自动补录其他应收明细');
         window.closeModal('overpayment-modal');
         await window.loadOrderList();
@@ -1314,8 +1264,10 @@ window.submitOverpaymentHandling = async function() {
 window.loadPaymentHistory = async function(orderId) {
     const listDiv = document.getElementById('fm-pay-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
     try {
-        const response = await window.apiFetch(`/api/payments?orderId=${orderId}`); 
-        if(!response.ok) throw new Error("获取历史记录失败");
+        const response = await window.ensureApiSuccess(
+            await window.apiFetch(`/api/payments?orderId=${orderId}`),
+            '获取历史记录失败'
+        );
         const pays = await response.json();
         if(pays.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无收款记录</p>'; return; }
         listDiv.innerHTML = window.renderHtmlCollection(pays, (p) => {
@@ -1376,7 +1328,7 @@ window.submitPayment = async function() {
     window.toggleBtnLoading('btn-submit-payment', true);
     try { 
         const res = await window.apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) }); 
-        if(!res.ok) { const err = await res.json(); throw new Error(err.error || "写入流水失败"); }
+        await window.ensureApiSuccess(res, '写入流水失败');
         window.showToast("收款入账成功！"); 
         
         await window.loadOrderList(); 
@@ -1397,7 +1349,7 @@ window.submitEditPayment = async function() {
     window.toggleBtnLoading('btn-save-payment', true); 
     try {
         const res = await window.apiFetch('/api/edit-payment', { method: 'POST', body: JSON.stringify(data) }); 
-        if(!res.ok) throw new Error("流水修改失败");
+        await window.ensureApiSuccess(res, '流水修改失败');
         window.closeModal('edit-payment-modal'); 
         window.showToast("流水修改成功！"); 
         
@@ -1412,7 +1364,7 @@ window.deletePayment = async function(payId) {
     if(!confirm("确定要删除这条收款记录吗？")) return; 
     try {
         const res = await window.apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: window.currentModalOrderId, payment_id: payId }) }); 
-        if(!res.ok) throw new Error("删除失败");
+        await window.ensureApiSuccess(res, '删除失败');
         window.showToast("删除成功"); 
         await window.loadOrderList();
         await window.loadPaymentHistory(window.currentModalOrderId); 
@@ -1438,7 +1390,7 @@ window.submitAdjustment = async function() {
     window.toggleBtnLoading('btn-submit-adj', true); 
     try {
         const res = await window.apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: window.currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) }); 
-        if(!res.ok) throw new Error("账单变更失败");
+        await window.ensureApiSuccess(res, '账单变更失败');
         window.showToast("账单变更成功！"); 
         
         await window.loadOrderList(); 
@@ -1450,8 +1402,10 @@ window.submitAdjustment = async function() {
 window.loadExpenseHistory = async function(orderId) {
     const listDiv = document.getElementById('fm-exp-list'); listDiv.innerHTML = '<span class="text-gray-400">加载中...</span>';
     try {
-        const response = await window.apiFetch(`/api/expenses?orderId=${orderId}`); 
-        if(!response.ok) throw new Error("拉取数据失败");
+        const response = await window.ensureApiSuccess(
+            await window.apiFetch(`/api/expenses?orderId=${orderId}`),
+            '拉取数据失败'
+        );
         const exps = await response.json();
         if(exps.length === 0) { listDiv.innerHTML = '<p class="text-gray-400 italic">暂无代付记录</p>'; return; }
         const currentOrder = (window.allOrders || []).find((item) => String(item.id) === String(orderId));
@@ -1475,7 +1429,7 @@ window.submitExpense = async function() {
     try {
         const data = { project_id: pid, order_id: window.currentModalOrderId, fee_item_name: '总收款抵扣', payee_name: payee, payee_channel: channel, payee_bank: bank, payee_account: acc, amount: amt, applicant: window.currentUser.name, reason: reason };
         const res = await window.apiFetch('/api/add-expense', { method: 'POST', body: JSON.stringify(data) }); 
-        if(!res.ok) { const err = await res.json(); throw new Error(err.error || "写入失败"); }
+        await window.ensureApiSuccess(res, '写入失败');
         window.showToast("支出申请已记录！"); 
         document.getElementById('exp-reason').value = ''; document.getElementById('exp-payee').value = ''; document.getElementById('exp-amount').value = ''; 
         
@@ -1487,7 +1441,7 @@ window.deleteExpense = async function(expId) {
     if(!confirm("确定撤销该笔申请吗？")) return; 
     try {
         const res = await window.apiFetch('/api/delete-expense', { method: 'POST', body: JSON.stringify({ expense_id: expId }) }); 
-        if(!res.ok) throw new Error("撤销失败");
+        await window.ensureApiSuccess(res, '撤销失败');
         window.showToast("撤销成功！"); 
         window.loadExpenseHistory(window.currentModalOrderId); 
     } catch (e) { window.showToast(e.message, 'error'); }
@@ -1504,7 +1458,8 @@ window.cancelOrder = async function(orderId, boothId) {
     if(!confirm(`🚨 危险操作：确定要退订订单吗？\n如果该展位没有其他正常订单，它将被释放回可售状态！\n(内部流水号将跳过不复用)`)) return;
     try {
         const res = await window.apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
-        if(res.ok) { window.showToast("退订成功！"); window.loadOrderList(); } 
-        else { const err = await res.json(); window.showToast(err.error || "退订失败", 'error'); }
+        await window.ensureApiSuccess(res, '退订失败');
+        window.showToast("退订成功！");
+        window.loadOrderList();
     } catch (e) { /* handled */ }
 }
