@@ -96,14 +96,12 @@ window.validateContractUploadFile = function(file) {
 window.uploadContractFile = async function(file) {
     const fileError = window.validateContractUploadFile?.(file);
     if (fileError) throw new Error(fileError);
+    const formData = new FormData();
+    formData.append('file', file, String(file.name || 'contract.pdf'));
     const uploadData = await window.readApiSuccessJson(
         await window.apiFetch('/api/upload', {
             method: 'POST',
-            headers: {
-                'Content-Type': String(file.type || 'application/pdf').trim() || 'application/pdf',
-                'X-File-Name': encodeURIComponent(String(file.name || 'contract.pdf'))
-            },
-            body: file
+            body: formData
         }),
         '上传失败',
         {}
