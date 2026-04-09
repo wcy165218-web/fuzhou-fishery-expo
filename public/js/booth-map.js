@@ -162,12 +162,12 @@ window.markAllBoothMapItemsDirty = function(isDirty = true) {
 window.initializeBoothMapItemsState = function(items = []) {
     return (Array.isArray(items) ? items : []).map((item) => ({
         ...item,
-        hall: String(item?.hall || '').trim(),
+        hall: window.normalizeHallLabel(item?.hall || ''),
         shape_type: String(item?.shape_type || 'rect').trim() || 'rect',
         points_json: Array.isArray(item?.points_json) ? item.points_json : [],
         area: Number(item?.area || 0),
         _dirty: false,
-        _persistedBoothCode: String(item.booth_code || '').trim().toUpperCase()
+        _persistedBoothCode: window.normalizeBoothCode(item.booth_code)
     }));
 }
 
@@ -209,12 +209,12 @@ window.getSelectedBoothMapItems = function() {
 }
 
 window.findDuplicateBoothMapItemByCode = function(boothCode, excludeItemId = '') {
-    const normalizedCode = String(boothCode || '').trim().toUpperCase();
+    const normalizedCode = window.normalizeBoothCode(boothCode);
     if (!normalizedCode) return null;
     const excluded = String(excludeItemId || '');
     return (currentBoothMapItems || []).find((item) => {
         if (String(item.id) === excluded) return false;
-        return String(item.booth_code || '').trim().toUpperCase() === normalizedCode;
+        return window.isSameBoothCode(item.booth_code, normalizedCode);
     }) || null;
 }
 
@@ -343,15 +343,15 @@ window.validateBoothMapItems = function(itemsToValidate = [], options = {}) {
     const localSeenCodes = new Set();
     const comparisonCodeMap = new Map();
     comparisonItems.forEach((item) => {
-        const boothCode = String(item.booth_code || '').trim().toUpperCase();
+        const boothCode = window.normalizeBoothCode(item.booth_code);
         if (!boothCode) return;
         if (!comparisonCodeMap.has(boothCode)) comparisonCodeMap.set(boothCode, []);
         comparisonCodeMap.get(boothCode).push(String(item.id));
     });
 
     (Array.isArray(itemsToValidate) ? itemsToValidate : []).forEach((item) => {
-        const boothCode = String(item.booth_code || '').trim().toUpperCase();
-        const hall = String(window.resolveBoothMapHallValue ? window.resolveBoothMapHallValue(item) : (item.hall || '')).trim();
+        const boothCode = window.normalizeBoothCode(item.booth_code);
+        const hall = window.normalizeHallLabel(window.resolveBoothMapHallValue ? window.resolveBoothMapHallValue(item) : (item.hall || ''));
         const boothType = String(item.booth_type || '').trim();
         if (!boothCode || boothCode.startsWith('TMP-')) {
             errors.push('请先为当前展位填写正式展位号');
@@ -485,7 +485,7 @@ window.fitBoothMapSingleLineBlock = function(text, fontSize, maxWidth, maxHeight
 
 window.getBoothMapRuntimeItem = function(boothCode) {
     const state = window.getBoothMapState();
-    return state.runtimeByBoothCode[String(boothCode || '').trim().toUpperCase()] || null;
+    return state.runtimeByBoothCode[window.normalizeBoothCode(boothCode)] || null;
 }
 
 window.createDefaultBoothMapLabelStyle = function(widthPx, heightPx) {
@@ -813,17 +813,15 @@ window.getBoothMapTextConfigForItem = function(item, map = null) {
 }
 
 window.extractHallFromBoothMapName = function(name) {
-    const normalized = String(name || '').trim();
-    const matched = normalized.match(/\d+号馆/);
-    return matched ? matched[0] : '';
+    return window.resolveHallFromMapName(name);
 }
 
 window.resolveBoothMapHallValue = function(item) {
-    const itemHall = String(item?.hall || '').trim();
+    const itemHall = window.normalizeHallLabel(item?.hall || '');
     if (itemHall) return itemHall;
     const currentMapHall = window.extractHallFromBoothMapName(currentBoothMap?.name || '');
     if (currentMapHall) return currentMapHall;
-    return String(currentBoothMap?.name || '').trim();
+    return window.normalizeHallLabel(currentBoothMap?.name || '');
 }
 
 window.getBoothMapDefaultShapeRatios = function(shapeType) {
@@ -1923,7 +1921,7 @@ window.refreshBoothMapRuntime = async function(options = {}) {
     currentBoothMapRuntimeItems = Array.isArray(data.items) ? data.items : [];
     const state = window.getBoothMapState();
     state.runtimeByBoothCode = Object.fromEntries(
-        currentBoothMapRuntimeItems.map((item) => [String(item.booth_code || '').trim().toUpperCase(), item])
+        currentBoothMapRuntimeItems.map((item) => [window.normalizeBoothCode(item.booth_code), item])
     );
     const runtimeEl = document.getElementById('booth-map-preview-status');
     if (runtimeEl && !boothMapDirty) {
@@ -2659,10 +2657,10 @@ window.copySelectedBoothMapItem = function() {
 window.searchCurrentBoothMapItem = function() {
     if (!currentBoothMap) return window.showToast('请先选择一个画布', 'error');
     const state = window.getBoothMapState();
-    const keyword = String(document.getElementById('booth-map-search-input')?.value || '').trim().toUpperCase();
+    const keyword = window.normalizeBoothCode(document.getElementById('booth-map-search-input')?.value || '');
     if (!keyword) return window.showToast('请输入要搜索的展位号', 'error');
-    const exactItem = (currentBoothMapItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === keyword);
-    const fuzzyItem = (currentBoothMapItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase().includes(keyword));
+    const exactItem = window.findItemByBoothCode(currentBoothMapItems, keyword);
+    const fuzzyItem = window.findItemByBoothCodeIncludes(currentBoothMapItems, keyword);
     const matchedItem = exactItem || fuzzyItem;
     if (!matchedItem) {
         state.searchHighlightItemId = '';
@@ -3182,9 +3180,9 @@ window.validateBoothMapBeforeSave = function() {
 window.buildBoothMapItemsPayload = function(items = []) {
     return (Array.isArray(items) ? items : []).map((item, index) => ({
         id: item.id,
-        booth_code: String(item.booth_code || '').trim().toUpperCase(),
-        previous_booth_code: String(item._persistedBoothCode || '').trim().toUpperCase(),
-        hall: String(window.resolveBoothMapHallValue(item) || '').trim(),
+        booth_code: window.normalizeBoothCode(item.booth_code),
+        previous_booth_code: window.normalizeBoothCode(item._persistedBoothCode),
+        hall: window.normalizeHallLabel(window.resolveBoothMapHallValue(item) || ''),
         booth_type: item.booth_type,
         opening_type: item.booth_type === '光地' ? '' : item.opening_type,
         width_m: Number(item.width_m || 0),
@@ -3319,7 +3317,7 @@ window.saveBoothMapQuick = async function() {
             (currentBoothMapItems || []).forEach((item) => {
                 if (canReplaceAll || savedIdSet.has(String(item.id))) {
                     item._dirty = false;
-                    item._persistedBoothCode = String(item.booth_code || '').trim().toUpperCase();
+                    item._persistedBoothCode = window.normalizeBoothCode(item.booth_code);
                     item.area = window.calculateBoothMapItemArea(item);
                 }
             });
@@ -3358,7 +3356,7 @@ window.saveSelectedBoothMapItem = async function() {
                 replaceAll: false
             });
             item._dirty = false;
-            item._persistedBoothCode = String(item.booth_code || '').trim().toUpperCase();
+            item._persistedBoothCode = window.normalizeBoothCode(item.booth_code);
             currentBoothMap.updated_at = itemData.updated_at || currentBoothMap.updated_at;
             boothMapDirty = (currentBoothMapItems || []).some((candidate) => candidate._dirty);
             window.renderCurrentBoothMap();

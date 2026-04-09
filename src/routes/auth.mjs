@@ -13,6 +13,7 @@ import {
     validateNewPassword
 } from '../utils/helpers.mjs';
 import { errorResponse } from '../utils/response.mjs';
+import { readJsonBody } from '../utils/request.mjs';
 
 const DUMMY_PASSWORD_HASH = 'pbkdf2_sha256$100000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000';
 const LOGIN_MAX_FAILURES = 5;
@@ -59,7 +60,9 @@ export async function handleAuthRoutes({
 }) {
     if (request.method === 'POST') {
         if (url.pathname === '/api/login') {
-            const { username, password } = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
+            const { username, password } = payload;
             const loginContext = getLoginAttemptContext(request, username);
             const loginAttempt = await getLoginAttempt(env, loginContext.key);
             const lockedUntilMs = parseChinaDateTime(loginAttempt?.locked_until);
@@ -97,7 +100,9 @@ export async function handleAuthRoutes({
         }
 
         if (url.pathname === '/api/change-password') {
-            const { staffName, oldPass, newPass } = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
+            const { staffName, oldPass, newPass } = payload;
             if (staffName && staffName !== currentUser.name) {
                 return errorResponse('只能修改当前登录账号的密码', 403, corsHeaders);
             }

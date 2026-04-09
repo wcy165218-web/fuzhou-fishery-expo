@@ -2,6 +2,7 @@ import { hashPassword } from '../utils/crypto.mjs';
 import { requireSuperAdmin } from '../utils/auth.mjs';
 import { STAFF_SORT_ORDER } from '../utils/helpers.mjs';
 import { errorResponse } from '../utils/response.mjs';
+import { readJsonBody } from '../utils/request.mjs';
 
 async function getOrderCountBySalesName(env, staffName) {
     const row = await env.DB.prepare(`
@@ -27,7 +28,9 @@ export async function handleStaffRoutes({
         if (request.method === 'POST') {
             const denied = requireSuperAdmin(currentUser, corsHeaders);
             if (denied) return denied;
-            const { name, role } = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
+            const { name, role } = payload;
             try {
                 const defaultHash = await hashPassword('123456');
                 const maxOrderRow = await env.DB.prepare(`SELECT COALESCE(MAX(display_order), 0) AS maxOrder FROM Staff`).first();
@@ -43,7 +46,9 @@ export async function handleStaffRoutes({
     if (url.pathname === '/api/delete-staff' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        const { staffName } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { staffName } = payload;
         if (staffName === 'admin') return errorResponse('不能删除超级管理员', 400, corsHeaders);
         const relatedOrderCount = await getOrderCountBySalesName(env, staffName);
         if (relatedOrderCount > 0) {
@@ -56,7 +61,9 @@ export async function handleStaffRoutes({
     if (url.pathname === '/api/update-staff-role' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        const { staffName, role } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { staffName, role } = payload;
         if (staffName === 'admin') return errorResponse('不能修改超级管理员角色', 400, corsHeaders);
         await env.DB.prepare('UPDATE Staff SET role = ?, token_index = COALESCE(token_index, 0) + 1 WHERE name = ?').bind(role, staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
@@ -65,7 +72,9 @@ export async function handleStaffRoutes({
     if (url.pathname === '/api/set-target' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        const { staffName, target } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { staffName, target } = payload;
         await env.DB.prepare('UPDATE Staff SET target = ? WHERE name = ?').bind(target, staffName).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
@@ -73,7 +82,9 @@ export async function handleStaffRoutes({
     if (url.pathname === '/api/update-staff-order' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        const { staffName, direction } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { staffName, direction } = payload;
         if (!staffName || !['up', 'down'].includes(String(direction))) {
             return errorResponse('参数错误', 400, corsHeaders);
         }
@@ -104,7 +115,9 @@ export async function handleStaffRoutes({
     if (url.pathname === '/api/update-staff-sales-ranking' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        const { staffName, excludeFromSalesRanking } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { staffName, excludeFromSalesRanking } = payload;
         if (!staffName) return errorResponse('参数错误', 400, corsHeaders);
         await env.DB.prepare('UPDATE Staff SET exclude_from_sales_ranking = ? WHERE name = ?')
             .bind(Number(excludeFromSalesRanking) ? 1 : 0, staffName)
@@ -115,7 +128,9 @@ export async function handleStaffRoutes({
     if (url.pathname === '/api/reset-password' && request.method === 'POST') {
         const denied = requireSuperAdmin(currentUser, corsHeaders);
         if (denied) return denied;
-        const { staffName } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { staffName } = payload;
         if (staffName === 'admin') return errorResponse('不能重置超级管理员的密码', 400, corsHeaders);
         const defaultHash = await hashPassword('123456');
         await env.DB.prepare('UPDATE Staff SET password = ?, token_index = COALESCE(token_index, 0) + 1 WHERE name = ?').bind(defaultHash, staffName).run();

@@ -1,6 +1,7 @@
 import { canManageOrder } from '../utils/auth.mjs';
 import { getChinaTimestamp } from '../utils/helpers.mjs';
 import { errorResponse, internalErrorResponse } from '../utils/response.mjs';
+import { readJsonBody } from '../utils/request.mjs';
 
 export async function handleExpenseRoutes({
     request,
@@ -25,7 +26,8 @@ export async function handleExpenseRoutes({
 
     if (url.pathname === '/api/add-expense' && request.method === 'POST') {
         try {
-            const expense = await request.json();
+            const expense = await readJsonBody(request, corsHeaders);
+            if (expense instanceof Response) return expense;
             const hasPermission = await canManageOrder(env, currentUser, expense.order_id);
             if (!hasPermission) return errorResponse('权限不足：不能操作他人订单支出', 403, corsHeaders);
             await env.DB.prepare(`
@@ -51,7 +53,9 @@ export async function handleExpenseRoutes({
 
     if (url.pathname === '/api/delete-expense' && request.method === 'POST') {
         try {
-            const { expense_id } = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
+            const { expense_id } = payload;
             const expense = await env.DB.prepare('SELECT id, order_id FROM Expenses WHERE id = ? AND deleted_at IS NULL')
                 .bind(Number(expense_id)).first();
             if (!expense) return errorResponse('记录不存在或已撤销', 404, corsHeaders);

@@ -27,8 +27,12 @@ export const ORDER_FIELD_SETTINGS = [
 
 export const hasMetaChanges = (result) => Number(result?.meta?.changes ?? result?.changes ?? 0);
 
+export function getChinaDateNow(date = new Date()) {
+    return new Date(date.getTime() + (8 * 60 * 60 * 1000));
+}
+
 export function formatChinaDateTime(date = new Date()) {
-    const chinaDate = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+    const chinaDate = getChinaDateNow(date);
     const year = chinaDate.getUTCFullYear();
     const month = String(chinaDate.getUTCMonth() + 1).padStart(2, '0');
     const day = String(chinaDate.getUTCDate()).padStart(2, '0');
@@ -116,6 +120,33 @@ export function validateBoothMapImageFile(file) {
 export function toNonNegativeNumber(value) {
     const num = Number(value);
     return Number.isFinite(num) ? num : NaN;
+}
+
+const WRITE_RATE_LIMIT = 30;
+const RATE_WINDOW_MS = 60_000;
+
+export async function checkWriteRateLimit(env, username) {
+    const rateKey = `user:${String(username || '').toLowerCase()}`;
+    const now = formatChinaDateTime();
+    const windowThreshold = formatChinaDateTime(new Date(Date.now() - RATE_WINDOW_MS));
+
+    const existing = await env.DB.prepare(
+        'SELECT request_count, window_start FROM WriteRateLimits WHERE rate_key = ?'
+    ).bind(rateKey).first();
+
+    if (existing && existing.window_start >= windowThreshold && existing.request_count >= WRITE_RATE_LIMIT) {
+        return true;
+    }
+
+    await env.DB.prepare(`
+        INSERT INTO WriteRateLimits (rate_key, request_count, window_start)
+        VALUES (?, 1, ?)
+        ON CONFLICT(rate_key) DO UPDATE SET
+          request_count = CASE WHEN window_start < ? THEN 1 ELSE request_count + 1 END,
+          window_start = CASE WHEN window_start < ? THEN ? ELSE window_start END
+    `).bind(rateKey, now, windowThreshold, windowThreshold, now).run();
+
+    return false;
 }
 
 export function toBoothCount(area) {
@@ -226,9 +257,7 @@ export function parseRegionInfo(regionText) {
     };
 }
 
-export function getChinaTimestamp() {
-    return new Date(Date.now() + (8 * 60 * 60 * 1000)).toISOString().replace('T', ' ').slice(0, 19);
-}
+export { formatChinaDateTime as getChinaTimestamp };
 
 export function getOverpaidAmount(totalAmount, paidAmount) {
     return Number((Number(paidAmount || 0) - Number(totalAmount || 0)).toFixed(2));

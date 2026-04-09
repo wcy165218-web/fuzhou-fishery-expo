@@ -205,11 +205,16 @@ window.loadOrderSalesFilterOptions = async function() {
 
     if (window.currentUser.role !== 'admin') {
         select.classList.add('hidden');
+        window.orderSalesFilterProjectId = '';
         return;
     }
 
     const pid = document.getElementById('global-project-select').value;
     if (!pid) return;
+    if (window.orderSalesFilterProjectId === String(pid) && select.options.length > 1) {
+        select.classList.remove('hidden');
+        return;
+    }
 
     try {
         const previousValue = select.value;
@@ -227,6 +232,7 @@ window.loadOrderSalesFilterOptions = async function() {
         });
         select.value = staff.some((member) => member.name === previousValue) ? previousValue : '';
         select.classList.remove('hidden');
+        window.orderSalesFilterProjectId = String(pid);
     } catch (e) {
         window.showToast(e.message || '加载业务员筛选失败', 'error');
     }
@@ -332,54 +338,236 @@ window.loadOrderDashboardStats = async function() {
     if (!pid) return;
     const salesName = window.getSelectedSalesFilter();
     const query = salesName ? `&salesName=${encodeURIComponent(salesName)}` : '';
-    const res = await window.apiFetch(`/api/order-dashboard-stats?projectId=${pid}${query}`);
-    const stats = await res.json();
+    const stats = await window.readApiJson(
+        await window.apiFetch(`/api/order-dashboard-stats?projectId=${pid}${query}`),
+        '加载订单看板失败',
+        {}
+    );
     window.renderOrderDashboardStats(stats);
 }
 
+window.getOrderListState = function() {
+    if (!window.orderListState || typeof window.orderListState !== 'object') {
+        window.orderListState = {
+            page: 1,
+            pageSize: 50,
+            total: 0,
+            totalPages: 1,
+            hasMore: false
+        };
+    }
+    return window.orderListState;
+}
+
+window.readOrderListFiltersFromDom = function(overrides = {}) {
+    const state = window.getOrderListState();
+    const pageSizeSelect = document.getElementById('order-page-size');
+    const pageSizeValue = Number(overrides.pageSize || pageSizeSelect?.value || state.pageSize || 50);
+    const pageSize = Number.isFinite(pageSizeValue) && pageSizeValue > 0 ? pageSizeValue : 50;
+    return {
+        page: Number(overrides.page || state.page || 1),
+        pageSize,
+        search: String(document.getElementById('order-search')?.value || '').trim(),
+        businessSearch: String(document.getElementById('order-business-search')?.value || '').trim(),
+        paymentStatus: String(document.getElementById('order-status-filter')?.value || '').trim(),
+        salesName: String(typeof overrides.salesName === 'string' ? overrides.salesName : window.getSelectedSalesFilter()).trim()
+    };
+}
+
+window.buildOrderListQueryParams = function(projectId, filters = {}) {
+    const params = new URLSearchParams();
+    params.set('projectId', String(projectId || ''));
+    params.set('page', String(filters.page || 1));
+    params.set('pageSize', String(filters.pageSize || 50));
+    if (filters.search) params.set('search', filters.search);
+    if (filters.businessSearch) params.set('businessSearch', filters.businessSearch);
+    if (filters.paymentStatus) params.set('paymentStatus', filters.paymentStatus);
+    if (filters.salesName) params.set('salesName', filters.salesName);
+    return params;
+}
+
+window.fetchOrderListPage = async function({ page = 1, pageSize = null, salesName = null } = {}) {
+    const pid = document.getElementById('global-project-select')?.value;
+    if (!pid) {
+        return {
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: pageSize || window.getOrderListState().pageSize || 50,
+            totalPages: 1,
+            hasMore: false
+        };
+    }
+    const filters = window.readOrderListFiltersFromDom({
+        page,
+        pageSize: pageSize || undefined,
+        salesName: typeof salesName === 'string' ? salesName : undefined
+    });
+    return window.readApiJson(
+        await window.apiFetch(`/api/orders?${window.buildOrderListQueryParams(pid, filters).toString()}`),
+        '加载订单列表失败',
+        {
+            items: [],
+            total: 0,
+            page: filters.page,
+            pageSize: filters.pageSize,
+            totalPages: 1,
+            hasMore: false
+        }
+    );
+}
+
+window.fetchAllFilteredOrders = async function({ pageSize = 200 } = {}) {
+    const allItems = [];
+    let nextPage = 1;
+    let total = 0;
+    while (true) {
+        const pageData = await window.fetchOrderListPage({ page: nextPage, pageSize });
+        total = Number(pageData.total || total || 0);
+        const items = Array.isArray(pageData.items) ? pageData.items : [];
+        allItems.push(...items);
+        if (!pageData.hasMore || nextPage >= Number(pageData.totalPages || nextPage)) break;
+        nextPage = Number(pageData.page || nextPage) + 1;
+    }
+    return { items: allItems, total };
+}
+
+window.reloadOrderListFromFilters = function() {
+    const state = window.getOrderListState();
+    state.page = 1;
+    return window.loadOrderList();
+}
+
+window.scheduleOrderListReload = function() {
+    if (window.orderListFilterTimer) {
+        clearTimeout(window.orderListFilterTimer);
+    }
+    window.orderListFilterTimer = setTimeout(() => {
+        window.orderListFilterTimer = null;
+        window.reloadOrderListFromFilters();
+    }, 250);
+}
+
+window.markOrderDashboardDirty = function() {
+    window.lastOrderDashboardKey = '';
+}
+
+window.changeOrderListPageSize = function() {
+    const state = window.getOrderListState();
+    const pageSizeValue = Number(document.getElementById('order-page-size')?.value || state.pageSize || 50);
+    state.pageSize = Number.isFinite(pageSizeValue) && pageSizeValue > 0 ? pageSizeValue : 50;
+    state.page = 1;
+    return window.loadOrderList();
+}
+
+window.goToOrderListPage = function(targetPage) {
+    const state = window.getOrderListState();
+    const normalizedTargetPage = Math.max(1, Math.min(Number(targetPage || 1), Number(state.totalPages || 1)));
+    if (normalizedTargetPage === Number(state.page || 1)) return;
+    state.page = normalizedTargetPage;
+    return window.loadOrderList();
+}
+
+window.renderOrderPagination = function() {
+    const root = document.getElementById('order-pagination');
+    const statsEl = document.getElementById('order-pagination-stats');
+    if (!root || !statsEl) return;
+    const state = window.getOrderListState();
+    const currentPage = Number(state.page || 1);
+    const totalPages = Math.max(1, Number(state.totalPages || 1));
+    const total = Number(state.total || 0);
+    const currentCount = Array.isArray(window.allOrders) ? window.allOrders.length : 0;
+    const startIndex = total === 0 || currentCount === 0 ? 0 : ((currentPage - 1) * Number(state.pageSize || 50)) + 1;
+    const endIndex = total === 0 || currentCount === 0 ? 0 : startIndex + currentCount - 1;
+    statsEl.innerText = total === 0
+        ? '当前筛选结果为空'
+        : `第 ${currentPage} / ${totalPages} 页，当前显示 ${startIndex}-${endIndex} / 共 ${total} 笔`;
+
+    const disableClass = 'opacity-40 cursor-not-allowed';
+    const buttonClass = 'px-3 py-1.5 rounded-lg border text-sm font-bold transition';
+    const renderButton = (label, targetPage, disabled = false) => `
+        <button
+            type="button"
+            onclick="${disabled ? 'void(0)' : `window.goToOrderListPage(${targetPage})`}"
+            class="${buttonClass} ${disabled ? `border-slate-200 bg-slate-100 text-slate-400 ${disableClass}` : 'border-slate-300 bg-white text-slate-700 hover:border-blue-400 hover:text-blue-600'}"
+            ${disabled ? 'disabled' : ''}
+        >${label}</button>
+    `;
+
+    root.innerHTML = `
+        ${renderButton('首页', 1, currentPage <= 1)}
+        ${renderButton('上一页', currentPage - 1, currentPage <= 1)}
+        <span class="px-3 py-1.5 rounded-lg bg-slate-100 text-sm font-bold text-slate-600">第 ${currentPage} / ${totalPages} 页</span>
+        ${renderButton('下一页', currentPage + 1, currentPage >= totalPages)}
+        ${renderButton('末页', totalPages, currentPage >= totalPages)}
+    `;
+}
+
 window.loadOrderList = async function() {
-    const pid = document.getElementById('global-project-select').value; if(!pid) return;
-    await window.loadOrderSalesFilterOptions();
-    const salesName = window.getSelectedSalesFilter();
-    const query = salesName ? `&salesName=${encodeURIComponent(salesName)}` : '';
-    const res = await window.apiFetch(`/api/orders?projectId=${pid}${query}`);
-    window.allOrders = await res.json();
-    await window.loadOrderDashboardStats();
-    window.renderOrderList();
+    const pid = document.getElementById('global-project-select').value;
+    if (!pid) return;
+    const state = window.getOrderListState();
+    const requestSeq = Number(window.orderListRequestSeq || 0) + 1;
+    window.orderListRequestSeq = requestSeq;
+
+    try {
+        await window.loadOrderSalesFilterOptions();
+        const pageData = await window.fetchOrderListPage({
+            page: state.page,
+            pageSize: state.pageSize
+        });
+        if (window.orderListRequestSeq !== requestSeq) return;
+
+        window.allOrders = Array.isArray(pageData.items) ? pageData.items : [];
+        state.page = Number(pageData.page || state.page || 1);
+        state.pageSize = Number(pageData.pageSize || state.pageSize || 50);
+        state.total = Number(pageData.total || 0);
+        state.totalPages = Math.max(1, Number(pageData.totalPages || 1));
+        state.hasMore = !!pageData.hasMore;
+
+        const pageSizeSelect = document.getElementById('order-page-size');
+        if (pageSizeSelect) {
+            pageSizeSelect.value = String(state.pageSize);
+        }
+
+        const dashboardKey = `${pid}::${window.getSelectedSalesFilter()}`;
+        if (window.lastOrderDashboardKey !== dashboardKey) {
+            window.lastOrderDashboardKey = dashboardKey;
+            try {
+                await window.loadOrderDashboardStats();
+            } catch (dashboardError) {
+                window.markOrderDashboardDirty();
+                if (window.orderListRequestSeq !== requestSeq) return;
+                window.showToast(dashboardError.message || '加载订单看板失败', 'error');
+            }
+            if (window.orderListRequestSeq !== requestSeq) return;
+        }
+
+        window.renderOrderList();
+        window.renderOrderPagination();
+    } catch (error) {
+        if (window.orderListRequestSeq !== requestSeq) return;
+        window.allOrders = [];
+        state.total = 0;
+        state.totalPages = 1;
+        state.hasMore = false;
+        window.renderOrderList();
+        window.renderOrderPagination();
+        window.showToast(error.message || '加载订单列表失败', 'error');
+    }
 }
 
 window.renderOrderList = function() {
-    const searchTxt = document.getElementById('order-search').value.toLowerCase();
-    const businessSearchTxt = document.getElementById('order-business-search')?.value.toLowerCase().trim() || '';
-    const statusFilter = document.getElementById('order-status-filter').value;
-    
+    const state = window.getOrderListState();
     const batchBtn = document.querySelector('button[onclick="window.batchDownloadContracts()"]');
-    if(batchBtn) {
+    if (batchBtn) {
         batchBtn.style.display = window.isSuperAdmin() ? 'inline-flex' : 'none';
     }
 
-    const filtered = (window.allOrders || []).filter(o => {
-        const boothSearch = String(o.booth_id || '').toLowerCase();
-        if(searchTxt && !(o.company_name.toLowerCase().includes(searchTxt) || boothSearch.includes(searchTxt))) return false;
-        if (businessSearchTxt && !String(o.main_business || '').toLowerCase().includes(businessSearchTxt)) return false;
-        let payStatus = '未付';
-        if(o.paid_amount > 0 && o.paid_amount < o.total_amount) payStatus = '定金';
-        if(o.paid_amount >= o.total_amount) payStatus = '全款';
-        if(statusFilter && payStatus !== statusFilter) return false;
-        return true;
-    }).sort((a, b) => {
-        const ownDiff = Number(window.isOwnOrder(b)) - Number(window.isOwnOrder(a));
-        if (ownDiff !== 0) return ownDiff;
-        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-    });
-
-    document.getElementById('order-total-stats').innerText = `共 ${filtered.length} 笔订单`;
+    document.getElementById('order-total-stats').innerText = `当前筛选共 ${Number(state.total || 0)} 笔订单`;
     const tbody = document.getElementById('order-list-tbody');
-    
-    const checkAllBox = document.getElementById('check-all-orders');
-    if(checkAllBox) checkAllBox.checked = false;
 
-    tbody.innerHTML = window.renderHtmlCollection(filtered, (o) => {
+    tbody.innerHTML = window.renderHtmlCollection(window.allOrders || [], (o) => {
         const canManage = window.canManageOrder(o);
         const hasOverpayment = window.hasOverpaymentIssue(o);
         const overpaidAmount = window.getOverpaidAmount(o);
@@ -447,7 +635,6 @@ window.renderOrderList = function() {
             `;
         }
 
-        const checkboxHtml = `<input type="checkbox" class="order-check cursor-pointer" value="${o.id}" ${canManage ? '' : 'disabled'}>`;
         const stickyActionCellClass = 'p-3 text-center whitespace-nowrap align-middle sticky right-0 bg-white sticky-action-shadow';
         const actionHtml = canManage
             ? `
@@ -466,7 +653,6 @@ window.renderOrderList = function() {
 
         return `
             <tr class="border-b hover:bg-blue-50 transition">
-                <td class="p-3 text-center">${checkboxHtml}</td>
                 <td class="p-3 text-center align-middle">${payBadge}</td>
                 <td class="p-3 font-bold text-gray-600">${safeHall || '—'}</td>
                 <td class="p-3 font-bold text-blue-700 text-lg">${safeBoothId || `<span class="text-sm text-slate-500 font-semibold">${safeBoothDisplay}</span>`}</td>
@@ -480,12 +666,12 @@ window.renderOrderList = function() {
                 <td class="${stickyActionCellClass}">${actionHtml}</td>
             </tr>
         `;
-    }, '<tr><td colspan="12" class="p-6 text-center text-gray-400">暂无符合条件的订单</td></tr>');
+    }, '<tr><td colspan="11" class="p-6 text-center text-gray-400">暂无符合条件的订单</td></tr>');
 }
 
 window.showOrderDetailById = function(id) {
     try {
-        const order = window.allOrders.find(o => String(o.id) === String(id));
+        const order = (window.allOrders || []).find(o => String(o.id) === String(id));
         if (order) window.showOrderDetail(order);
         else window.showToast('找不到对应的订单数据', 'error');
     } catch (e) { window.showToast("打开详情出错: " + e.message, 'error'); }
@@ -493,14 +679,10 @@ window.showOrderDetailById = function(id) {
 
 window.openFinanceDirectById = function(id, tab) {
     try {
-        const order = window.allOrders.find(o => String(o.id) === String(id));
+        const order = (window.allOrders || []).find(o => String(o.id) === String(id));
         if (order) window.openFinanceDirect(order, tab);
         else window.showToast('找不到对应的订单数据', 'error');
     } catch (e) { window.showToast("打开面板出错: " + e.message, 'error'); }
-}
-
-window.toggleAllOrderChecks = function(source) {
-    document.querySelectorAll('.order-check').forEach(cb => cb.checked = source.checked);
 }
 
 // 预览合同 (新标签页打开)
@@ -519,27 +701,25 @@ window.previewSingleContract = async function(fileKey, orderId) {
 
 window.batchDownloadContracts = async function() {
     if (!window.isSuperAdmin()) return window.showToast("权限不足：仅超级管理员可批量打包合同", "error");
-    const checkedBoxes = document.querySelectorAll('.order-check:checked');
-    if (checkedBoxes.length === 0) return window.showToast("请先勾选需要下载合同的订单", "error");
-
-    const selectedIds = Array.from(checkedBoxes).map(cb => String(cb.value));
-    const selectedOrders = window.allOrders.filter(o => selectedIds.includes(String(o.id)));
-    const ordersWithContracts = selectedOrders.filter(o => o.contract_url);
-    
-    if (ordersWithContracts.length === 0) return window.showToast("您勾选的订单均未上传合同！", "error");
-    if (ordersWithContracts.length < selectedOrders.length) {
-        window.showToast(`部分订单未上传合同，将打包已上传的 ${ordersWithContracts.length} 份`, "info");
-    } else {
-        window.showToast(`开始打包 ${ordersWithContracts.length} 份合同，请稍候...`, "info");
-    }
-
     const btn = document.querySelector('button[onclick="window.batchDownloadContracts()"]');
+    let ordersWithContracts = [];
     const originalHtml = btn.innerHTML;
     btn.innerHTML = `<span class="spinner"></span> 打包中...`;
     btn.disabled = true;
     btn.classList.add('opacity-70', 'cursor-wait');
 
     try {
+        const { items: filteredOrders, total } = await window.fetchAllFilteredOrders({ pageSize: 200 });
+        ordersWithContracts = filteredOrders.filter((order) => order.contract_url);
+        if (ordersWithContracts.length === 0) {
+            return window.showToast(total > 0 ? "当前筛选结果里没有已上传合同的订单" : "当前筛选结果为空", "error");
+        }
+        if (ordersWithContracts.length < filteredOrders.length) {
+            window.showToast(`当前筛选共 ${filteredOrders.length} 笔，其中 ${ordersWithContracts.length} 份合同可打包`, "info");
+        } else {
+            window.showToast(`开始打包 ${ordersWithContracts.length} 份合同，请稍候...`, "info");
+        }
+
         const zip = new JSZip();
         const folder = zip.folder("参展企业合同打包");
 
@@ -578,11 +758,6 @@ window.batchDownloadContracts = async function() {
 }
 
 window.exportToExcel = async function() {
-    const exportOrders = window.isSuperAdmin()
-        ? (window.allOrders || [])
-        : (window.allOrders || []).filter((order) => window.isOwnOrder(order));
-    if(!exportOrders || exportOrders.length === 0) return window.showToast("当前无可导出的本人数据", 'error');
-
     const safeWrap = (val) => `"${(val ?? '').toString().replace(/"/g, '""')}"`;
     const fmtMoney = (value) => Number(value || 0).toFixed(2).replace(/\.00$/, '');
     const parseJsonSafe = (value) => {
@@ -624,49 +799,62 @@ window.exportToExcel = async function() {
     window.showToast("正在整理导出数据，请稍候...", "info");
 
     try {
-        const detailRows = await Promise.all(exportOrders.map(async (order) => {
-            const [paymentRes, expenseRes] = await Promise.all([
-                window.apiFetch(`/api/payments?orderId=${encodeURIComponent(order.id)}`),
-                window.apiFetch(`/api/expenses?orderId=${encodeURIComponent(order.id)}`)
-            ]);
+        const { items: exportOrders, total } = await window.fetchAllFilteredOrders({ pageSize: 200 });
+        if (!exportOrders || exportOrders.length === 0) {
+            return window.showToast(total > 0 ? "当前筛选结果为空" : "当前无可导出的订单数据", 'error');
+        }
+        const detailRows = [];
+        const concurrency = 8;
+        for (let index = 0; index < exportOrders.length; index += concurrency) {
+            const chunk = exportOrders.slice(index, index + concurrency);
+            const chunkRows = await Promise.all(chunk.map(async (order) => {
+                let payments = [];
+                let expenses = [];
+                if (window.canManageOrder(order)) {
+                    const [paymentRes, expenseRes] = await Promise.all([
+                        window.apiFetch(`/api/payments?orderId=${encodeURIComponent(order.id)}`),
+                        window.apiFetch(`/api/expenses?orderId=${encodeURIComponent(order.id)}`)
+                    ]);
+                    payments = paymentRes.ok ? await paymentRes.json() : [];
+                    expenses = expenseRes.ok ? await expenseRes.json() : [];
+                }
+                const paymentDetails = normalizePaymentDetails(payments);
+                const expenseDetails = normalizeExpenseDetails(expenses);
+                const otherFeeDetails = parseFeeDetails(order.fees_json);
+                let status = order.paid_amount >= order.total_amount ? '已付全款' : (order.paid_amount > 0 ? '已付定金' : '未付款');
+                if (order.status === '已退订' || order.status === '已作废') status = '已退订';
 
-            const payments = paymentRes.ok ? await paymentRes.json() : [];
-            const expenses = expenseRes.ok ? await expenseRes.json() : [];
-            const paymentDetails = normalizePaymentDetails(payments);
-            const expenseDetails = normalizeExpenseDetails(expenses);
-            const otherFeeDetails = parseFeeDetails(order.fees_json);
-            let status = order.paid_amount >= order.total_amount ? '已付全款' : (order.paid_amount > 0 ? '已付定金' : '未付款');
-            if(order.status === '已退订' || order.status === '已作废') status = '已退订';
-
-            return {
-                base: [
-                    status,
-                    order.hall || '',
-                    order.booth_id || '',
-                    order.area || '',
-                    order.booth_type || '',
-                    order.company_name || '',
-                    order.credit_code || '',
-                    order.region || '',
-                    order.contact_person || '',
-                    order.phone || '',
-                    order.category || '',
-                    order.main_business || '',
-                    order.profile || '',
-                    order.sales_name || '',
-                    order.total_booth_fee || 0,
-                    order.other_income || 0,
-                    otherFeeDetails,
-                    order.total_amount || 0,
-                    order.paid_amount || 0,
-                    paymentDetails.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-                ],
-                payments: paymentDetails,
-                expenseTotal: expenseDetails.reduce((sum, expense) => sum + Number(expense.amount || 0), 0),
-                expenses: expenseDetails,
-                createdAt: order.created_at || ''
-            };
-        }));
+                return {
+                    base: [
+                        status,
+                        order.hall || '',
+                        order.booth_id || '',
+                        order.area || '',
+                        order.booth_type || '',
+                        order.company_name || '',
+                        order.credit_code || '',
+                        order.region || '',
+                        order.contact_person || '',
+                        order.phone || '',
+                        order.category || '',
+                        order.main_business || '',
+                        order.profile || '',
+                        order.sales_name || '',
+                        order.total_booth_fee || 0,
+                        order.other_income || 0,
+                        otherFeeDetails,
+                        order.total_amount || 0,
+                        order.paid_amount || 0,
+                        paymentDetails.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+                    ],
+                    payments: paymentDetails,
+                    expenseTotal: expenseDetails.reduce((sum, expense) => sum + Number(expense.amount || 0), 0),
+                    expenses: expenseDetails,
+                    createdAt: order.created_at || ''
+                };
+            }));
+            detailRows.push(...chunkRows);
+        }
 
         const maxPaymentCount = detailRows.reduce((max, row) => Math.max(max, row.payments.length), 0);
         const maxExpenseCount = detailRows.reduce((max, row) => Math.max(max, row.expenses.length), 0);
@@ -761,7 +949,7 @@ window.exportToExcel = async function() {
 }
 
 window.triggerSilentUpload = function(orderId) {
-    const order = window.allOrders.find(o => String(o.id) === String(orderId));
+    const order = (window.allOrders || []).find(o => String(o.id) === String(orderId));
     if (!window.canManageOrder(order)) return window.showToast('权限不足：不能上传他人合同', 'error');
     window.currentSilentOrderId = orderId;
     document.getElementById('silent-file-upload').click();
@@ -774,7 +962,7 @@ window.handleSilentUpload = async function(input) {
         const upRes = await window.apiFetch('/api/upload', {method:'POST', body: formData});
         await window.ensureApiSuccess(upRes, '云端存储失败');
         const upData = await upRes.json();
-        const order = window.allOrders.find(o => String(o.id) === String(window.currentSilentOrderId));
+        const order = (window.allOrders || []).find(o => String(o.id) === String(window.currentSilentOrderId));
         const data = { project_id: document.getElementById('global-project-select').value, order_id: window.currentSilentOrderId, contact_person: order.contact_person, phone: order.phone, region: order.region, main_business: order.main_business, profile: order.profile, category: order.category, is_agent: order.is_agent === 1, agent_name: order.agent_name, contract_url: upData.fileKey };
         const updateRes = await window.apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
         await window.ensureApiSuccess(updateRes, '数据库更新失败');
@@ -965,7 +1153,7 @@ window.switchFmTab = function(tab) {
 }
 
 window.refreshFinanceModalStats = function() {
-    const updatedOrder = window.allOrders.find(o => String(o.id) === String(window.currentModalOrderId));
+    const updatedOrder = (window.allOrders || []).find(o => String(o.id) === String(window.currentModalOrderId));
     if (updatedOrder) {
         window.currentFinanceOrder = updatedOrder;
         document.getElementById('fm-order-title').innerText = `当前客户：${updatedOrder.company_name} (展位: ${window.getOrderBoothDisplay(updatedOrder)})`;
@@ -1149,8 +1337,8 @@ window.openSwapBoothMapPicker = async function() {
         await window.ensureSwapInventoryLoaded(projectId);
         const preferredMapId = Number(
             window.fmSwapCandidateBooth?.booth_map_id
-            || (window.allBooths || []).find((item) => String(item.id || '').trim().toUpperCase() === String(window.fmSwapCandidateBooth?.id || '').trim().toUpperCase())?.booth_map_id
-            || (window.allBooths || []).find((item) => String(item.id || '').trim().toUpperCase() === String(currentOrder.booth_id || '').trim().toUpperCase())?.booth_map_id
+            || window.findItemByBoothCode(window.allBooths, window.fmSwapCandidateBooth?.id, 'id')?.booth_map_id
+            || window.findItemByBoothCode(window.allBooths, currentOrder.booth_id, 'id')?.booth_map_id
             || 0
         );
         await window.loadOrderBoothMapPickerMaps(preferredMapId);
@@ -1201,6 +1389,7 @@ window.submitBoothSwap = async function() {
         });
         await window.ensureApiSuccess(res, '换展位失败，请稍后再试');
         window.showToast('换展位成功，订单与统计已同步更新');
+        window.markOrderDashboardDirty();
         await window.loadOrderList();
         await window.loadPaymentHistory(window.currentModalOrderId);
         await window.loadExpenseHistory(window.currentModalOrderId);
@@ -1252,6 +1441,7 @@ window.submitOverpaymentHandling = async function() {
         await window.ensureApiSuccess(res, '保存处理结果失败');
         window.showToast('超收处理结果已保存，并已自动补录其他应收明细');
         window.closeModal('overpayment-modal');
+        window.markOrderDashboardDirty();
         await window.loadOrderList();
         window.refreshVisibleOrderContexts();
     } catch (e) {
@@ -1330,7 +1520,7 @@ window.submitPayment = async function() {
         const res = await window.apiFetch('/api/add-payment', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, amount: amt, payment_time: time, payer_name: payer, bank_name: bank, remarks: document.getElementById('pay-remark').value }) }); 
         await window.ensureApiSuccess(res, '写入流水失败');
         window.showToast("收款入账成功！"); 
-        
+        window.markOrderDashboardDirty();
         await window.loadOrderList(); 
         await window.loadPaymentHistory(orderId);
         window.refreshFinanceModalStats();
@@ -1352,7 +1542,7 @@ window.submitEditPayment = async function() {
         await window.ensureApiSuccess(res, '流水修改失败');
         window.closeModal('edit-payment-modal'); 
         window.showToast("流水修改成功！"); 
-        
+        window.markOrderDashboardDirty();
         await window.loadOrderList();
         await window.loadPaymentHistory(window.currentModalOrderId); 
         window.refreshFinanceModalStats();
@@ -1366,6 +1556,7 @@ window.deletePayment = async function(payId) {
         const res = await window.apiFetch('/api/delete-payment', { method: 'POST', body: JSON.stringify({ project_id: document.getElementById('global-project-select').value, order_id: window.currentModalOrderId, payment_id: payId }) }); 
         await window.ensureApiSuccess(res, '删除失败');
         window.showToast("删除成功"); 
+        window.markOrderDashboardDirty();
         await window.loadOrderList();
         await window.loadPaymentHistory(window.currentModalOrderId); 
         window.refreshFinanceModalStats();
@@ -1392,7 +1583,7 @@ window.submitAdjustment = async function() {
         const res = await window.apiFetch('/api/update-order-fees', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: window.currentModalOrderId, actual_fee: af, other_fee_total: ot, fees_json: JSON.stringify(validFees), reason: r }) }); 
         await window.ensureApiSuccess(res, '账单变更失败');
         window.showToast("账单变更成功！"); 
-        
+        window.markOrderDashboardDirty();
         await window.loadOrderList(); 
         window.refreshFinanceModalStats();
         window.refreshVisibleOrderContexts();
@@ -1448,7 +1639,7 @@ window.deleteExpense = async function(expId) {
 }
 
 window.printExpense = function(e) {
-    const order = window.allOrders.find(o => String(o.id) === String(e.order_id));
+    const order = (window.allOrders || []).find(o => String(o.id) === String(e.order_id));
     const content = `<div class="text-center mb-6"><h2 class="text-2xl font-bold tracking-widest border-b-2 border-black pb-2 inline-block">支出确认单</h2></div><div class="flex justify-between text-sm mb-2 font-bold"><span>单据编号：EXP-${e.id}-${Date.now().toString().slice(-4)}</span><span>申请日期：${e.created_at ? e.created_at.split(' ')[0] : '即日'}</span></div><table class="w-full text-left border-collapse border border-black mb-6 text-sm"><tr><th class="border border-black p-3 bg-gray-100 w-1/4">项目名称</th><td class="border border-black p-3 font-bold" colspan="3">${document.getElementById('global-project-select').options[document.getElementById('global-project-select').selectedIndex].text}</td></tr><tr><th class="border border-black p-3 bg-gray-100">关联展商/展位</th><td class="border border-black p-3 font-bold text-blue-800" colspan="3">${order.company_name} (展位: ${order.booth_id})</td></tr><tr><th class="border border-black p-3 bg-gray-100">代付/返佣事由</th><td class="border border-black p-3 font-bold text-purple-800" colspan="3">${e.reason || '无说明'}</td></tr><tr><th class="border border-black p-3 bg-gray-100">申请支付金额</th><td class="border border-black p-3 font-bold text-xl text-red-600" colspan="3">${window.formatCurrency(e.amount, '¥ ')}</td></tr><tr><th class="border border-black p-3 bg-gray-100">收款单位全称</th><td class="border border-black p-3 font-bold" colspan="3">${e.payee_name} <span class="text-gray-500 font-normal">(${e.payee_channel || '转账'})</span></td></tr><tr><th class="border border-black p-3 bg-gray-100">收款账号</th><td class="border border-black p-3 tracking-widest font-bold" colspan="3">${e.payee_account || '未提供'}</td></tr><tr><th class="border border-black p-3 bg-gray-100">开户行详情</th><td class="border border-black p-3" colspan="3">${e.payee_bank || '未提供'}</td></tr></table><div class="text-sm font-bold mt-10 pt-6">申请人：${e.applicant || ''}</div>`;
     document.getElementById('print-content').innerHTML = content; document.getElementById('print-modal').classList.remove('hidden');
 }
@@ -1460,6 +1651,7 @@ window.cancelOrder = async function(orderId, boothId) {
         const res = await window.apiFetch('/api/cancel-order', { method: 'POST', body: JSON.stringify({ project_id: pid, order_id: orderId, booth_id: boothId }) });
         await window.ensureApiSuccess(res, '退订失败');
         window.showToast("退订成功！");
+        window.markOrderDashboardDirty();
         window.loadOrderList();
     } catch (e) { /* handled */ }
 }

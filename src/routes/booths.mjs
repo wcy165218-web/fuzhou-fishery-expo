@@ -1,6 +1,8 @@
 import { normalizeBoothIds } from '../utils/helpers.mjs';
 import { errorResponse } from '../utils/response.mjs';
+import { readJsonBody } from '../utils/request.mjs';
 import { deriveBoothRuntimeStatus } from '../services/booth-map-view.mjs';
+import { deriveHallFromBoothCode, normalizeBoothCode } from '../utils/booth-map.mjs';
 
 const MANUAL_BOOTH_STATUSES = new Set(['可售', '已锁定']);
 const SQL_IN_CHUNK_SIZE = 80;
@@ -13,16 +15,9 @@ function chunkItems(items = [], chunkSize = SQL_IN_CHUNK_SIZE) {
     return output;
 }
 
-function deriveHallFromBoothId(boothId, fallback = '') {
-    const normalizedBoothId = String(boothId || '').trim().toUpperCase();
-    const matched = normalizedBoothId.match(/^(\d+)/);
-    if (matched) return `${matched[1]}号馆`;
-    return String(fallback || '').trim();
-}
-
 async function getReferencedBoothIds(env, projectId, boothIds) {
     const normalizedBoothIds = Array.isArray(boothIds)
-        ? boothIds.map((id) => String(id || '').trim()).filter(Boolean)
+        ? boothIds.map((id) => normalizeBoothCode(id)).filter(Boolean)
         : [];
     if (normalizedBoothIds.length === 0) return [];
     const referencedBoothIds = new Set();
@@ -36,7 +31,7 @@ async function getReferencedBoothIds(env, projectId, boothIds) {
           GROUP BY booth_id
         `).bind(Number(projectId), ...boothIdChunk).all();
         (results.results || []).forEach((row) => {
-            const boothId = String(row.booth_id || '').trim();
+            const boothId = normalizeBoothCode(row.booth_id);
             if (boothId) referencedBoothIds.add(boothId);
         });
     }
@@ -46,7 +41,7 @@ async function getReferencedBoothIds(env, projectId, boothIds) {
 async function getActiveOrdersMap(env, projectId, boothIds) {
     const normalizedBoothIds = Array.from(new Set(
         (Array.isArray(boothIds) ? boothIds : [])
-            .map((id) => String(id || '').trim())
+            .map((id) => normalizeBoothCode(id))
             .filter(Boolean)
     ));
     const orderMap = new Map();
@@ -61,7 +56,7 @@ async function getActiveOrdersMap(env, projectId, boothIds) {
             AND status = '正常'
         `).bind(Number(projectId), ...boothIdChunk).all();
         (results.results || []).forEach((row) => {
-            const boothId = String(row.booth_id || '').trim();
+            const boothId = normalizeBoothCode(row.booth_id);
             if (!boothId) return;
             if (!orderMap.has(boothId)) {
                 orderMap.set(boothId, []);
@@ -75,7 +70,7 @@ async function getActiveOrdersMap(env, projectId, boothIds) {
 async function getMapManagedBoothIds(env, projectId, boothIds) {
     const normalizedBoothIds = Array.from(new Set(
         (Array.isArray(boothIds) ? boothIds : [])
-            .map((id) => String(id || '').trim())
+            .map((id) => normalizeBoothCode(id))
             .filter(Boolean)
     ));
     if (normalizedBoothIds.length === 0) return [];
@@ -90,7 +85,7 @@ async function getMapManagedBoothIds(env, projectId, boothIds) {
             AND (source = 'map' OR booth_map_id IS NOT NULL)
         `).bind(Number(projectId), ...boothIdChunk).all();
         (results.results || []).forEach((row) => {
-            const boothId = String(row.id || '').trim();
+            const boothId = normalizeBoothCode(row.id);
             if (boothId) mapManagedBoothIds.add(boothId);
         });
     }
@@ -116,7 +111,9 @@ export async function handleBoothRoutes({
         }
         if (request.method === 'POST') {
             if (currentUser.role !== 'admin') return errorResponse('权限不足', 403, corsHeaders);
-            const { projectId, prices } = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
+            const { projectId, prices } = payload;
             await env.DB.prepare('DELETE FROM Prices WHERE project_id = ?').bind(projectId).run();
             const statements = Object.keys(prices).map((type) =>
                 env.DB.prepare('INSERT INTO Prices (project_id, booth_type, price) VALUES (?, ?, ?)')
@@ -144,11 +141,11 @@ export async function handleBoothRoutes({
         const boothRows = results.results || [];
         const activeOrdersMap = await getActiveOrdersMap(env, pid, boothRows.map((row) => row.id));
         const payload = boothRows.map((row) => {
-            const activeOrders = activeOrdersMap.get(String(row.id || '').trim()) || [];
+            const activeOrders = activeOrdersMap.get(normalizeBoothCode(row.id)) || [];
             const runtimeStatus = deriveBoothRuntimeStatus(row.status, activeOrders);
             return {
                 ...row,
-                hall: deriveHallFromBoothId(row.id, row.hall),
+                hall: deriveHallFromBoothCode(row.id, row.hall),
                 status: runtimeStatus.label,
                 map_managed: Number(row.booth_map_id || 0) > 0 || String(row.source || '') === 'map' ? 1 : 0,
                 sale_status_code: runtimeStatus.code,
@@ -166,7 +163,9 @@ export async function handleBoothRoutes({
 
     if (url.pathname === '/api/edit-booth' && request.method === 'POST') {
         if (currentUser.role !== 'admin') return errorResponse('权限不足', 403, corsHeaders);
-        const { project_id, id, type, area, base_price } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { project_id, id, type, area, base_price } = payload;
         const boothRow = await env.DB.prepare(`
           SELECT source, booth_map_id, type, area
           FROM Booths
@@ -185,7 +184,9 @@ export async function handleBoothRoutes({
 
     if (url.pathname === '/api/update-booth-status' && request.method === 'POST') {
         if (currentUser.role !== 'admin') return errorResponse('权限不足', 403, corsHeaders);
-        const { projectId, boothIds, status } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { projectId, boothIds, status } = payload;
         if (!projectId) return errorResponse('缺少项目 ID', 400, corsHeaders);
         let normalizedBoothIds = [];
         try {
@@ -206,7 +207,9 @@ export async function handleBoothRoutes({
 
     if (url.pathname === '/api/delete-booths' && request.method === 'POST') {
         if (currentUser.role !== 'admin') return errorResponse('权限不足', 403, corsHeaders);
-        const { projectId, boothIds } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { projectId, boothIds } = payload;
         if (!projectId) return errorResponse('缺少项目 ID', 400, corsHeaders);
         let normalizedBoothIds = [];
         try {

@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>展位销售与财务管理系统</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="/assets/tailwind.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+            integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
+            crossorigin="anonymous"></script>
     <style>
         .page-section { display: none; }
         .page-section.active {
@@ -2169,27 +2171,32 @@
                         <div id="order-dashboard-panel" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4"></div>
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 bg-gray-50 p-3 rounded border">
                             <div class="flex items-center gap-2">
-                                <input type="text" id="order-search" placeholder="搜公司/展位号..." class="border p-2 rounded text-sm w-48" onkeyup="window.renderOrderList()">
-                                <input type="text" id="order-business-search" placeholder="搜主营业务/详细展品..." class="border p-2 rounded text-sm w-56" onkeyup="window.renderOrderList()">
-                                <select id="order-status-filter" class="border p-2 rounded text-sm" onchange="window.renderOrderList()">
+                                <input type="text" id="order-search" placeholder="搜公司/展位号..." class="border p-2 rounded text-sm w-48" onkeyup="window.scheduleOrderListReload()">
+                                <input type="text" id="order-business-search" placeholder="搜主营业务/详细展品..." class="border p-2 rounded text-sm w-56" onkeyup="window.scheduleOrderListReload()">
+                                <select id="order-status-filter" class="border p-2 rounded text-sm" onchange="window.reloadOrderListFromFilters()">
                                     <option value="">所有付款状态</option>
                                     <option value="未付">未付款</option>
                                     <option value="定金">已付定金</option>
                                     <option value="全款">已付全款</option>
                                 </select>
-                                <select id="order-sales-filter" class="border p-2 rounded text-sm hidden" onchange="window.loadOrderList()">
+                                <select id="order-sales-filter" class="border p-2 rounded text-sm hidden" onchange="window.reloadOrderListFromFilters()">
                                     <option value="">全部业务员</option>
+                                </select>
+                                <select id="order-page-size" class="border p-2 rounded text-sm" onchange="window.changeOrderListPageSize()">
+                                    <option value="50">每页 50 笔</option>
+                                    <option value="100">每页 100 笔</option>
+                                    <option value="200">每页 200 笔</option>
                                 </select>
                             </div>
                             <div class="flex items-center gap-3">
                                 <div class="text-sm text-gray-500 font-bold" id="order-total-stats">共 0 笔订单</div>
                                 <button onclick="window.batchDownloadContracts()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow transition flex items-center gap-1">
                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v10.5"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4.5 19.5h15"/></svg>
-                                    <span>批量打包合同</span>
+                                    <span>打包当前筛选合同</span>
                                 </button>
                                 <button onclick="window.exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold shadow transition flex items-center gap-1">
                                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5v10.5"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4.5 19.5h15"/></svg>
-                                    <span>导出大盘数据</span>
+                                    <span>导出当前筛选结果</span>
                                 </button>
                             </div>
                         </div>
@@ -2198,7 +2205,6 @@
                             <table class="w-full text-sm text-left whitespace-nowrap">
                                 <thead class="bg-gray-100 border-b">
                                     <tr>
-                                        <th class="p-3 w-10"><input type="checkbox" id="check-all-orders" onchange="window.toggleAllOrderChecks(this)"></th>
                                         <th class="p-3 text-center">状态</th>
                                         <th class="p-3">馆号</th>
                                         <th class="p-3">展位号</th>
@@ -2214,6 +2220,10 @@
                                 </thead>
                                 <tbody id="order-list-tbody" class="divide-y"></tbody>
                             </table>
+                        </div>
+                        <div class="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div id="order-pagination-stats" class="text-sm font-medium text-slate-500">当前筛选结果为空</div>
+                            <div id="order-pagination" class="flex flex-wrap items-center gap-2"></div>
                         </div>
                     </div>
                 </section>

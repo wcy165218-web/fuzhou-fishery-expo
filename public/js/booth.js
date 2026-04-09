@@ -42,10 +42,7 @@ window.isOrderLinkedBoothStatus = function(status) {
 }
 
 window.deriveBoothHallLabel = function(boothId, fallback = '') {
-    const normalizedId = String(boothId || '').trim().toUpperCase();
-    const matched = normalizedId.match(/^(\d+)/);
-    if (matched) return `${matched[1]}号馆`;
-    return String(fallback || '').trim();
+    return window.deriveHallFromBoothCode(boothId, fallback);
 }
 
 window.toggleEntrySection = function() { 

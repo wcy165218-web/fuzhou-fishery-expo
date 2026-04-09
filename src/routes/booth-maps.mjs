@@ -6,39 +6,28 @@ import {
     validateBoothMapImageFile
 } from '../utils/helpers.mjs';
 import { errorResponse, internalErrorResponse } from '../utils/response.mjs';
+import { BOOTH_MAP_IMAGE_UPLOAD_BODY_LIMIT, readFormDataBody, readJsonBody } from '../utils/request.mjs';
 import {
     getBoothMapDetail,
     getBoothMapRuntimeView,
     normalizeLabelStyle
 } from '../services/booth-map-view.mjs';
+import {
+    deriveHallFromBoothCode,
+    normalizeBoothCode,
+    resolveHallFromMapName
+} from '../utils/booth-map.mjs';
 
 const ALLOWED_BOOTH_TYPES = new Set(['标摊', '豪标', '光地']);
 const ALLOWED_OPENING_TYPES = new Set(['单开口', '双开口', '三开口', '四面开']);
 const SQL_IN_CHUNK_SIZE = 80;
 const BATCH_CHUNK_SIZE = 40;
+const MAX_BOOTH_MAP_ITEMS = 300;
+const MAX_DELETED_BOOTH_CODES = 300;
+const D1_FREE_TIER_CALL_BUDGET = 45;
 
 function jsonResponse(payload, corsHeaders) {
     return new Response(JSON.stringify(payload), { headers: corsHeaders });
-}
-
-function normalizeHallLabel(rawValue) {
-    const normalized = String(rawValue || '').trim();
-    if (!normalized) return '';
-    if (/号馆$/.test(normalized) || /馆$/.test(normalized)) {
-        return normalized.replace(/馆$/, '号馆');
-    }
-    return /^\d+$/.test(normalized) ? `${normalized}号馆` : normalized;
-}
-
-function normalizeBoothCode(rawValue) {
-    return String(rawValue || '').trim().toUpperCase();
-}
-
-function deriveHallFromBoothCode(boothCode, fallbackValue = '') {
-    const normalizedBoothCode = normalizeBoothCode(boothCode);
-    const matched = normalizedBoothCode.match(/^(\d+)/);
-    if (matched) return `${matched[1]}号馆`;
-    return normalizeHallLabel(fallbackValue);
 }
 
 function normalizeMapName(rawValue) {
@@ -77,13 +66,6 @@ function safeParseJson(rawValue, fallback) {
     } catch (error) {
         return fallback;
     }
-}
-
-function resolveHallFromMapName(name) {
-    const normalized = normalizeMapName(name);
-    if (!normalized) return '';
-    const matched = normalized.match(/\d+号馆/);
-    return matched ? matched[0] : normalized;
 }
 
 function normalizeShapeType(rawValue) {
@@ -216,6 +198,22 @@ function ensureAdmin(currentUser, corsHeaders) {
     return null;
 }
 
+export function estimateBoothMapSaveD1CallCount({
+    itemCount = 0,
+    removedCount = 0,
+    renamedCount = 0,
+    occupiedReadCalls = 0,
+    removedReferencedReadCalls = 0,
+    renamedReferencedReadCalls = 0
+} = {}) {
+    const writeStatementCount = (Number(removedCount || 0) * 2) + (Number(renamedCount || 0) * 2) + (Number(itemCount || 0) * 2) + 1;
+    return 3
+        + Number(occupiedReadCalls || 0)
+        + Number(removedReferencedReadCalls || 0)
+        + Number(renamedReferencedReadCalls || 0)
+        + Math.ceil(writeStatementCount / BATCH_CHUNK_SIZE);
+}
+
 function normalizeBoothMapItemPayload(item, mapRecord, index) {
     const boothCode = normalizeBoothCode(item?.booth_code);
     const hall = deriveHallFromBoothCode(boothCode, item?.hall || resolveHallFromMapName(mapRecord?.name));
@@ -332,7 +330,8 @@ export async function handleBoothMapRoutes({
     if (url.pathname === '/api/create-booth-map' && request.method === 'POST') {
         const adminError = ensureAdmin(currentUser, corsHeaders);
         if (adminError) return adminError;
-        const payload = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
         const projectId = Number(payload.projectId || 0);
         const name = normalizeMapName(payload.name);
         if (!projectId) return errorResponse('缺少项目 ID', 400, corsHeaders);
@@ -353,7 +352,8 @@ export async function handleBoothMapRoutes({
     if (url.pathname === '/api/update-booth-map' && request.method === 'POST') {
         const adminError = ensureAdmin(currentUser, corsHeaders);
         if (adminError) return adminError;
-        const payload = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
         const mapId = Number(payload.id || 0);
         const projectId = Number(payload.projectId || 0);
         const name = normalizeMapName(payload.name);
@@ -395,7 +395,8 @@ export async function handleBoothMapRoutes({
     if (url.pathname === '/api/delete-booth-map' && request.method === 'POST') {
         const adminError = ensureAdmin(currentUser, corsHeaders);
         if (adminError) return adminError;
-        const payload = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
         const mapId = Number(payload.id || 0);
         const projectId = Number(payload.projectId || 0);
         if (!mapId || !projectId) return errorResponse('缺少画布信息', 400, corsHeaders);
@@ -449,7 +450,8 @@ export async function handleBoothMapRoutes({
     if (url.pathname === '/api/upload-booth-map-background' && request.method === 'POST') {
         const adminError = ensureAdmin(currentUser, corsHeaders);
         if (adminError) return adminError;
-        const formData = await request.formData();
+        const formData = await readFormDataBody(request, corsHeaders, { maxBytes: BOOTH_MAP_IMAGE_UPLOAD_BODY_LIMIT });
+        if (formData instanceof Response) return formData;
         const file = formData.get('file');
         const mapId = Number(formData.get('mapId') || 0);
         const projectId = Number(formData.get('projectId') || 0);
@@ -478,7 +480,8 @@ export async function handleBoothMapRoutes({
     if (url.pathname === '/api/delete-booth-map-background' && request.method === 'POST') {
         const adminError = ensureAdmin(currentUser, corsHeaders);
         if (adminError) return adminError;
-        const payload = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
         const mapId = Number(payload.mapId || payload.id || 0);
         const projectId = Number(payload.projectId || 0);
         if (!mapId || !projectId) return errorResponse('缺少画布信息', 400, corsHeaders);
@@ -516,7 +519,8 @@ export async function handleBoothMapRoutes({
         const adminError = ensureAdmin(currentUser, corsHeaders);
         if (adminError) return adminError;
         try {
-            const payload = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
             const projectId = Number(payload.projectId || 0);
             const mapId = Number(payload.mapId || 0);
             const replaceAll = payload.replaceAll !== false;
@@ -526,6 +530,12 @@ export async function handleBoothMapRoutes({
             if (!detail) return errorResponse('展位图不存在', 404, corsHeaders);
 
             const incomingItems = Array.isArray(payload.items) ? payload.items : [];
+            if (incomingItems.length > MAX_BOOTH_MAP_ITEMS) {
+                return errorResponse(`单次最多保存 ${MAX_BOOTH_MAP_ITEMS} 个展位`, 400, corsHeaders);
+            }
+            if (Array.isArray(payload.deleted_booth_codes) && payload.deleted_booth_codes.length > MAX_DELETED_BOOTH_CODES) {
+                return errorResponse(`单次最多删除 ${MAX_DELETED_BOOTH_CODES} 个展位`, 400, corsHeaders);
+            }
             const normalizedItems = incomingItems.map((item, index) =>
                 normalizeBoothMapItemPayload(item, detail.map, index)
             );
@@ -556,11 +566,33 @@ export async function handleBoothMapRoutes({
             const removedBoothCodes = replaceAll
                 ? existingBoothCodes.filter((code) => !boothCodes.includes(code))
                 : requestedDeletedBoothCodes.filter((code) => existingBoothCodes.includes(code) && !boothCodes.includes(code));
+            const renamedPreviousBoothCodes = Array.from(new Set(
+                normalizedItems.map((item, index) => {
+                    const previousBoothCode = normalizeBoothCode(incomingItems[index]?.previous_booth_code);
+                    return previousBoothCode && previousBoothCode !== item.booth_code ? previousBoothCode : '';
+                }).filter(Boolean)
+            ));
+            const estimatedD1CallCount = estimateBoothMapSaveD1CallCount({
+                itemCount: normalizedItems.length,
+                removedCount: removedBoothCodes.length,
+                renamedCount: renamedPreviousBoothCodes.length,
+                occupiedReadCalls: boothCodes.length > 0 ? chunkItems(boothCodes).length : 0,
+                removedReferencedReadCalls: removedBoothCodes.length > 0 ? chunkItems(removedBoothCodes).length : 0,
+                renamedReferencedReadCalls: renamedPreviousBoothCodes.length > 0 ? chunkItems(renamedPreviousBoothCodes).length : 0
+            });
+            if (estimatedD1CallCount > D1_FREE_TIER_CALL_BUDGET) {
+                return errorResponse('本次展位图变更过大，请拆分后重试', 400, corsHeaders);
+            }
+
             const referencedRemovedBoothCodes = await getReferencedBoothCodes(env, projectId, removedBoothCodes);
             if (referencedRemovedBoothCodes.length > 0) {
                 const previewText = referencedRemovedBoothCodes.slice(0, 5).join('、');
                 const suffix = referencedRemovedBoothCodes.length > 5 ? ' 等' : '';
                 return errorResponse(`以下展位已被订单引用，不能从展位图中删除：${previewText}${suffix}`, 400, corsHeaders);
+            }
+            const referencedRenamedBoothCodes = await getReferencedBoothCodes(env, projectId, renamedPreviousBoothCodes);
+            if (referencedRenamedBoothCodes.length > 0) {
+                return errorResponse(`展位 ${referencedRenamedBoothCodes[0]} 已被订单引用，暂时不能改展位号`, 400, corsHeaders);
             }
 
             const nowText = getChinaTimestamp();
@@ -580,10 +612,6 @@ export async function handleBoothMapRoutes({
                 const item = normalizedItems[index];
                 const previousBoothCode = normalizeBoothCode(incomingItems[index]?.previous_booth_code);
                 if (previousBoothCode && previousBoothCode !== item.booth_code) {
-                    const referencedPrevious = await getReferencedBoothCodes(env, projectId, [previousBoothCode]);
-                    if (referencedPrevious.length > 0) {
-                        return errorResponse(`展位 ${previousBoothCode} 已被订单引用，暂时不能改展位号`, 400, corsHeaders);
-                    }
                     statements.push(
                         env.DB.prepare('DELETE FROM BoothMapItems WHERE project_id = ? AND map_id = ? AND booth_code = ?')
                             .bind(projectId, mapId, previousBoothCode)

@@ -57,10 +57,10 @@
 
 当前后端特点：
 
-- `_worker.js` 约 3231 行
-- 约 49 个基于 `url.pathname` 的路由判断
-- 约 66 个顶层函数/函数式定义
-- 路由、权限、工具函数、数据库读写、业务规则仍混在一个文件中
+- `_worker.js` 当前约 99 行
+- 入口层已主要承担鉴权、CORS、统一异常兜底和路由分发
+- 主要业务路由已拆到 `src/routes/*`
+- 当前压力点已从“单体入口过大”转向“局部路由偏重、并发保护和回归测试不足”
 
 #### 前端
 
@@ -125,8 +125,9 @@
 
 虽然系统已经可用，但后端仍有明显重构压力：
 
-- `_worker.js` 过大，理解成本高
-- 路由链过长，继续加功能风险越来越高
+- `_worker.js` 已瘦身，但 `dashboard` 等局部路由仍偏重
+- 订单与展位的并发保护仍不够强
+- 请求体大小限制与输入校验仍不统一
 - dashboard 与订单财务逻辑耦合较深
 - 服务层边界不清晰
 - 公共工具函数分散
@@ -138,7 +139,7 @@
 
 ### 2.1 重构目标
 
-把当前单体 [_worker.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/_worker.js) 拆成清晰、可测试、可渐进维护的结构，同时保持：
+在现有拆分基础上，继续把后端收口成清晰、可测试、可渐进维护的结构，同时保持：
 
 - API 路径零变更
 - 业务逻辑零重写
@@ -165,7 +166,7 @@
 _worker.js
 src/
   router.mjs
-  middleware.mjs
+  middleware.mjs (optional)
   utils/
     response.mjs
     crypto.mjs
@@ -193,7 +194,7 @@ erp-sync-core.mjs
 
 - `_worker.js` 最终变成“瘦入口”
 - `src/router.mjs` 保持零依赖轻路由器
-- `src/middleware.mjs` 只放请求级逻辑，不变成复杂框架
+- `src/middleware.mjs` 只在确有必要时承载请求级逻辑，不强制为了目录完整而落地
 - `erp-sync-core.mjs` 保持现状，不强行并回
 
 ### 3.2 推荐执行顺序
@@ -324,9 +325,10 @@ node --check _worker.js
 
 ```bash
 node --check src/router.mjs
-node --check src/middleware.mjs
 node --check src/utils/response.mjs
 ```
+
+如果新增了 `src/middleware.mjs`，再把它纳入检查。
 
 以及总检查：
 

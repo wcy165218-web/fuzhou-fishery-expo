@@ -1,6 +1,8 @@
 import {
     STAFF_SORT_ORDER,
     applyStateMetricsToBucket,
+    formatChinaDateTime,
+    getChinaDateNow,
     parseRegionInfo,
     toBoothCount,
     toSafeNumber
@@ -136,24 +138,6 @@ function finalizeSalesListBucket(bucket) {
     };
 }
 
-function buildFirstPaymentByOrder(rows = []) {
-    const firstPaymentMap = {};
-    rows.forEach((payment) => {
-        const orderKey = String(payment.order_id || '');
-        const paymentDate = String(payment.payment_time || '').slice(0, 10);
-        if (!orderKey || !paymentDate) return;
-        const existing = firstPaymentMap[orderKey];
-        if (!existing || paymentDate < existing.payment_date) {
-            firstPaymentMap[orderKey] = {
-                order_id: orderKey,
-                sales_name: payment.sales_name || '',
-                payment_date: paymentDate
-            };
-        }
-    });
-    return firstPaymentMap;
-}
-
 function buildBoothChangeSummaryByOrder(rows = []) {
     const summaryMap = {};
     rows.forEach((row) => {
@@ -178,6 +162,440 @@ function buildBoothChangeSummaryByOrder(rows = []) {
         });
     });
     return summaryMap;
+}
+
+function toRoundedNumber(value, digits = 2) {
+    return Number(Number(value || 0).toFixed(digits));
+}
+
+function createSalesOverviewStat(staffName = '') {
+    return {
+        staff_name: String(staffName || ''),
+        completed_booths: 0,
+        completed_companies: 0,
+        receivable_total: 0,
+        received_total: 0
+    };
+}
+
+function buildSalesOverview(staffRows = [], orderRows = [], paymentTotalsBySales = {}) {
+    const statsMap = {};
+    (Array.isArray(orderRows) ? orderRows : []).forEach((order) => {
+        const staffName = String(order.sales_name || '');
+        if (!staffName) return;
+        if (!statsMap[staffName]) statsMap[staffName] = createSalesOverviewStat(staffName);
+        const boothCount = toBoothCount(order.area);
+        const paidAmount = toSafeNumber(order.paid_amount);
+        const totalAmount = toSafeNumber(order.total_amount);
+        statsMap[staffName].receivable_total = Number((statsMap[staffName].receivable_total + totalAmount).toFixed(2));
+        if (paidAmount >= totalAmount) {
+            statsMap[staffName].completed_booths = Number((statsMap[staffName].completed_booths + boothCount).toFixed(2));
+            statsMap[staffName].completed_companies += 1;
+        }
+    });
+
+    Object.entries(paymentTotalsBySales).forEach(([staffName, receivedTotal]) => {
+        if (!statsMap[staffName]) statsMap[staffName] = createSalesOverviewStat(staffName);
+        statsMap[staffName].received_total = Number(Number(receivedTotal || 0).toFixed(2));
+    });
+
+    return (Array.isArray(staffRows) ? staffRows : []).map((staff) => {
+        const staffName = String(staff.name || '');
+        const stat = statsMap[staffName] || createSalesOverviewStat(staffName);
+        const targetBooths = toSafeNumber(staff.target);
+        return {
+            staff_name: staffName,
+            role: staff.role,
+            target_booths: targetBooths,
+            completed_booths: toRoundedNumber(stat.completed_booths),
+            completed_companies: Number(stat.completed_companies || 0),
+            receivable_total: toRoundedNumber(stat.receivable_total),
+            received_total: toRoundedNumber(stat.received_total),
+            completion_rate: targetBooths > 0 ? Number(((stat.completed_booths / targetBooths) * 100).toFixed(1)) : 0,
+            collection_rate: stat.receivable_total > 0 ? Number(((stat.received_total / stat.receivable_total) * 100).toFixed(1)) : 0
+        };
+    }).sort((a, b) => {
+        if (b.completed_booths !== a.completed_booths) return b.completed_booths - a.completed_booths;
+        if (b.received_total !== a.received_total) return b.received_total - a.received_total;
+        return a.staff_name.localeCompare(b.staff_name, 'zh-CN');
+    });
+}
+
+function buildScopedRowsBySales(rows = [], currentUser) {
+    if (currentUser.role === 'admin') return Array.isArray(rows) ? rows : [];
+    return (Array.isArray(rows) ? rows : []).filter((row) => String(row.sales_name || '') === String(currentUser.name || ''));
+}
+
+function filterRowsByOrderIds(rows = [], allowedOrderIds = new Set()) {
+    if (!(allowedOrderIds instanceof Set) || allowedOrderIds.size === 0) return [];
+    return (Array.isArray(rows) ? rows : []).filter((row) => allowedOrderIds.has(String(row.order_id || row.id || '')));
+}
+
+async function getHomeDashboardSourceRows(env, projectId, currentUser) {
+    const normalizedProjectId = Number(projectId || 0);
+    const globalActiveOrders = ((await env.DB.prepare(`
+      SELECT
+        o.id,
+        o.region,
+        o.area,
+        o.total_booth_fee,
+        o.total_amount,
+        o.paid_amount,
+        o.sales_name,
+        b.hall,
+        b.type AS booth_type
+      FROM Orders o
+      LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id
+      WHERE o.project_id = ?
+        AND o.status NOT IN ('已退订', '已作废')
+    `).bind(normalizedProjectId).all()).results || []);
+    const scopedOrders = buildScopedRowsBySales(globalActiveOrders, currentUser);
+    const scopedActiveOrderIds = new Set(scopedOrders.map((order) => String(order.id || '')).filter(Boolean));
+    const globalActiveOrderIds = new Set(globalActiveOrders.map((order) => String(order.id || '')).filter(Boolean));
+
+    const orderBoothChangeRows = globalActiveOrderIds.size > 0
+        ? filterRowsByOrderIds(
+            ((await env.DB.prepare(`
+              SELECT order_id, booth_delta_count, total_amount_delta, changed_at
+              FROM OrderBoothChanges
+              WHERE project_id = ?
+              ORDER BY changed_at ASC, id ASC
+            `).bind(normalizedProjectId).all()).results || []),
+            globalActiveOrderIds
+        )
+        : [];
+
+    const firstPaymentDates = {};
+    ((await env.DB.prepare(`
+      SELECT p.order_id, MIN(substr(p.payment_time, 1, 10)) AS first_payment_date, o.sales_name
+      FROM Payments p
+      INNER JOIN Orders o ON p.order_id = o.id
+      WHERE o.project_id = ?
+        AND o.status NOT IN ('已退订', '已作废')
+        AND p.deleted_at IS NULL
+      GROUP BY p.order_id
+    `).bind(normalizedProjectId).all()).results || []).forEach((row) => {
+        firstPaymentDates[String(row.order_id)] = {
+            order_id: String(row.order_id),
+            sales_name: String(row.sales_name || ''),
+            payment_date: String(row.first_payment_date || '')
+        };
+    });
+
+    return {
+        globalActiveOrders,
+        scopedOrders,
+        firstPaymentDates,
+        orderBoothChangeRows,
+        globalActiveOrderIds,
+        scopedActiveOrderIds
+    };
+}
+
+export async function getOptimizedHomeDashboardData({
+    env,
+    projectId,
+    currentUser
+}) {
+    const projectRow = await env.DB.prepare(`
+      SELECT id, name, year, start_date, end_date
+      FROM Projects
+      WHERE id = ?
+    `).bind(projectId).first();
+    const projectYear = Number(projectRow?.year || new Date(formatChinaDateTime().replace(' ', 'T') + '+08:00').getUTCFullYear());
+
+    const {
+        globalActiveOrders,
+        scopedOrders,
+        firstPaymentDates,
+        orderBoothChangeRows,
+        globalActiveOrderIds,
+        scopedActiveOrderIds
+    } = await getHomeDashboardSourceRows(env, projectId, currentUser);
+
+    const staffRows = currentUser.role === 'admin'
+        ? ((await env.DB.prepare(`SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff ORDER BY ${STAFF_SORT_ORDER}`).all()).results || [])
+        : [await env.DB.prepare('SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff WHERE name = ?').bind(currentUser.name).first()].filter(Boolean);
+
+    const salesListStaffRows = ((await env.DB.prepare(`
+      SELECT name, role, target, display_order, exclude_from_sales_ranking
+      FROM Staff
+      WHERE COALESCE(exclude_from_sales_ranking, 0) = 0
+      ORDER BY ${STAFF_SORT_ORDER}
+    `).all()).results || []);
+
+    return {
+        projectYear,
+        globalActiveOrders,
+        scopedOrders,
+        firstPaymentDates,
+        orderBoothChangeRows,
+        globalActiveOrderIds,
+        scopedActiveOrderIds,
+        staffRows,
+        salesListStaffRows
+    };
+}
+
+export function buildHallOverviewFromAggregateRows(configRows = [], orderRows = []) {
+    const createHallStat = (hall) => ({
+        hall,
+        configured_booth_count: 0,
+        received_company_count: 0,
+        received_booth_count: 0,
+        received_ground_booth_count: 0,
+        received_standard_booth_count: 0,
+        receivable_total: 0,
+        received_total: 0,
+        receivable_booth_fee: 0,
+        received_booth_fee: 0,
+        charged_booth_count: 0,
+        free_booth_count: 0,
+        charged_fee_total: 0,
+        ordered_booth_count: 0,
+        total_booth_fee_all: 0,
+        ground_row_count: 0,
+        ground_area: 0,
+        ground_booth_count: 0,
+        standard_row_count: 0,
+        standard_area: 0,
+        standard_booth_count: 0
+    });
+
+    const hallMap = {};
+    (Array.isArray(configRows) ? configRows : []).forEach((row) => {
+        const hall = String(row.hall || '未分配展馆');
+        if (!hallMap[hall]) hallMap[hall] = createHallStat(hall);
+        Object.assign(hallMap[hall], {
+            ...hallMap[hall],
+            configured_booth_count: toRoundedNumber(row.configured_booth_count),
+            ground_row_count: Number(row.ground_row_count || 0),
+            ground_area: toRoundedNumber(row.ground_area),
+            ground_booth_count: toRoundedNumber(row.ground_booth_count),
+            standard_row_count: Number(row.standard_row_count || 0),
+            standard_area: toRoundedNumber(row.standard_area),
+            standard_booth_count: toRoundedNumber(row.standard_booth_count)
+        });
+    });
+
+    (Array.isArray(orderRows) ? orderRows : []).forEach((row) => {
+        const hall = String(row.hall || '未分配展馆');
+        if (!hallMap[hall]) hallMap[hall] = createHallStat(hall);
+        Object.assign(hallMap[hall], {
+            ...hallMap[hall],
+            received_company_count: Number(row.received_company_count || 0),
+            received_booth_count: toRoundedNumber(row.received_booth_count),
+            received_ground_booth_count: toRoundedNumber(row.received_ground_booth_count),
+            received_standard_booth_count: toRoundedNumber(row.received_standard_booth_count),
+            receivable_total: toRoundedNumber(row.receivable_total),
+            received_total: toRoundedNumber(row.received_total),
+            receivable_booth_fee: toRoundedNumber(row.receivable_booth_fee),
+            received_booth_fee: toRoundedNumber(row.received_booth_fee),
+            charged_booth_count: toRoundedNumber(row.charged_booth_count),
+            free_booth_count: toRoundedNumber(row.free_booth_count),
+            charged_fee_total: toRoundedNumber(row.charged_fee_total),
+            ordered_booth_count: toRoundedNumber(row.ordered_booth_count),
+            total_booth_fee_all: toRoundedNumber(row.total_booth_fee_all)
+        });
+    });
+
+    return Object.values(hallMap)
+        .map((hall) => ({
+            hall: hall.hall,
+            configured_booth_count: toRoundedNumber(hall.configured_booth_count),
+            configured_total_booth_count: toRoundedNumber(hall.configured_booth_count),
+            configured_ground_booth_count: toRoundedNumber(hall.ground_booth_count),
+            configured_standard_booth_count: toRoundedNumber(hall.standard_booth_count),
+            received_standard_booth_count: toRoundedNumber(hall.received_standard_booth_count),
+            received_ground_booth_count: toRoundedNumber(hall.received_ground_booth_count),
+            received_booth_count: toRoundedNumber(hall.received_booth_count),
+            received_booth_rate: hall.configured_booth_count > 0 ? toRoundedNumber((hall.received_booth_count / hall.configured_booth_count) * 100, 1) : 0,
+            remaining_unsold_booth_count: toRoundedNumber(Math.max(hall.configured_booth_count - hall.received_booth_count, 0)),
+            received_company_count: Number(hall.received_company_count || 0),
+            receivable_total: toRoundedNumber(hall.receivable_total),
+            received_total: toRoundedNumber(hall.received_total),
+            receivable_booth_fee: toRoundedNumber(hall.receivable_booth_fee),
+            received_booth_fee: toRoundedNumber(hall.received_booth_fee),
+            collection_rate: hall.receivable_booth_fee > 0 ? toRoundedNumber((hall.received_booth_fee / hall.receivable_booth_fee) * 100, 1) : 0,
+            charged_booth_count: toRoundedNumber(hall.charged_booth_count),
+            free_booth_count: toRoundedNumber(hall.free_booth_count),
+            charged_avg_unit_price: hall.charged_booth_count > 0 ? toRoundedNumber(hall.charged_fee_total / hall.charged_booth_count) : 0,
+            overall_avg_unit_price: hall.configured_booth_count > 0 ? toRoundedNumber(hall.total_booth_fee_all / hall.configured_booth_count) : 0,
+            ground_row_count: Number(hall.ground_row_count || 0),
+            ground_area: toRoundedNumber(hall.ground_area),
+            ground_booth_count: toRoundedNumber(hall.ground_booth_count),
+            standard_row_count: Number(hall.standard_row_count || 0),
+            standard_area: toRoundedNumber(hall.standard_area),
+            standard_booth_count: toRoundedNumber(hall.standard_booth_count)
+        }))
+        .sort((a, b) => a.hall.localeCompare(b.hall, 'zh-CN'));
+}
+
+export async function getHallOverviewRows(env, projectId) {
+    const normalizedProjectId = Number(projectId || 0);
+    const configRows = ((await env.DB.prepare(`
+      SELECT
+        COALESCE(hall, '未分配展馆') AS hall,
+        ROUND(COALESCE(SUM(area / 9.0), 0), 2) AS configured_booth_count,
+        SUM(CASE WHEN type = '光地' THEN 1 ELSE 0 END) AS ground_row_count,
+        ROUND(COALESCE(SUM(CASE WHEN type = '光地' THEN area ELSE 0 END), 0), 2) AS ground_area,
+        ROUND(COALESCE(SUM(CASE WHEN type = '光地' THEN area / 9.0 ELSE 0 END), 0), 2) AS ground_booth_count,
+        SUM(CASE WHEN type != '光地' THEN 1 ELSE 0 END) AS standard_row_count,
+        ROUND(COALESCE(SUM(CASE WHEN type != '光地' THEN area ELSE 0 END), 0), 2) AS standard_area,
+        ROUND(COALESCE(SUM(CASE WHEN type != '光地' THEN area / 9.0 ELSE 0 END), 0), 2) AS standard_booth_count
+      FROM Booths
+      WHERE project_id = ?
+      GROUP BY COALESCE(hall, '未分配展馆')
+      ORDER BY hall ASC
+    `).bind(normalizedProjectId).all()).results || []);
+
+    const orderRows = ((await env.DB.prepare(`
+      SELECT
+        COALESCE(b.hall, '未分配展馆') AS hall,
+        SUM(CASE WHEN (o.total_booth_fee <= 0 OR o.paid_amount > 0) THEN 1 ELSE 0 END) AS received_company_count,
+        ROUND(COALESCE(SUM(CASE WHEN (o.total_booth_fee <= 0 OR o.paid_amount > 0) THEN o.area / 9.0 ELSE 0 END), 0), 2) AS received_booth_count,
+        ROUND(COALESCE(SUM(CASE WHEN (o.total_booth_fee <= 0 OR o.paid_amount > 0) AND b.type = '光地' THEN o.area / 9.0 ELSE 0 END), 0), 2) AS received_ground_booth_count,
+        ROUND(COALESCE(SUM(CASE WHEN (o.total_booth_fee <= 0 OR o.paid_amount > 0) AND b.type != '光地' THEN o.area / 9.0 ELSE 0 END), 0), 2) AS received_standard_booth_count,
+        ROUND(COALESCE(SUM(o.total_amount), 0), 2) AS receivable_total,
+        ROUND(COALESCE(SUM(o.paid_amount), 0), 2) AS received_total,
+        ROUND(COALESCE(SUM(CASE WHEN o.total_booth_fee > 0 THEN o.total_booth_fee ELSE 0 END), 0), 2) AS receivable_booth_fee,
+        ROUND(COALESCE(SUM(CASE WHEN o.total_booth_fee > 0 THEN MIN(o.paid_amount, o.total_booth_fee) ELSE 0 END), 0), 2) AS received_booth_fee,
+        ROUND(COALESCE(SUM(CASE WHEN o.total_booth_fee > 0 THEN o.area / 9.0 ELSE 0 END), 0), 2) AS charged_booth_count,
+        ROUND(COALESCE(SUM(CASE WHEN o.total_booth_fee <= 0 THEN o.area / 9.0 ELSE 0 END), 0), 2) AS free_booth_count,
+        ROUND(COALESCE(SUM(CASE WHEN o.total_booth_fee > 0 THEN o.total_booth_fee ELSE 0 END), 0), 2) AS charged_fee_total,
+        ROUND(COALESCE(SUM(o.area / 9.0), 0), 2) AS ordered_booth_count,
+        ROUND(COALESCE(SUM(o.total_booth_fee), 0), 2) AS total_booth_fee_all
+      FROM Orders o
+      LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id
+      WHERE o.project_id = ?
+        AND o.status NOT IN ('已退订', '已作废')
+      GROUP BY COALESCE(b.hall, '未分配展馆')
+      ORDER BY hall ASC
+    `).bind(normalizedProjectId).all()).results || []);
+
+    return buildHallOverviewFromAggregateRows(configRows, orderRows);
+}
+
+export function buildRegionOverviewFromAggregateRows(regionRows = []) {
+    const normalizedRows = Array.isArray(regionRows) ? regionRows : [];
+    const totalRegionCompanyCount = normalizedRows.reduce((sum, row) => sum + Number(row.company_count || 0), 0);
+    const totalRegionBoothCount = toRoundedNumber(normalizedRows.reduce((sum, row) => sum + toSafeNumber(row.booth_count), 0));
+    const pieMap = {};
+    const sectionMap = {
+        international: {
+            key: 'international',
+            title: '国际企业',
+            description: '细分到具体国家/地区，统计企业数与展位数。',
+            rows: {}
+        },
+        outside_fujian: {
+            key: 'outside_fujian',
+            title: '福建省外企业',
+            description: '按省级行政区统计企业数与展位数，不细分到市。',
+            rows: {}
+        },
+        inside_fujian: {
+            key: 'inside_fujian',
+            title: '福建省内企业',
+            description: '覆盖福建省内所有城市；福州市继续细分到区县，其余城市汇总到市。',
+            rows: {}
+        }
+    };
+
+    normalizedRows.forEach((row) => {
+        const companyCount = Number(row.company_count || 0);
+        const boothCount = toSafeNumber(row.booth_count);
+        if (companyCount <= 0 && boothCount <= 0) return;
+
+        const regionInfo = parseRegionInfo(row.region);
+        if (!pieMap[regionInfo.pieLabel]) {
+            pieMap[regionInfo.pieLabel] = { label: regionInfo.pieLabel, company_count: 0, booth_count: 0 };
+        }
+        pieMap[regionInfo.pieLabel].company_count += companyCount;
+        pieMap[regionInfo.pieLabel].booth_count = Number((pieMap[regionInfo.pieLabel].booth_count + boothCount).toFixed(2));
+
+        const section = sectionMap[regionInfo.scope];
+        if (!section) return;
+        if (!section.rows[regionInfo.detailLabel]) {
+            section.rows[regionInfo.detailLabel] = { label: regionInfo.detailLabel, company_count: 0, booth_count: 0 };
+        }
+        section.rows[regionInfo.detailLabel].company_count += companyCount;
+        section.rows[regionInfo.detailLabel].booth_count = Number((section.rows[regionInfo.detailLabel].booth_count + boothCount).toFixed(2));
+    });
+
+    const sections = Object.values(sectionMap).map((section) => {
+        const rows = Object.values(section.rows)
+            .map((row) => ({
+                ...row,
+                booth_count: toRoundedNumber(row.booth_count),
+                company_ratio: totalRegionCompanyCount > 0 ? Number(((row.company_count / totalRegionCompanyCount) * 100).toFixed(1)) : 0,
+                booth_ratio: totalRegionBoothCount > 0 ? Number(((row.booth_count / totalRegionBoothCount) * 100).toFixed(1)) : 0
+            }))
+            .sort((a, b) => {
+                if (b.company_count !== a.company_count) return b.company_count - a.company_count;
+                if (b.booth_count !== a.booth_count) return b.booth_count - a.booth_count;
+                return a.label.localeCompare(b.label, 'zh-CN');
+            });
+        const companyCount = rows.reduce((sum, row) => sum + row.company_count, 0);
+        const boothCount = toRoundedNumber(rows.reduce((sum, row) => sum + toSafeNumber(row.booth_count), 0));
+        return {
+            key: section.key,
+            title: section.title,
+            description: section.description,
+            summary: {
+                company_count: companyCount,
+                booth_count: boothCount,
+                company_ratio: totalRegionCompanyCount > 0 ? Number(((companyCount / totalRegionCompanyCount) * 100).toFixed(1)) : 0,
+                booth_ratio: totalRegionBoothCount > 0 ? Number(((boothCount / totalRegionBoothCount) * 100).toFixed(1)) : 0
+            },
+            rows
+        };
+    });
+
+    const pieItems = Object.values(pieMap)
+        .map((item) => ({
+            ...item,
+            booth_count: toRoundedNumber(item.booth_count),
+            company_ratio: totalRegionCompanyCount > 0 ? Number(((item.company_count / totalRegionCompanyCount) * 100).toFixed(1)) : 0
+        }))
+        .sort((a, b) => {
+            if (b.company_count !== a.company_count) return b.company_count - a.company_count;
+            if (b.booth_count !== a.booth_count) return b.booth_count - a.booth_count;
+            return a.label.localeCompare(b.label, 'zh-CN');
+        });
+
+    return {
+        total_company_count: totalRegionCompanyCount,
+        total_booth_count: totalRegionBoothCount,
+        sections,
+        pie_items: pieItems
+    };
+}
+
+export async function getRegionOverviewRows(env, projectId, currentUser) {
+    const normalizedProjectId = Number(projectId || 0);
+    const params = [normalizedProjectId];
+    const salesFilterSql = currentUser.role === 'admin'
+        ? ''
+        : (() => {
+            params.push(String(currentUser.name || ''));
+            return ' AND o.sales_name = ?';
+        })();
+
+    const regionRows = ((await env.DB.prepare(`
+      SELECT
+        COALESCE(NULLIF(TRIM(o.region), ''), '未注明地区') AS region,
+        COUNT(*) AS company_count,
+        ROUND(COALESCE(SUM(o.area / 9.0), 0), 2) AS booth_count
+      FROM Orders o
+      WHERE o.project_id = ?
+        AND o.status NOT IN ('已退订', '已作废')
+        ${salesFilterSql}
+      GROUP BY COALESCE(NULLIF(TRIM(o.region), ''), '未注明地区')
+      ORDER BY region ASC
+    `).bind(...params).all()).results || []);
+
+    return buildRegionOverviewFromAggregateRows(regionRows);
 }
 
 export async function handleDashboardRoutes({
@@ -270,79 +688,24 @@ export async function handleDashboardRoutes({
         const pid = new URL(request.url).searchParams.get('projectId');
         if (!pid) return errorResponse('缺少项目 ID', 400, corsHeaders);
 
-        const projectRow = await env.DB.prepare(`
-          SELECT id, name, year, start_date, end_date
-          FROM Projects
-          WHERE id = ?
-        `).bind(pid).first();
-        const projectYear = Number(projectRow?.year || new Date(Date.now() + (8 * 60 * 60 * 1000)).getUTCFullYear());
-
-        let scopedOrderQuery = `
-          SELECT
-            o.id,
-            o.company_name,
-            o.region,
-            o.area,
-            o.total_booth_fee,
-            o.total_amount,
-            o.other_income,
-            o.paid_amount,
-            o.sales_name,
-            o.status,
-            o.created_at,
-            b.hall,
-            b.type as booth_type
-          FROM Orders o
-          LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id
-          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废')
-        `;
-        const scopedOrderParams = [pid];
-        if (currentUser.role !== 'admin') {
-            scopedOrderQuery += ' AND o.sales_name = ?';
-            scopedOrderParams.push(currentUser.name);
-        }
-        const scopedOrders = (await env.DB.prepare(scopedOrderQuery).bind(...scopedOrderParams).all()).results || [];
-
-        const globalActiveOrders = currentUser.role === 'admin'
-            ? scopedOrders
-            : (await env.DB.prepare(`
-          SELECT
-            o.id,
-            o.company_name,
-            o.region,
-            o.area,
-            o.total_booth_fee,
-            o.total_amount,
-            o.other_income,
-            o.paid_amount,
-            o.sales_name,
-            o.status,
-            o.created_at,
-            b.hall,
-            b.type as booth_type
-          FROM Orders o
-          LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id
-          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废')
-        `).bind(pid).all()).results || [];
-
+        const {
+            projectYear,
+            globalActiveOrders,
+            scopedOrders,
+            firstPaymentDates,
+            orderBoothChangeRows,
+            globalActiveOrderIds,
+            scopedActiveOrderIds,
+            staffRows,
+            salesListStaffRows
+        } = await getOptimizedHomeDashboardData({
+            env,
+            projectId: Number(pid),
+            currentUser
+        });
         const allActiveOrders = currentUser.role === 'admin' ? globalActiveOrders : scopedOrders;
 
-        const staffRows = currentUser.role === 'admin'
-            ? ((await env.DB.prepare(`SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff ORDER BY ${STAFF_SORT_ORDER}`).all()).results || [])
-            : [await env.DB.prepare('SELECT name, role, target, display_order, exclude_from_sales_ranking FROM Staff WHERE name = ?').bind(currentUser.name).first()].filter(Boolean);
-
-        const salesListStaffRows = ((await env.DB.prepare(`
-          SELECT name, role, target, display_order, exclude_from_sales_ranking
-          FROM Staff
-          WHERE COALESCE(exclude_from_sales_ranking, 0) = 0
-          ORDER BY ${STAFF_SORT_ORDER}
-        `).all()).results || []);
-
-        const boothRows = currentUser.role === 'admin'
-            ? ((await env.DB.prepare('SELECT hall, type, area FROM Booths WHERE project_id = ? ORDER BY hall ASC').bind(pid).all()).results || [])
-            : [];
-
-        const nowChina = new Date(Date.now() + (8 * 60 * 60 * 1000));
+        const nowChina = getChinaDateNow();
         const nowYear = nowChina.getUTCFullYear();
         const nowMonth = nowChina.getUTCMonth();
         const nowDate = nowChina.getUTCDate();
@@ -356,90 +719,142 @@ export async function handleDashboardRoutes({
             monthPrefix: `${nowYear}-${String(nowMonth + 1).padStart(2, '0')}`
         };
 
-        let paymentQuery = `
-          SELECT
-            p.order_id,
-            p.amount,
-            p.payment_time,
-            o.sales_name,
-            o.area,
-            o.company_name,
-            o.total_amount
-          FROM Payments p
-          LEFT JOIN Orders o ON p.order_id = o.id
-          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL
-        `;
-        const paymentParams = [pid];
-        if (currentUser.role !== 'admin') {
-            paymentQuery += ' AND o.sales_name = ?';
-            paymentParams.push(currentUser.name);
-        }
-        const paymentRows = (await env.DB.prepare(paymentQuery).bind(...paymentParams).all()).results || [];
-        const globalPaymentRows = currentUser.role === 'admin'
-            ? paymentRows
-            : (await env.DB.prepare(`
-          SELECT
-            p.order_id,
-            p.amount,
-            p.payment_time,
-            o.sales_name,
-            o.area,
-            o.company_name,
-            o.total_amount
-          FROM Payments p
-          LEFT JOIN Orders o ON p.order_id = o.id
-          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL
-        `).bind(pid).all()).results || [];
-        const scopedActiveOrderIds = new Set(scopedOrders.map((order) => String(order.id || '')).filter(Boolean));
-        const globalActiveOrderIds = new Set(globalActiveOrders.map((order) => String(order.id || '')).filter(Boolean));
-        const orderBoothChangeRows = globalActiveOrderIds.size > 0
-            ? (((await env.DB.prepare(`
-              SELECT order_id, booth_delta_count, total_amount_delta, changed_at
-              FROM OrderBoothChanges
-              WHERE project_id = ?
-              ORDER BY changed_at ASC, id ASC
-            `).bind(pid).all()).results || []).filter((row) => globalActiveOrderIds.has(String(row.order_id || ''))))
-            : [];
-
-        const scopedFirstPaymentByOrder = buildFirstPaymentByOrder(paymentRows);
-        const globalFirstPaymentByOrder = buildFirstPaymentByOrder(globalPaymentRows);
+        const globalFirstPaymentByOrder = firstPaymentDates;
+        const scopedFirstPaymentByOrder = {};
+        Object.entries(firstPaymentDates).forEach(([key, value]) => {
+            if (scopedActiveOrderIds.has(key)) {
+                scopedFirstPaymentByOrder[key] = value;
+            }
+        });
         const globalBoothChangeSummaryByOrder = buildBoothChangeSummaryByOrder(orderBoothChangeRows);
         const scopedBoothChangeSummaryByOrder = buildBoothChangeSummaryByOrder(
             orderBoothChangeRows.filter((row) => scopedActiveOrderIds.has(String(row.order_id || '')))
         );
+
+        // --- SQL: per-sales payment aggregation by period ---
+        const paymentPeriodBySales = ((await env.DB.prepare(`
+          SELECT
+            o.sales_name,
+            ROUND(SUM(p.amount), 2) AS total_received,
+            ROUND(SUM(CASE WHEN substr(p.payment_time,1,10) = ? THEN p.amount ELSE 0 END), 2) AS today_received,
+            ROUND(SUM(CASE WHEN substr(p.payment_time,1,10) >= ? THEN p.amount ELSE 0 END), 2) AS week_received,
+            ROUND(SUM(CASE WHEN substr(p.payment_time,1,7) = ? THEN p.amount ELSE 0 END), 2) AS month_received
+          FROM Payments p
+          INNER JOIN Orders o ON p.order_id = o.id
+          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL
+          GROUP BY o.sales_name
+        `).bind(periodContext.todayKey, periodContext.weekStartKey, periodContext.monthPrefix, Number(pid)).all()).results || []);
+
+        // --- SQL: per-sales monthly payment totals ---
+        const paymentMonthlyBySales = ((await env.DB.prepare(`
+          SELECT
+            o.sales_name,
+            CAST(substr(p.payment_time,1,4) AS INTEGER) AS p_year,
+            CAST(substr(p.payment_time,6,2) AS INTEGER) AS p_month,
+            ROUND(SUM(p.amount), 2) AS received_total
+          FROM Payments p
+          INNER JOIN Orders o ON p.order_id = o.id
+          WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL
+          GROUP BY o.sales_name, p_year, p_month
+        `).bind(Number(pid)).all()).results || []);
+
+        // --- SQL: scoped unique-order paid counts by period ---
+        const scopedPaidParams = [periodContext.todayKey, periodContext.weekStartKey, periodContext.monthPrefix, Number(pid)];
+        const scopedPaidFilter = currentUser.role === 'admin' ? '' : (() => { scopedPaidParams.push(currentUser.name); return ' AND o.sales_name = ?'; })();
+        const scopedPaymentCounts = await env.DB.prepare(`
+          SELECT
+            ROUND(COALESCE(SUM(CASE WHEN has_today > 0 THEN booth_count ELSE 0 END), 0), 2) AS today_paid_booth_count,
+            ROUND(COALESCE(SUM(CASE WHEN has_week > 0 THEN booth_count ELSE 0 END), 0), 2) AS week_paid_booth_count,
+            ROUND(COALESCE(SUM(CASE WHEN has_month > 0 THEN booth_count ELSE 0 END), 0), 2) AS month_paid_booth_count,
+            ROUND(COALESCE(SUM(booth_count), 0), 2) AS total_paid_booth_count,
+            COALESCE(SUM(CASE WHEN has_today > 0 THEN 1 ELSE 0 END), 0) AS today_paid_company_count,
+            COALESCE(SUM(CASE WHEN has_week > 0 THEN 1 ELSE 0 END), 0) AS week_paid_company_count,
+            COALESCE(SUM(CASE WHEN has_month > 0 THEN 1 ELSE 0 END), 0) AS month_paid_company_count,
+            COALESCE(COUNT(*), 0) AS total_paid_company_count
+          FROM (
+            SELECT
+              p.order_id,
+              ROUND(o.area / 9.0, 2) AS booth_count,
+              MAX(CASE WHEN substr(p.payment_time,1,10) = ? THEN 1 ELSE 0 END) AS has_today,
+              MAX(CASE WHEN substr(p.payment_time,1,10) >= ? THEN 1 ELSE 0 END) AS has_week,
+              MAX(CASE WHEN substr(p.payment_time,1,7) = ? THEN 1 ELSE 0 END) AS has_month
+            FROM Payments p
+            INNER JOIN Orders o ON p.order_id = o.id
+            WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL${scopedPaidFilter}
+            GROUP BY p.order_id
+          )
+        `).bind(...scopedPaidParams).first();
+
+        // --- SQL: scoped unique-order paid counts by year/month ---
+        const scopedMonthlyParams = [Number(pid)];
+        const scopedMonthlyFilter = currentUser.role === 'admin' ? '' : (() => { scopedMonthlyParams.push(currentUser.name); return ' AND o.sales_name = ?'; })();
+        const scopedMonthlyCounts = ((await env.DB.prepare(`
+          SELECT
+            agg.p_year,
+            agg.p_month,
+            ROUND(COALESCE(SUM(agg.booth_count), 0), 2) AS paid_booth_count,
+            COALESCE(COUNT(*), 0) AS paid_company_count
+          FROM (
+            SELECT
+              p.order_id,
+              ROUND(o.area / 9.0, 2) AS booth_count,
+              CAST(substr(p.payment_time,1,4) AS INTEGER) AS p_year,
+              CAST(substr(p.payment_time,6,2) AS INTEGER) AS p_month
+            FROM Payments p
+            INNER JOIN Orders o ON p.order_id = o.id
+            WHERE o.project_id = ? AND o.status NOT IN ('已退订', '已作废') AND p.deleted_at IS NULL${scopedMonthlyFilter}
+            GROUP BY p.order_id, p_year, p_month
+          ) agg
+          GROUP BY agg.p_year, agg.p_month
+        `).bind(...scopedMonthlyParams).all()).results || []);
+
+        // Build payment totals by sales (for salesOverview)
+        const paymentTotalsBySales = {};
+        paymentPeriodBySales.forEach((row) => {
+            paymentTotalsBySales[row.sales_name] = Number(row.total_received || 0);
+        });
+
+        // Scoped received totals by period
+        let scopedReceivedByPeriod;
+        if (currentUser.role === 'admin') {
+            scopedReceivedByPeriod = {
+                today: Number(paymentPeriodBySales.reduce((s, r) => s + Number(r.today_received || 0), 0).toFixed(2)),
+                week: Number(paymentPeriodBySales.reduce((s, r) => s + Number(r.week_received || 0), 0).toFixed(2)),
+                month: Number(paymentPeriodBySales.reduce((s, r) => s + Number(r.month_received || 0), 0).toFixed(2)),
+                total: Number(paymentPeriodBySales.reduce((s, r) => s + Number(r.total_received || 0), 0).toFixed(2))
+            };
+        } else {
+            const myPayment = paymentPeriodBySales.find((r) => r.sales_name === currentUser.name);
+            scopedReceivedByPeriod = {
+                today: Number(myPayment?.today_received || 0),
+                week: Number(myPayment?.week_received || 0),
+                month: Number(myPayment?.month_received || 0),
+                total: Number(myPayment?.total_received || 0)
+            };
+        }
+
+        // Scoped monthly received totals
+        const scopedMonthlyReceived = {};
+        if (currentUser.role === 'admin') {
+            paymentMonthlyBySales.forEach((row) => {
+                const key = `${row.p_year}::${row.p_month}`;
+                scopedMonthlyReceived[key] = Number(((scopedMonthlyReceived[key] || 0) + Number(row.received_total || 0)).toFixed(2));
+            });
+        } else {
+            paymentMonthlyBySales.filter((r) => r.sales_name === currentUser.name).forEach((row) => {
+                scopedMonthlyReceived[`${row.p_year}::${row.p_month}`] = Number(row.received_total || 0);
+            });
+        }
+
+        const paymentYears = [...new Set(paymentMonthlyBySales.map((r) => r.p_year).filter((y) => y > 0))];
         const salesAvailableYears = Array.from(new Set([
             projectYear,
-            ...Object.values(globalFirstPaymentByOrder).map((payment) => Number(String(payment.payment_date || '').slice(0, 4))),
-            ...globalPaymentRows.map((payment) => Number(String(payment.payment_time || '').slice(0, 4))),
-            ...orderBoothChangeRows.map((change) => Number(String(change.changed_at || '').slice(0, 4)))
-        ].filter((year) => Number.isFinite(year) && year > 0))).sort((a, b) => b - a);
+            ...Object.values(globalFirstPaymentByOrder).map((p) => Number(String(p.payment_date || '').slice(0, 4))),
+            ...paymentYears,
+            ...orderBoothChangeRows.map((c) => Number(String(c.changed_at || '').slice(0, 4)))
+        ].filter((y) => Number.isFinite(y) && y > 0))).sort((a, b) => b - a);
 
-        const salesOverview = staffRows.map((staff) => {
-            const staffOrders = allActiveOrders.filter((order) => order.sales_name === staff.name);
-            const completedOrders = staffOrders.filter((order) => toSafeNumber(order.paid_amount) >= toSafeNumber(order.total_amount));
-            const targetBooths = toSafeNumber(staff.target);
-            const completedBooths = Number(completedOrders.reduce((sum, order) => sum + toBoothCount(order.area), 0).toFixed(2));
-            const receivableTotal = Number(staffOrders.reduce((sum, order) => sum + toSafeNumber(order.total_amount), 0).toFixed(2));
-            const receivedTotal = Number(globalPaymentRows
-                .filter((payment) => payment.sales_name === staff.name)
-                .reduce((sum, payment) => sum + toSafeNumber(payment.amount), 0)
-                .toFixed(2));
-            return {
-                staff_name: staff.name,
-                role: staff.role,
-                target_booths: targetBooths,
-                completed_booths: completedBooths,
-                completed_companies: completedOrders.length,
-                receivable_total: receivableTotal,
-                received_total: receivedTotal,
-                completion_rate: targetBooths > 0 ? Number(((completedBooths / targetBooths) * 100).toFixed(1)) : 0,
-                collection_rate: receivableTotal > 0 ? Number(((receivedTotal / receivableTotal) * 100).toFixed(1)) : 0
-            };
-        }).sort((a, b) => {
-            if (b.completed_booths !== a.completed_booths) return b.completed_booths - a.completed_booths;
-            if (b.received_total !== a.received_total) return b.received_total - a.received_total;
-            return a.staff_name.localeCompare(b.staff_name, 'zh-CN');
-        });
+        const salesOverview = buildSalesOverview(staffRows, allActiveOrders, paymentTotalsBySales);
 
         const targetTotal = Number(salesOverview.reduce((sum, row) => sum + toSafeNumber(row.target_booths), 0).toFixed(2));
         const depositBoothCount = Number(scopedOrders.reduce((sum, order) => {
@@ -455,7 +870,7 @@ export async function handleDashboardRoutes({
             return sum;
         }, 0).toFixed(2));
         const receivableTotalHome = Number(scopedOrders.reduce((sum, order) => sum + toSafeNumber(order.total_amount), 0).toFixed(2));
-        const receivedTotalHome = Number(paymentRows.reduce((sum, payment) => sum + toSafeNumber(payment.amount), 0).toFixed(2));
+        const receivedTotalHome = scopedReceivedByPeriod.total;
         const unpaidTotalHome = Number(Math.max(receivableTotalHome - receivedTotalHome, 0).toFixed(2));
         const homeProgress = {
             target_total: targetTotal,
@@ -546,33 +961,22 @@ export async function handleDashboardRoutes({
             });
         });
 
-        paymentRows.forEach((payment) => {
-            const paymentDate = String(payment.payment_time || '').slice(0, 10);
-            const periodKeys = getPeriodKeys(paymentDate, periodContext);
-            const yearMonth = getDateYearMonth(paymentDate);
-            const amount = toSafeNumber(payment.amount);
-            const boothCount = toBoothCount(payment.area);
-            const orderKey = `${payment.order_id}`;
+        // Apply SQL-aggregated payment data to salesSummaryPeriods
+        ['today', 'week', 'month', 'total'].forEach((period) => {
+            salesSummaryPeriods[period].received_total = scopedReceivedByPeriod[period];
+            salesSummaryPeriods[period].paid_booth_count = Number(scopedPaymentCounts?.[`${period}_paid_booth_count`] || 0);
+            salesSummaryPeriods[period].paid_company_count = Number(scopedPaymentCounts?.[`${period}_paid_company_count`] || 0);
+        });
 
-            periodKeys.forEach((periodKey) => {
-                const summaryBucket = salesSummaryPeriods[periodKey];
-                summaryBucket.received_total += amount;
-                if (!summaryBucket._seenOrders.has(orderKey)) {
-                    summaryBucket._seenOrders.add(orderKey);
-                    summaryBucket.paid_booth_count += boothCount;
-                    summaryBucket.paid_company_count += 1;
-                }
+        // Apply SQL-aggregated payment data to salesSummaryMonthlyPeriods
+        Object.entries(salesSummaryMonthlyPeriods).forEach(([yearKey, monthMap]) => {
+            Object.entries(monthMap).forEach(([monthKey, bucket]) => {
+                const key = `${yearKey}::${monthKey}`;
+                bucket.received_total = Number(scopedMonthlyReceived[key] || 0);
+                const countRow = scopedMonthlyCounts.find((r) => String(r.p_year) === yearKey && String(r.p_month) === monthKey);
+                bucket.paid_booth_count = Number(countRow?.paid_booth_count || 0);
+                bucket.paid_company_count = Number(countRow?.paid_company_count || 0);
             });
-
-            if (yearMonth && salesSummaryMonthlyPeriods[String(yearMonth.year)]) {
-                const summaryBucket = salesSummaryMonthlyPeriods[String(yearMonth.year)][String(yearMonth.month)];
-                summaryBucket.received_total += amount;
-                if (!summaryBucket._seenOrders.has(orderKey)) {
-                    summaryBucket._seenOrders.add(orderKey);
-                    summaryBucket.paid_booth_count += boothCount;
-                    summaryBucket.paid_company_count += 1;
-                }
-            }
         });
 
         globalActiveOrders.forEach((order) => {
@@ -662,22 +1066,21 @@ export async function handleDashboardRoutes({
             });
         });
 
-        globalPaymentRows.forEach((payment) => {
-            const paymentDate = String(payment.payment_time || '').slice(0, 10);
-            const periodKeys = getPeriodKeys(paymentDate, periodContext);
-            const yearMonth = getDateYearMonth(paymentDate);
-            const amount = toSafeNumber(payment.amount);
-            const bucketMap = salesListPeriodMap[payment.sales_name];
-            const monthBucketMap = salesListMonthlyPeriodMap[payment.sales_name];
+        // Apply SQL per-sales period payment totals to salesListPeriodMap
+        paymentPeriodBySales.forEach((row) => {
+            const bucketMap = salesListPeriodMap[row.sales_name];
             if (!bucketMap) return;
+            bucketMap.today.received_total = Number(row.today_received || 0);
+            bucketMap.week.received_total = Number(row.week_received || 0);
+            bucketMap.month.received_total = Number(row.month_received || 0);
+            bucketMap.total.received_total = Number(row.total_received || 0);
+        });
 
-            periodKeys.forEach((periodKey) => {
-                bucketMap[periodKey].received_total += amount;
-            });
-
-            if (yearMonth && monthBucketMap?.[String(yearMonth.year)]) {
-                monthBucketMap[String(yearMonth.year)][String(yearMonth.month)].received_total += amount;
-            }
+        // Apply SQL per-sales monthly payment totals to salesListMonthlyPeriodMap
+        paymentMonthlyBySales.forEach((row) => {
+            const monthBucketMap = salesListMonthlyPeriodMap[row.sales_name];
+            if (!monthBucketMap?.[String(row.p_year)]) return;
+            monthBucketMap[String(row.p_year)][String(row.p_month)].received_total = Number(row.received_total || 0);
         });
 
         const salesSummaryPeriodStats = Object.fromEntries(
@@ -787,206 +1190,8 @@ export async function handleDashboardRoutes({
             )])
         );
 
-        const regionScopedOrders = scopedOrders;
-        const totalRegionCompanyCount = regionScopedOrders.length;
-        const totalRegionBoothCount = Number(regionScopedOrders.reduce((sum, order) => sum + toBoothCount(order.area), 0).toFixed(2));
-        const pieMap = {};
-        const sectionMap = {
-            international: {
-                key: 'international',
-                title: '国际企业',
-                description: '细分到具体国家/地区，统计企业数与展位数。',
-                rows: {}
-            },
-            outside_fujian: {
-                key: 'outside_fujian',
-                title: '福建省外企业',
-                description: '按省级行政区统计企业数与展位数，不细分到市。',
-                rows: {}
-            },
-            inside_fujian: {
-                key: 'inside_fujian',
-                title: '福建省内企业',
-                description: '覆盖福建省内所有城市；福州市继续细分到区县，其余城市汇总到市。',
-                rows: {}
-            }
-        };
-
-        regionScopedOrders.forEach((order) => {
-            const boothCount = toBoothCount(order.area);
-            const regionInfo = parseRegionInfo(order.region);
-
-            if (!pieMap[regionInfo.pieLabel]) {
-                pieMap[regionInfo.pieLabel] = { label: regionInfo.pieLabel, company_count: 0, booth_count: 0 };
-            }
-            pieMap[regionInfo.pieLabel].company_count += 1;
-            pieMap[regionInfo.pieLabel].booth_count += boothCount;
-
-            const section = sectionMap[regionInfo.scope];
-            if (section) {
-                if (!section.rows[regionInfo.detailLabel]) {
-                    section.rows[regionInfo.detailLabel] = { label: regionInfo.detailLabel, company_count: 0, booth_count: 0 };
-                }
-                section.rows[regionInfo.detailLabel].company_count += 1;
-                section.rows[regionInfo.detailLabel].booth_count += boothCount;
-            }
-        });
-
-        const regionSections = Object.values(sectionMap).map((section) => {
-            const rows = Object.values(section.rows)
-                .map((row) => ({
-                    ...row,
-                    booth_count: Number(row.booth_count.toFixed(2)),
-                    company_ratio: totalRegionCompanyCount > 0 ? Number(((row.company_count / totalRegionCompanyCount) * 100).toFixed(1)) : 0,
-                    booth_ratio: totalRegionBoothCount > 0 ? Number(((row.booth_count / totalRegionBoothCount) * 100).toFixed(1)) : 0
-                }))
-                .sort((a, b) => {
-                    if (b.company_count !== a.company_count) return b.company_count - a.company_count;
-                    if (b.booth_count !== a.booth_count) return b.booth_count - a.booth_count;
-                    return a.label.localeCompare(b.label, 'zh-CN');
-                });
-            const companyCount = rows.reduce((sum, row) => sum + row.company_count, 0);
-            const boothCount = Number(rows.reduce((sum, row) => sum + toSafeNumber(row.booth_count), 0).toFixed(2));
-            return {
-                key: section.key,
-                title: section.title,
-                description: section.description,
-                summary: {
-                    company_count: companyCount,
-                    booth_count: boothCount,
-                    company_ratio: totalRegionCompanyCount > 0 ? Number(((companyCount / totalRegionCompanyCount) * 100).toFixed(1)) : 0,
-                    booth_ratio: totalRegionBoothCount > 0 ? Number(((boothCount / totalRegionBoothCount) * 100).toFixed(1)) : 0
-                },
-                rows
-            };
-        });
-
-        const pieItems = Object.values(pieMap)
-            .map((item) => ({
-                ...item,
-                booth_count: Number(item.booth_count.toFixed(2)),
-                company_ratio: totalRegionCompanyCount > 0 ? Number(((item.company_count / totalRegionCompanyCount) * 100).toFixed(1)) : 0
-            }))
-            .sort((a, b) => {
-                if (b.company_count !== a.company_count) return b.company_count - a.company_count;
-                if (b.booth_count !== a.booth_count) return b.booth_count - a.booth_count;
-                return a.label.localeCompare(b.label, 'zh-CN');
-            });
-
-        let hallOverview = [];
-        if (currentUser.role === 'admin') {
-            const createHallStat = (hall) => ({
-                hall,
-                configured_booth_count: 0,
-                received_company_count: 0,
-                received_booth_count: 0,
-                received_ground_booth_count: 0,
-                received_standard_booth_count: 0,
-                receivable_total: 0,
-                received_total: 0,
-                receivable_booth_fee: 0,
-                received_booth_fee: 0,
-                charged_booth_count: 0,
-                free_booth_count: 0,
-                charged_fee_total: 0,
-                ordered_booth_count: 0,
-                total_booth_fee_all: 0,
-                ground_row_count: 0,
-                ground_area: 0,
-                ground_booth_count: 0,
-                standard_row_count: 0,
-                standard_area: 0,
-                standard_booth_count: 0
-            });
-
-            const hallMap = {};
-            boothRows.forEach((booth) => {
-                const hall = booth.hall || '未分配展馆';
-                if (!hallMap[hall]) {
-                    hallMap[hall] = createHallStat(hall);
-                }
-                const hallStat = hallMap[hall];
-                const boothCount = toBoothCount(booth.area);
-                hallStat.configured_booth_count += boothCount;
-                if (booth.type === '光地') {
-                    hallStat.ground_row_count += 1;
-                    hallStat.ground_area += toSafeNumber(booth.area);
-                    hallStat.ground_booth_count += boothCount;
-                } else {
-                    hallStat.standard_row_count += 1;
-                    hallStat.standard_area += toSafeNumber(booth.area);
-                    hallStat.standard_booth_count += boothCount;
-                }
-            });
-
-            allActiveOrders.forEach((order) => {
-                const hall = order.hall || '未分配展馆';
-                if (!hallMap[hall]) {
-                    hallMap[hall] = createHallStat(hall);
-                }
-
-                const hallStat = hallMap[hall];
-                const boothCount = toBoothCount(order.area);
-                const boothFee = toSafeNumber(order.total_booth_fee);
-                const paidAmount = toSafeNumber(order.paid_amount);
-                const receivedBoothFee = boothFee > 0 ? Math.min(paidAmount, boothFee) : 0;
-                const isFreeBooth = boothFee <= 0;
-                const hasReceivedBooth = isFreeBooth || paidAmount > 0;
-                const isGroundBooth = order.booth_type === '光地';
-                hallStat.receivable_total += toSafeNumber(order.total_amount);
-                hallStat.received_total += paidAmount;
-                hallStat.ordered_booth_count += boothCount;
-                hallStat.total_booth_fee_all += boothFee;
-                hallStat.receivable_booth_fee += Math.max(boothFee, 0);
-                hallStat.received_booth_fee += receivedBoothFee;
-                if (boothFee > 0) {
-                    hallStat.charged_booth_count += boothCount;
-                    hallStat.charged_fee_total += boothFee;
-                } else {
-                    hallStat.free_booth_count += boothCount;
-                }
-                if (hasReceivedBooth) {
-                    hallStat.received_company_count += 1;
-                    hallStat.received_booth_count += boothCount;
-                    if (isGroundBooth) {
-                        hallStat.received_ground_booth_count += boothCount;
-                    } else {
-                        hallStat.received_standard_booth_count += boothCount;
-                    }
-                }
-            });
-
-            hallOverview = Object.values(hallMap)
-                .map((hall) => ({
-                    hall: hall.hall,
-                    configured_booth_count: Number(hall.configured_booth_count.toFixed(2)),
-                    configured_total_booth_count: Number(hall.configured_booth_count.toFixed(2)),
-                    configured_ground_booth_count: Number(hall.ground_booth_count.toFixed(2)),
-                    configured_standard_booth_count: Number(hall.standard_booth_count.toFixed(2)),
-                    received_standard_booth_count: Number(hall.received_standard_booth_count.toFixed(2)),
-                    received_ground_booth_count: Number(hall.received_ground_booth_count.toFixed(2)),
-                    received_booth_count: Number(hall.received_booth_count.toFixed(2)),
-                    received_booth_rate: hall.configured_booth_count > 0 ? Number(((hall.received_booth_count / hall.configured_booth_count) * 100).toFixed(1)) : 0,
-                    remaining_unsold_booth_count: Number(Math.max(hall.configured_booth_count - hall.received_booth_count, 0).toFixed(2)),
-                    received_company_count: hall.received_company_count,
-                    receivable_total: Number(hall.receivable_total.toFixed(2)),
-                    received_total: Number(hall.received_total.toFixed(2)),
-                    receivable_booth_fee: Number(hall.receivable_booth_fee.toFixed(2)),
-                    received_booth_fee: Number(hall.received_booth_fee.toFixed(2)),
-                    collection_rate: hall.receivable_booth_fee > 0 ? Number(((hall.received_booth_fee / hall.receivable_booth_fee) * 100).toFixed(1)) : 0,
-                    charged_booth_count: Number(hall.charged_booth_count.toFixed(2)),
-                    free_booth_count: Number(hall.free_booth_count.toFixed(2)),
-                    charged_avg_unit_price: hall.charged_booth_count > 0 ? Number((hall.charged_fee_total / hall.charged_booth_count).toFixed(2)) : 0,
-                    overall_avg_unit_price: hall.configured_booth_count > 0 ? Number((hall.total_booth_fee_all / hall.configured_booth_count).toFixed(2)) : 0,
-                    ground_row_count: hall.ground_row_count,
-                    ground_area: Number(hall.ground_area.toFixed(2)),
-                    ground_booth_count: Number(hall.ground_booth_count.toFixed(2)),
-                    standard_row_count: hall.standard_row_count,
-                    standard_area: Number(hall.standard_area.toFixed(2)),
-                    standard_booth_count: Number(hall.standard_booth_count.toFixed(2))
-                }))
-                .sort((a, b) => a.hall.localeCompare(b.hall, 'zh-CN'));
-        }
+        const regionOverview = await getRegionOverviewRows(env, Number(pid), currentUser);
+        const hallOverview = currentUser.role === 'admin' ? await getHallOverviewRows(env, Number(pid)) : [];
 
         return new Response(JSON.stringify({
             is_admin: currentUser.role === 'admin',
@@ -1000,12 +1205,7 @@ export async function handleDashboardRoutes({
             sales_list_meta: salesListMeta,
             sales_list_monthly_periods: salesListMonthlyPeriods,
             sales_list_monthly_meta: salesListMonthlyMeta,
-            region_overview: {
-                total_company_count: totalRegionCompanyCount,
-                total_booth_count: totalRegionBoothCount,
-                sections: regionSections,
-                pie_items: pieItems
-            },
+            region_overview: regionOverview,
             hall_overview: hallOverview
         }), { headers: corsHeaders });
     }

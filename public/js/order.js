@@ -235,21 +235,21 @@ window.focusOrderBoothMapItem = function(runtimeItem) {
 window.searchOrderBoothMapBooth = function() {
     const state = window.getOrderBoothMapPickerState();
     if (!state.currentMap) return window.showToast('请先选择一张画布', 'error');
-    const keyword = String(document.getElementById('order-booth-map-search')?.value || '').trim().toUpperCase();
+    const keyword = window.normalizeBoothCode(document.getElementById('order-booth-map-search')?.value || '');
     if (!keyword) return window.showToast('请输入要搜索的展位号', 'error');
-    const exactItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === keyword);
-    const fuzzyItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase().includes(keyword));
+    const exactItem = window.findItemByBoothCode(state.runtimeItems, keyword);
+    const fuzzyItem = window.findItemByBoothCodeIncludes(state.runtimeItems, keyword);
     const matchedItem = exactItem || fuzzyItem;
     if (!matchedItem) return window.showToast(`当前画布未找到展位：${keyword}`, 'error');
-    state.focusedBoothCode = String(matchedItem.booth_code || '').trim().toUpperCase();
+    state.focusedBoothCode = window.normalizeBoothCode(matchedItem.booth_code);
     window.focusOrderBoothMapItem(matchedItem);
     window.renderOrderBoothMapSvg();
     window.showToast(`已定位到展位：${matchedItem.booth_code}`);
 }
 
 window.getOrderBoothMapSourceBooth = function(runtimeItem) {
-    const boothCode = String(runtimeItem?.booth_code || '').trim().toUpperCase();
-    const matched = (Array.isArray(allBooths) ? allBooths : []).find((item) => String(item.id || '').trim().toUpperCase() === boothCode);
+    const boothCode = window.normalizeBoothCode(runtimeItem?.booth_code);
+    const matched = window.findItemByBoothCode(allBooths, boothCode, 'id');
     if (matched) return matched;
     return {
         id: boothCode,
@@ -362,8 +362,9 @@ window.renderOrderBoothMapSvg = function() {
                 { x: 0, y: heightPx }
             ];
             const pointsMarkup = window.getBoothMapPointsMarkup ? window.getBoothMapPointsMarkup(points) : points.map((point) => `${point.x},${point.y}`).join(' ');
-            const selected = selectedIds.has(String(item.booth_code || '').trim().toUpperCase());
-            const focused = focusedBoothCode && focusedBoothCode === String(item.booth_code || '').trim().toUpperCase();
+            const normalizedBoothCode = window.normalizeBoothCode(item.booth_code);
+            const selected = selectedIds.has(normalizedBoothCode);
+            const focused = focusedBoothCode && focusedBoothCode === normalizedBoothCode;
             const fillColor = item.fill_color || '#ffffff';
             const strokeColor = selected ? '#2563eb' : (focused ? '#ea580c' : (item.stroke_color || '#0f172a'));
             const labelMarkup = window.renderBoothMapItemText
@@ -456,9 +457,9 @@ window.openOrderBoothMapPicker = async function() {
     state.onConfirm = null;
     state.tempSelectedBooths = window.cloneOrderBoothSelectionList(window.selectedOrderBooths);
     try {
-        const preferredBoothId = String(state.tempSelectedBooths[0]?.id || '').trim().toUpperCase();
+        const preferredBoothId = window.normalizeBoothCode(state.tempSelectedBooths[0]?.id || '');
         const preferredMapId = preferredBoothId
-            ? Number((Array.isArray(allBooths) ? allBooths : []).find((item) => String(item.id || '').trim().toUpperCase() === preferredBoothId)?.booth_map_id || 0)
+            ? Number(window.findItemByBoothCode(allBooths, preferredBoothId, 'id')?.booth_map_id || 0)
             : 0;
         await window.loadOrderBoothMapPickerMaps(preferredMapId);
         const confirmBtn = document.getElementById('btn-confirm-order-booth-map');
@@ -519,46 +520,48 @@ window.buildSwapBoothCandidate = function(runtimeItem) {
 
 window.selectSwapBoothByCode = function(boothCode) {
     const state = window.getOrderBoothMapPickerState();
-    const runtimeItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === boothCode);
+    const normalizedBoothCode = window.normalizeBoothCode(boothCode);
+    const runtimeItem = window.findItemByBoothCode(state.runtimeItems, normalizedBoothCode);
     const currentOrder = window.currentFinanceOrder;
     if (!runtimeItem || !currentOrder) return;
-    if (String(runtimeItem.booth_code || '').trim().toUpperCase() === String(currentOrder.booth_id || '').trim().toUpperCase()) {
+    if (window.isSameBoothCode(runtimeItem.booth_code, currentOrder.booth_id)) {
         return window.showToast('目标展位与当前展位相同，无需换展位', 'error');
     }
     if (String(runtimeItem.status_code || '') === 'locked') {
-        return window.showToast(`展位 [${boothCode}] 已锁定，当前不可选择`, 'error');
+        return window.showToast(`展位 [${normalizedBoothCode}] 已锁定，当前不可选择`, 'error');
     }
     if (['reserved', 'deposit', 'full_paid'].includes(String(runtimeItem.status_code || ''))) {
-        return window.showToast(`展位 [${boothCode}] 当前已被其他订单占用，请重新选择`, 'error');
+        return window.showToast(`展位 [${normalizedBoothCode}] 当前已被其他订单占用，请重新选择`, 'error');
     }
     const area = Number(runtimeItem.area || 0);
     if (!Number.isFinite(area) || area <= 0) {
         return window.showToast('目标展位面积异常，无法换展位', 'error');
     }
     state.tempSelectedBooths = [window.buildSwapBoothCandidate(runtimeItem)];
-    state.focusedBoothCode = boothCode;
+    state.focusedBoothCode = normalizedBoothCode;
     window.renderOrderBoothMapSvg();
-    window.showToast(`已选中目标展位：${boothCode}`);
+    window.showToast(`已选中目标展位：${normalizedBoothCode}`);
 }
 
 window.toggleOrderBoothMapSelectionByCode = function(boothCode) {
     const state = window.getOrderBoothMapPickerState();
+    const normalizedBoothCode = window.normalizeBoothCode(boothCode);
     if (state.mode === 'swap') {
-        return window.selectSwapBoothByCode(boothCode);
+        return window.selectSwapBoothByCode(normalizedBoothCode);
     }
-    const runtimeItem = (state.runtimeItems || []).find((item) => String(item.booth_code || '').trim().toUpperCase() === boothCode);
+    const runtimeItem = window.findItemByBoothCode(state.runtimeItems, normalizedBoothCode);
     if (!runtimeItem) return;
 
-    const existingIndex = (state.tempSelectedBooths || []).findIndex((item) => String(item.id || '').trim().toUpperCase() === boothCode);
+    const existingIndex = (state.tempSelectedBooths || []).findIndex((item) => window.isSameBoothCode(item.id, normalizedBoothCode));
     if (existingIndex >= 0) {
         state.tempSelectedBooths.splice(existingIndex, 1);
-        state.focusedBoothCode = boothCode;
+        state.focusedBoothCode = normalizedBoothCode;
         window.renderOrderBoothMapSvg();
         return;
     }
 
     if (runtimeItem.status_code === 'locked') {
-        return window.showToast(`展位 [${boothCode}] 已锁定，当前不可选择`, 'error');
+        return window.showToast(`展位 [${normalizedBoothCode}] 已锁定，当前不可选择`, 'error');
     }
 
     const totalArea = Number(runtimeItem.area || 0);
@@ -591,7 +594,7 @@ window.onOrderBoothMapPointerDown = function(event) {
     state.pointerMode = 'pan';
     state.pointerStartClient = { x: event.clientX, y: event.clientY };
     state.pointerStartViewBox = { ...state.viewBox };
-    state.pointerDownBoothCode = String(event.target.closest('[data-booth-code]')?.getAttribute('data-booth-code') || '').trim().toUpperCase();
+    state.pointerDownBoothCode = window.normalizeBoothCode(event.target.closest('[data-booth-code]')?.getAttribute('data-booth-code') || '');
     state.dragMoved = false;
 }
 

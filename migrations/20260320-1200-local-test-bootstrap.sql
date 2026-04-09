@@ -5,9 +5,11 @@
 PRAGMA foreign_keys = OFF;
 
 DROP TABLE IF EXISTS Expenses;
+DROP TABLE IF EXISTS WriteRateLimits;
 DROP TABLE IF EXISTS LoginAttempts;
 DROP TABLE IF EXISTS OrderOverpaymentIssues;
 DROP TABLE IF EXISTS OrderBoothChanges;
+DROP TABLE IF EXISTS BoothLocks;
 DROP TABLE IF EXISTS BoothMapItems;
 DROP TABLE IF EXISTS BoothMaps;
 DROP TABLE IF EXISTS ProjectErpConfigs;
@@ -81,6 +83,16 @@ CREATE TABLE Booths (
   UNIQUE(id, project_id)
 );
 
+CREATE TABLE BoothLocks (
+  row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  booth_id TEXT NOT NULL,
+  lock_token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(project_id, booth_id)
+);
+
 CREATE TABLE Orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL,
@@ -137,6 +149,12 @@ CREATE TABLE LoginAttempts (
   failed_count INTEGER NOT NULL DEFAULT 0,
   last_failed_at TEXT,
   locked_until TEXT
+);
+
+CREATE TABLE WriteRateLimits (
+  rate_key TEXT PRIMARY KEY,
+  request_count INTEGER NOT NULL DEFAULT 0,
+  window_start TEXT NOT NULL
 );
 
 CREATE TABLE ProjectErpConfigs (
@@ -273,6 +291,9 @@ CREATE INDEX idx_expenses_project_deleted_order
 
 CREATE INDEX idx_booths_project_hall_id
   ON Booths (project_id, hall, id);
+
+CREATE INDEX idx_booth_locks_project_expires_at
+  ON BoothLocks (project_id, expires_at);
 
 CREATE INDEX idx_booths_project_booth_map_id
   ON Booths (project_id, booth_map_id, id);

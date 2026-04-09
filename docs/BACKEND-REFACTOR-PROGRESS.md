@@ -187,5 +187,5 @@ ERP 相关额外说明：
 ## 建议的下一步
 
 - 若准备提交代码，先做一轮人工冒烟
-- 若准备继续整理代码，可以把 `_worker.js` 中残留的共享权限与金额辅助函数继续迁往 `src/middleware.mjs` 或 `src/utils/permissions.mjs`
+- 若准备继续整理代码，优先收口并发保护、请求体限制和 dashboard 聚合，不必再以“继续瘦 `_worker.js`”作为主要目标
 - 若准备部署，先基于 [BACKEND-REGRESSION-CHECKLIST.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/BACKEND-REGRESSION-CHECKLIST.md) 完成最小回归

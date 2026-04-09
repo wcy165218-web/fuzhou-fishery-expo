@@ -1,295 +1,146 @@
 # 技术债清单
 
-更新时间：2026-04-08
+更新时间：2026-04-09
 
-## 当前判断
+## 当前基线
 
-- 当前项目不是“结构失控”状态，后端拆分主线已基本完成。
-- 现阶段最主要的债，集中在自动化回归、前端可维护性、统计口径保护和发布稳定性。
-- 当前基线检查已确认通过：
+- 当前版本已按 Cloudflare D1 Free 档约束补上第一波安全护栏。
+- 当前基线检查已通过：
   - `npm run check`
-  - `npm run test:erp-sync`
-  - `node --check public/js/*.js`
+  - `npm test`
 
-## 本周必做
+## 本轮已完成
 
-### 1. 补主链路自动化回归
+### 已补上的高优先级债
 
-目标：
+- 已完成：统一请求体限制。
+  - 入口层现在会先按路径做 `Content-Length` 拦截。
+  - JSON 默认上限 `256 KB`。
+  - 合同上传入口上限 `7 MB`，业务层仍保留 `6 MB` 文件校验。
+  - 展位图底图入口上限 `11 MB`，业务层仍保留 `10 MB` 文件校验。
+  - 所有路由已切到共享 `readJsonBody / readFormDataBody`，不再直接调用 `request.json()` / `request.formData()`。
 
-- 给订单、收款、换展位、超收处理补最小自动化测试。
-- 先覆盖最容易出业务回归的主链路，不追求一次补全。
+- 已完成：展位图保存和订单提交的爆量护栏。
+  - `save-booth-map-items` 已限制 `items <= 300`、`deleted_booth_codes <= 300`。
+  - 展位图保存前会按 D1 调用预算做预估，超预算直接拒绝。
+  - `submit-order` 已限制 `selected_booths <= 20`。
 
-建议优先顺序：
+- 已完成：项目清空的原子化删除。
+  - `clear-project-rollout-data` 已改为单次 `env.DB.batch([...])` 执行。
+  - 响应会返回每张表的 `deleted_counts`。
 
-- `submit-order`
-- `add-payment`
-- `edit-payment`
-- `delete-payment`
-- `change-order-booth`
-- `resolve-overpayment`
+- 已完成：`/api/orders` 服务端分页和服务端筛选。
+  - 新增 `page`、`pageSize`、`search`、`businessSearch`、`paymentStatus`、`salesName`。
+  - 返回值已改为 `{ items, total, page, pageSize, totalPages, hasMore }`。
+  - 前端订单页已切到服务端分页，不再本地持有全量订单后筛选。
 
-完成标准：
+- 已完成：导出与合同批量下载改为“按当前筛选结果”。
+  - Excel 导出会自动分页抓取当前筛选结果后再导出。
+  - 合同批量下载也改为按当前筛选结果打包。
+  - 订单页勾选框和“全选当前页”交互已移除。
 
-- 至少能覆盖成功路径
-- 至少能覆盖 1 个权限拒绝路径
-- 至少能覆盖 1 个金额边界路径
+- 已完成：展位并发锁。
+  - 新增 `BoothLocks` 表和迁移脚本。
+  - `submit-order` 和 `change-order-booth` 现在会先按展位号排序抢锁，再做占用校验和写入。
+  - 冲突统一返回可预期的 `409` 业务错误。
+  - 锁释放放在 `finally`，TTL 默认 `30 秒`。
 
-原因：
+- 已完成：批量展位状态刷新和 ERP 同步分块。
+  - 新增 `syncBoothStatusByBoothIds`，替代逐展位循环刷新。
+  - `erp-sync` 已改为预取已存在 ERP 收款、汇总语句、分块 `batch` 执行。
+  - 同步后的展位状态和超收状态也改为按批次刷新。
 
-- 当前测试文件只有 [erp-sync-core.test.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/tests/erp-sync-core.test.mjs)
-- 高风险业务链路当前仍主要依赖人工冒烟
+- 已完成：R2 下载异常处理与 admin 配置基础校验。
+  - 合同下载路径已加显式异常处理。
+  - 账户、行业、ERP 配置已补必填、长度、URL 等基础校验。
 
-### 2. 给统计看板补固定数据回归
+- 已完成：`home-dashboard` 的重复全量读取和部分重 CPU 聚合已先收两轮。
+  - 非管理员场景不再重复查询全量订单和全量收款。
+  - 当前改为“项目维度全局查一次，再按当前用户缩范围”。
+  - 展馆概览已下推到 SQL 聚合。
+  - 地区分布已改为数据库先按 `region` 聚合，再按既有口径映射到图表结构。
+  - 销售概览已去掉按员工逐个过滤订单/收款的重复扫描。
+  - 管理员场景下的付款聚合已改成 SQL 聚合，首笔付款日期也已改成 SQL `MIN(payment_time) GROUP BY order_id`。
 
-目标：
+### 本轮新增自动化
 
-- 锁住首页看板与订单统计看板的核心统计口径。
-- 降低后续改 SQL、改聚合逻辑时的误伤风险。
+- `tests/request-guards.test.mjs`
+  - 覆盖请求体上限、非法 JSON、表单读取异常。
 
-建议覆盖：
+- `tests/booth-locks.test.mjs`
+  - 覆盖锁归一化、冲突释放、过期锁清理、跨项目并存。
 
-- 展位完成数统计
-- 已收/应收/未收金额
-- 按时间维度的 `today/week/month/total`
-- 按业务员筛选后的统计结果
-- 超收异常相关展示口径
+- `tests/order-list-helpers.test.mjs`
+  - 覆盖订单分页参数归一化和展位图 D1 调用预算估算。
 
-重点文件：
+- `tests/route-main-chain.test.mjs`
+  - 覆盖 6 个主链路接口的成功、权限拒绝、并发冲突、金额边界。
 
-- [dashboard.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/src/routes/dashboard.mjs)
+- `tests/write-rate-limit.test.mjs`
+  - 覆盖已认证 POST 限流、31 次超限、GET 不计入、未认证 POST 不计入。
 
-### 3. 把前端语法检查纳入统一检查
+## 已移出的问题
 
-目标：
+- 已移出：`booth-maps` 的 `DB.batch` 未分块。
+- 已移出：`booths` 的 `IN` 子句超过参数限制。
+- 已移出：改密码后旧 JWT 仍有效。
+- 已移出：`/api/orders` GET 无分页。
+- 已移出：`save-booth-map-items` 的 `items` 数组无上限。
+- 已移出：`submit-order` 的 `selected_booths` 无上限。
+- 已移出：项目清空 8 条 `DELETE` 非原子执行。
+- 已移出：ERP 同步逐条查询、逐条 `batch`，容易超过调用预算。
 
-- 把当前单独执行过的前端语法检查合并进统一脚本。
+## 当前剩余债点
 
-建议动作：
+### Critical
 
-- 更新 [package.json](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/package.json)
-- 将 `public/js/api.js`
-- `public/js/auth.js`
-- `public/js/config.js`
-- `public/js/booth.js`
-- `public/js/booth-map.js`
-- `public/js/order.js`
-- `public/js/finance.js`
-- `public/js/home.js`
-- `public/js/app.js`
-  纳入 `npm run check`
+- 已无未完成 Critical 项。
 
-原因：
+### High
 
-- 当前 `check` 只覆盖后端文件
-- 前端脚本体量已大，最少应纳入语法级保护
+#### H1. `_worker.js` 鉴权每请求查一次 `token_index`
 
-### 4. 固化人工冒烟记录
+- ✅ 已完成：加入 30 秒 TTL 内存缓存（`staffAuthCache`），在缓存有效期内跳过 Staff 查库。密码重置 / 强制下线场景最长 30 秒生效，可接受。
 
-目标：
+#### H2. 前端大文件和全局状态仍偏重
 
-- 不只保留“要测什么”，还要记录“这轮谁测了、结果如何、是否阻塞部署”。
+文件：
 
-建议最小模板：
-
-- 日期
-- 执行人
-- 分支/提交
-- 冒烟范围
-- 结果
-- 阻塞项
-
-建议沿用的冒烟顺序：
-
-- 登录
-- 新增订单
-- 多展位订单
-- 换展位
-- 新增收款
-- 编辑收款
-- 删除收款
-- 超收处理
-- 支出新增/删除
-- 首页看板
-- 订单统计看板
-- 合同上传与下载
-
-参考：
-
-- [BACKEND-REFACTOR-PROGRESS.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/BACKEND-REFACTOR-PROGRESS.md)
-- [BACKEND-REGRESSION-CHECKLIST.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/BACKEND-REGRESSION-CHECKLIST.md)
-
-### 5. 先整理当前未提交改动的目标
-
-当前工作区存在未提交改动：
-
-- [public/index.html](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/index.html)
-- [public/js/api.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/api.js)
-- [public/js/booth-map.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/booth-map.js)
-- [public/js/finance.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/finance.js)
-- [public/js/order.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/order.js)
-- [src/routes/payments.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/src/routes/payments.mjs)
-
-建议动作：
-
-- 先确认这些改动分别属于哪个需求
-- 避免多个需求混在同一批提交里
-- 在补测试前，先明确这些改动的预期行为
-
-## 中期优化
-
-### 6. 先拆前端 `order` / `finance` 域
-
-目标：
-
-- 优先降低订单和财务页面的维护成本。
-
-现状信号：
-
-- 页面仍通过串行脚本加载共享状态
-- 跨文件共享大量全局变量
-
-参考文件：
-
-- [index.html](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/index.html)
-- [api.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/api.js)
-- [order.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/order.js)
-- [finance.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/finance.js)
-
-建议拆法：
-
-- 先按业务域拆，不急着引入框架
-- 先把“状态”“请求”“渲染”“弹窗行为”分开
-- 优先减少 `window.*` 与 `var` 共享状态
-
-### 7. 抽离 dashboard 聚合逻辑
-
-目标：
-
-- 把统计口径从路由处理流程中继续抽离到 service 层。
-
-原因：
-
-- `dashboard` 当前既负责查数据，也负责聚合和格式化
-- 后续只要改统计逻辑，风险面会过大
-
-建议方向：
-
-- 路由只保留参数解析、权限、响应输出
-- 聚合逻辑迁到独立 service
-- 用固定输入数据做纯逻辑测试
-
-### 8. 给 orders / payments 再拆一层纯逻辑
-
-目标：
-
-- 降低主链路接口文件的测试成本和理解成本。
-
-建议优先抽离：
-
-- 订单费用分摊
-- 展位分配与校验
-- 收款金额变更校验
-- 超收状态刷新前后的规则判断
-
-参考文件：
-
-- [orders.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/src/routes/orders.mjs)
-- [payments.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/src/routes/payments.mjs)
-- [overpayment.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/src/services/overpayment.mjs)
-
-### 9. 收口外部 CDN 依赖
-
-目标：
-
-- 提升页面构建可复现性和外部依赖稳定性。
-
-当前依赖：
-
-- Tailwind CDN
-- JSZip CDN
-
-建议方向：
-
-- 逐步转为项目内受控依赖
-- 至少保证离线调试和长期可维护性
-
-## 可延期但建议收口
-
-### 10. 更新重构文档口径
-
-目标：
-
-- 让文档反映现在的真实状态，减少误判。
+- `public/js/booth-map.js`（3461 行 / 159 个 `window.*`）
+- `public/js/finance.js`（1657 行 / 107 个）
+- `public/js/order.js`（1326 行 / 87 个）
+- `public/js/home.js`（1576 行 / 82 个）
 
 现状：
 
-- 手册仍保留“`_worker.js` 过大”等历史表述
-- 但实际入口文件已明显瘦身
+- 当前仓库约有 583 个 `window.*` 赋值位点；除上述 4 个核心文件外，`api.js / config.js / auth.js / booth.js` 也仍有较多全局暴露。
+- 所有页面脚本仍通过全局命名空间隐式耦合。
+- 完整模块化需要引入构建工具（Vite / esbuild）并逐文件迁移为 ES Module，非单轮可完成。
 
-建议动作：
+阶段化计划：
 
-- 更新 [BACKEND-REFACTOR-HANDBOOK.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/BACKEND-REFACTOR-HANDBOOK.md)
-- 更新 [BACKEND-REFACTOR-PROGRESS.md](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/docs/BACKEND-REFACTOR-PROGRESS.md)
-- 区分“已解决的旧债”和“仍存在的新债”
+1. **Phase 1**：引入构建入口，让 `api.js` 导出为 ES Module，其他文件逐步 import。
+2. **Phase 2**：按域拆分（order / finance / booth-map），抽出"状态""请求""渲染""弹窗行为"。
+3. **Phase 3**：移除 `window.*`，改为模块内部状态 + 显式导出。
 
-### 11. 决定 `middleware.mjs` / `permissions.mjs` 是否继续落地
+### Medium
 
-目标：
+#### M1. 中国时间处理统一
 
-- 收口路线图，不让设计目标长期悬空。
+- ⚠️ 主干已完成：新增 `getChinaDateNow()` 作为单点时区转换函数；`formatChinaDateTime` 内部改用它；`getChinaTimestamp` 改为 `formatChinaDateTime` 的别名；`dashboard.mjs` 主路径的手写 `+8` 偏移已替换。
+- 仍有少量时区字面量残留在 `parseChinaDateTime()`、部分 SQL `datetime('now', '+8 hours')`、以及个别前端日期构造中，后续还需继续收口。
 
-现状：
+#### M2. 外部 CDN 依赖收口
 
-- 文档里仍提到 `middleware.mjs`
-- 进度文档也还提到可以继续迁走残留逻辑
+- ⚠️ 部分完成：JSZip CDN 已加 SRI integrity hash + `crossorigin`。Tailwind CDN 是开发模式 JIT（动态内容，SRI 不适用），后续应迁移为构建产物。
 
-建议动作：
+#### M3. 备份、回滚与恢复文档
 
-- 如果要做，就列出明确迁移范围
-- 如果不做，就直接更新路线图
+- ✅ 已完成：新增 `docs/BACKUP-AND-RECOVERY.md`，覆盖 D1 备份 / Time Travel、R2 文件备份、Worker 版本回滚、迁移回滚策略、灾难恢复场景和高风险操作检查清单。
 
-### 12. 给大文件设体量门槛
+## 下一轮建议顺序
 
-目标：
-
-- 防止大文件继续膨胀。
-
-建议规则：
-
-- 单文件超过 600 到 800 行时，默认进入拆分评估
-- 高风险文件优先
-
-建议重点关注：
-
-- [booth-map.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/booth-map.js)
-- [home.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/home.js)
-- [finance.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/finance.js)
-- [order.js](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/public/js/order.js)
-- [dashboard.mjs](/Users/wangchuanyi/Downloads/fuzhou-fishery-expo-main/src/routes/dashboard.mjs)
-
-### 13. 补数据口径说明
-
-目标：
-
-- 在改报表、改统计、改前端展示前，有统一依据。
-
-建议覆盖：
-
-- 展位数如何换算
-- 已收/应收/未收如何定义
-- 超收异常待处理如何进入和退出
-- 业务员维度和管理员视角的区别
-
-## 建议推进顺序
-
-1. 先补自动化保护，再改主链路
-2. 先收口前端高风险域，再考虑更大范围重构
-3. 先更新文档与流程，再推进下一轮迭代
-
-## 完成后预期收益
-
-- 改订单和财务逻辑时更敢动
-- 看板统计回归更容易发现
-- 提交和部署边界更清晰
-- 新人接手成本更低
+1. Tailwind CDN 迁移为构建产物（需引入构建工具）。
+2. 前端模块化 Phase 1（构建入口 + api.js ES Module 化）。
+3. 前端模块化 Phase 2-3（按域拆分 + 移除 `window.*`）。
+4. 收掉剩余时区字面量，完成时间处理统一。

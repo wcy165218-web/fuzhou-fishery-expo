@@ -2,6 +2,7 @@ import {
     clampNumber,
     roundTo
 } from '../utils/helpers.mjs';
+import { normalizeBoothCode } from '../utils/booth-map.mjs';
 
 const DEFAULT_SCALE_PIXELS_PER_METER = 40;
 const SQL_IN_CHUNK_SIZE = 80;
@@ -212,7 +213,7 @@ export function normalizeBoothMapItemRecord(itemRow, scalePixelsPerMeter = 0) {
 export async function getProjectBoothOrdersMap(env, projectId, boothCodes = []) {
     const normalizedBoothCodes = Array.from(new Set(
         (Array.isArray(boothCodes) ? boothCodes : [])
-            .map((code) => String(code || '').trim())
+            .map((code) => normalizeBoothCode(code))
             .filter(Boolean)
     ));
     const ordersMap = new Map();
@@ -230,7 +231,7 @@ export async function getProjectBoothOrdersMap(env, projectId, boothCodes = []) 
         `).bind(Number(projectId), ...boothCodeChunk).all();
 
         (results.results || []).forEach((row) => {
-            const boothCode = String(row.booth_id || '').trim();
+            const boothCode = normalizeBoothCode(row.booth_id);
             if (!boothCode) return;
             if (!ordersMap.has(boothCode)) {
                 ordersMap.set(boothCode, []);
@@ -242,7 +243,7 @@ export async function getProjectBoothOrdersMap(env, projectId, boothCodes = []) 
     return ordersMap;
 }
 
-export async function getBoothMapDetail(env, projectId, mapId) {
+export async function getBoothMapDetail(env, projectId, mapId, options = {}) {
     const mapRow = await env.DB.prepare(`
       SELECT *
       FROM BoothMaps
@@ -251,23 +252,32 @@ export async function getBoothMapDetail(env, projectId, mapId) {
     if (!mapRow) return null;
 
     const normalizedMap = normalizeBoothMapRecord(mapRow);
-    const itemRows = ((await env.DB.prepare(`
+    const includeActiveOrderCount = options?.includeActiveOrderCount !== false;
+    const activeOrderSelectSql = includeActiveOrderCount ? ', COALESCE(oac.active_order_count, 0) AS active_order_count' : ', 0 AS active_order_count';
+    const activeOrderJoinSql = includeActiveOrderCount ? `
+      LEFT JOIN (
+        SELECT project_id, booth_id, COUNT(*) AS active_order_count
+        FROM Orders
+        WHERE project_id = ? AND status = '正常'
+        GROUP BY project_id, booth_id
+      ) oac ON oac.project_id = bmi.project_id AND oac.booth_id = bmi.booth_code
+    ` : '';
+    const itemQuery = `
       SELECT
         bmi.*,
         b.status AS booth_status,
-        b.source AS booth_source,
-        (
-          SELECT COUNT(*)
-          FROM Orders o
-          WHERE o.project_id = bmi.project_id
-            AND o.booth_id = bmi.booth_code
-            AND o.status = '正常'
-        ) AS active_order_count
+        b.source AS booth_source
+        ${activeOrderSelectSql}
       FROM BoothMapItems bmi
       LEFT JOIN Booths b ON b.project_id = bmi.project_id AND b.id = bmi.booth_code
+      ${activeOrderJoinSql}
       WHERE bmi.map_id = ? AND bmi.project_id = ?
       ORDER BY bmi.z_index ASC, bmi.id ASC
-    `).bind(Number(mapId), Number(projectId)).all()).results || []);
+    `;
+    const itemQueryParams = includeActiveOrderCount
+        ? [Number(projectId), Number(mapId), Number(projectId)]
+        : [Number(mapId), Number(projectId)];
+    const itemRows = ((await env.DB.prepare(itemQuery).bind(...itemQueryParams).all()).results || []);
 
     return {
         map: normalizedMap,
@@ -276,7 +286,9 @@ export async function getBoothMapDetail(env, projectId, mapId) {
 }
 
 export async function getBoothMapRuntimeView(env, projectId, mapId) {
-    const detail = await getBoothMapDetail(env, projectId, mapId);
+    const detail = await getBoothMapDetail(env, projectId, mapId, {
+        includeActiveOrderCount: false
+    });
     if (!detail) return null;
 
     const ordersMap = await getProjectBoothOrdersMap(
@@ -288,16 +300,18 @@ export async function getBoothMapRuntimeView(env, projectId, mapId) {
     return {
         map: detail.map,
         items: detail.items.map((item) => {
-            const activeOrders = ordersMap.get(String(item.booth_code || '').trim()) || [];
+            const normalizedBoothCode = normalizeBoothCode(item.booth_code);
+            const activeOrders = ordersMap.get(normalizedBoothCode) || [];
             const statusMeta = deriveBoothRuntimeStatus(item.status || item.booth_status, activeOrders);
             const companyInfo = resolveBoothCompanyText(item.booth_type, activeOrders);
             return {
                 ...item,
+                active_order_count: activeOrders.length,
                 status_code: statusMeta.code,
                 status_label: statusMeta.label,
                 fill_color: statusMeta.fillColor,
                 stroke_color: statusMeta.strokeColor,
-                booth_no_text: String(item.booth_code || '').trim(),
+                booth_no_text: normalizedBoothCode,
                 company_text: companyInfo.companyText,
                 company_text_source: companyInfo.companyTextSource
             };

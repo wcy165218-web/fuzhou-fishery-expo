@@ -6,6 +6,7 @@ import {
     toNonNegativeNumber
 } from '../utils/helpers.mjs';
 import { errorResponse, internalErrorResponse } from '../utils/response.mjs';
+import { readJsonBody } from '../utils/request.mjs';
 import { syncBoothStatusForOrder } from '../services/booth-sync.mjs';
 import {
     applyOrderPaidAmountDelta,
@@ -54,7 +55,8 @@ export async function handlePaymentRoutes({
 
     if (url.pathname === '/api/add-payment' && request.method === 'POST') {
         try {
-            const payment = await request.json();
+            const payment = await readJsonBody(request, corsHeaders);
+            if (payment instanceof Response) return payment;
             const hasPermission = await canManageOrder(env, currentUser, payment.order_id);
             if (!hasPermission) return errorResponse('权限不足：不能操作他人订单收款', 403, corsHeaders);
             const paymentAmount = toNonNegativeNumber(payment.amount);
@@ -96,7 +98,9 @@ export async function handlePaymentRoutes({
     }
 
     if (url.pathname === '/api/delete-payment' && request.method === 'POST') {
-        const { payment_id } = await request.json();
+        const payload = await readJsonBody(request, corsHeaders);
+        if (payload instanceof Response) return payload;
+        const { payment_id } = payload;
         try {
             const payment = await getPaymentRecord(env, payment_id);
             if (!payment) return errorResponse('支付记录不存在', 404, corsHeaders);
@@ -148,7 +152,8 @@ export async function handlePaymentRoutes({
 
     if (url.pathname === '/api/edit-payment' && request.method === 'POST') {
         try {
-            const payment = await request.json();
+            const payment = await readJsonBody(request, corsHeaders);
+            if (payment instanceof Response) return payment;
             const oldPayment = await getPaymentRecord(env, payment.payment_id);
             if (!oldPayment) return errorResponse('收款记录不存在', 404, corsHeaders);
             if (oldPayment.deleted_at) return errorResponse('收款记录已删除', 400, corsHeaders);
@@ -223,7 +228,8 @@ export async function handlePaymentRoutes({
 
     if (url.pathname === '/api/update-order-fees' && request.method === 'POST') {
         try {
-            const payload = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
             const hasPermission = await canManageOrder(env, currentUser, payload.order_id);
             if (!hasPermission) return errorResponse('权限不足：不能变更他人订单费用', 403, corsHeaders);
             const actualFee = toNonNegativeNumber(payload.actual_fee);
@@ -263,7 +269,8 @@ export async function handlePaymentRoutes({
 
     if (url.pathname === '/api/resolve-overpayment' && request.method === 'POST') {
         try {
-            const payload = await request.json();
+            const payload = await readJsonBody(request, corsHeaders);
+            if (payload instanceof Response) return payload;
             const orderId = Number(payload.order_id);
             const projectId = Number(payload.project_id);
             const action = String(payload.action || '').trim();

@@ -13,12 +13,30 @@ import {
     internalErrorResponse,
     withResponseHeaders
 } from './src/utils/response.mjs';
+import { enforceRequestBodyHeaderLimit } from './src/utils/request.mjs';
+import { checkWriteRateLimit } from './src/utils/helpers.mjs';
 import { dispatchApiRoutes } from './src/router.mjs';
 import {
     migrateAllLegacyErpSessionCookies,
 } from './src/services/erp.mjs';
 
 let legacyErpSecretMigrationScheduled = false;
+
+const staffAuthCache = new Map();
+const STAFF_AUTH_CACHE_TTL_MS = 30_000;
+
+function getCachedStaffAuth(name) {
+    const key = String(name || '').trim().toLowerCase();
+    const entry = staffAuthCache.get(key);
+    if (entry && (Date.now() - entry.ts) < STAFF_AUTH_CACHE_TTL_MS) return entry.data;
+    staffAuthCache.delete(key);
+    return null;
+}
+
+function setCachedStaffAuth(name, data) {
+    const key = String(name || '').trim().toLowerCase();
+    staffAuthCache.set(key, { data, ts: Date.now() });
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -32,6 +50,9 @@ export default {
     const corsHeaders = buildCorsHeaders(request, url, env);
 
     if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
+    const bodyLimitResponse = enforceRequestBodyHeaderLimit(request, url, corsHeaders);
+    if (bodyLimitResponse) return bodyLimitResponse;
 
     let currentUser = null;
     let jwtSecret = '';
@@ -51,13 +72,15 @@ export default {
 	      const token = authHeader.split(' ')[1];
 	      try {
 	        currentUser = await verifyJWT(token, jwtSecret);
-	        const currentStaffState = await getStaffAuthState(env, currentUser?.name);
+	        const currentStaffState = getCachedStaffAuth(currentUser?.name)
+	            || await getStaffAuthState(env, currentUser?.name);
 	        if (!currentStaffState) {
 	          return errorResponse('账号不存在或已被停用，请重新登录', 401, corsHeaders);
 	        }
 	        if (Number(currentUser?.token_index ?? 0) !== Number(currentStaffState?.token_index ?? 0)) {
 	          return errorResponse('登录状态已失效，请重新登录', 401, corsHeaders);
 	        }
+	        setCachedStaffAuth(currentUser?.name, currentStaffState);
 	        currentUser = {
 	          ...currentUser,
 	          name: currentStaffState.name,
@@ -79,6 +102,11 @@ export default {
 	    }
 
 	    try {
+	      if (request.method === 'POST' && currentUser) {
+	        const limited = await checkWriteRateLimit(env, currentUser.name);
+	        if (limited) return errorResponse('操作过于频繁，请稍后再试', 429, corsHeaders);
+	      }
+
 	      const routeResponse = await dispatchApiRoutes({
 	        request,
 	        env,

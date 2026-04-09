@@ -99,6 +99,11 @@ window.onProjectChange = function() {
         window.initOrderForm();
     }
     if (document.getElementById('sec-order-list')?.classList.contains('active')) {
+        if (window.getOrderListState) {
+            window.getOrderListState().page = 1;
+        }
+        window.orderSalesFilterProjectId = '';
+        window.markOrderDashboardDirty?.();
         window.loadOrderList();
     }
 };

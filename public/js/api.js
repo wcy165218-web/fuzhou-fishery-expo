@@ -25,6 +25,11 @@ var currentBoothMapItems = [];
 var currentBoothMapRuntimeItems = [];
 var currentBoothMapId = null;
 var boothMapDirty = false;
+var orderListState = { page: 1, pageSize: 50, total: 0, totalPages: 1, hasMore: false };
+var orderListFilterTimer = null;
+var orderListRequestSeq = 0;
+var orderSalesFilterProjectId = '';
+var lastOrderDashboardKey = '';
 var AUTH_STORAGE_KEY = 'exhibition_user';
 var assetObjectUrlCache = {};
 var pendingAssetObjectUrlRequests = {};
@@ -50,6 +55,52 @@ window.formatCompactCount = function(value) {
 
 window.formatCompactPercent = function(value) {
     return `${Number(value || 0).toFixed(1).replace(/\.0$/, '')}%`;
+}
+
+window.normalizeHallLabel = function(rawValue) {
+    const normalized = String(rawValue || '').trim();
+    if (!normalized) return '';
+    if (/号馆$/.test(normalized)) {
+        return normalized;
+    }
+    if (/馆$/.test(normalized)) {
+        return normalized.replace(/馆$/, '号馆');
+    }
+    return /^\d+$/.test(normalized) ? `${normalized}号馆` : normalized;
+}
+
+window.normalizeBoothCode = function(rawValue) {
+    return String(rawValue || '').trim().toUpperCase();
+}
+
+window.deriveHallFromBoothCode = function(boothCode, fallbackValue = '') {
+    const normalizedBoothCode = window.normalizeBoothCode(boothCode);
+    const matched = normalizedBoothCode.match(/^(\d+)/);
+    if (matched) return `${matched[1]}号馆`;
+    return window.normalizeHallLabel(fallbackValue);
+}
+
+window.resolveHallFromMapName = function(rawValue) {
+    const normalized = String(rawValue || '').trim();
+    if (!normalized) return '';
+    const matched = normalized.match(/\d+号馆/);
+    return matched ? matched[0] : normalized;
+}
+
+window.isSameBoothCode = function(leftValue, rightValue) {
+    return window.normalizeBoothCode(leftValue) === window.normalizeBoothCode(rightValue);
+}
+
+window.findItemByBoothCode = function(items, boothCode, key = 'booth_code') {
+    const normalizedBoothCode = window.normalizeBoothCode(boothCode);
+    if (!normalizedBoothCode) return null;
+    return (Array.isArray(items) ? items : []).find((item) => window.normalizeBoothCode(item?.[key]) === normalizedBoothCode) || null;
+}
+
+window.findItemByBoothCodeIncludes = function(items, keyword, key = 'booth_code') {
+    const normalizedKeyword = window.normalizeBoothCode(keyword);
+    if (!normalizedKeyword) return null;
+    return (Array.isArray(items) ? items : []).find((item) => window.normalizeBoothCode(item?.[key]).includes(normalizedKeyword)) || null;
 }
 
 window.getStoredUser = function() {
