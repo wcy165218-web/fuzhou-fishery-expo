@@ -73,6 +73,26 @@ window.normalizeBoothCode = function(rawValue) {
     return String(rawValue || '').trim().toUpperCase();
 }
 
+window.validateContractUploadFile = function(file) {
+    if (!file) return '没有找到文件';
+    const fileName = String(file.name || '').trim();
+    const fileExt = String(fileName.split('.').pop() || '').toLowerCase();
+    const fileType = String(file.type || '').trim().toLowerCase();
+    if (fileExt !== 'pdf') {
+        return '仅允许上传 PDF 格式文件';
+    }
+    if (fileType && !['application/pdf', 'application/x-pdf'].includes(fileType)) {
+        return '文件类型无效，请上传 PDF 文件';
+    }
+    if (Number(file.size || 0) <= 0) {
+        return '文件不能为空';
+    }
+    if (Number(file.size || 0) > 6 * 1024 * 1024) {
+        return '合同文件不能超过 6MB';
+    }
+    return '';
+}
+
 window.deriveHallFromBoothCode = function(boothCode, fallbackValue = '') {
     const normalizedBoothCode = window.normalizeBoothCode(boothCode);
     const matched = normalizedBoothCode.match(/^(\d+)/);

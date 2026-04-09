@@ -1282,7 +1282,9 @@ window.submitOrderForm = async function() {
     try {
         const fileInput = document.getElementById('order-contract');
         if (window.isOrderFieldEnabled('contract_upload') && fileInput.files.length > 0) {
-            const file = fileInput.files[0]; 
+            const file = fileInput.files[0];
+            const fileError = window.validateContractUploadFile?.(file);
+            if (fileError) throw new Error(fileError);
             const formData = new FormData(); formData.append('file', file);
             const uploadData = await window.readApiSuccessJson(
                 await window.apiFetch('/api/upload', { method: 'POST', body: formData }),

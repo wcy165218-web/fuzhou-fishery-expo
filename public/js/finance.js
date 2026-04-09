@@ -956,6 +956,13 @@ window.triggerSilentUpload = function(orderId) {
 }
 window.handleSilentUpload = async function(input) {
     if(!input.files[0] || !window.currentSilentOrderId) return;
+    const fileError = window.validateContractUploadFile?.(input.files[0]);
+    if (fileError) {
+        window.showToast("上传失败: " + fileError, 'error');
+        input.value = '';
+        window.currentSilentOrderId = null;
+        return;
+    }
     window.showToast("正在上传合同并更新单据...");
     const formData = new FormData(); formData.append('file', input.files[0]);
     try {
