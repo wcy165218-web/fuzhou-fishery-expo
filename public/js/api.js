@@ -93,6 +93,24 @@ window.validateContractUploadFile = function(file) {
     return '';
 }
 
+window.uploadContractFile = async function(file) {
+    const fileError = window.validateContractUploadFile?.(file);
+    if (fileError) throw new Error(fileError);
+    const uploadData = await window.readApiSuccessJson(
+        await window.apiFetch('/api/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': String(file.type || 'application/pdf').trim() || 'application/pdf',
+                'X-File-Name': encodeURIComponent(String(file.name || 'contract.pdf'))
+            },
+            body: file
+        }),
+        '上传失败',
+        {}
+    );
+    return uploadData;
+}
+
 window.deriveHallFromBoothCode = function(boothCode, fallbackValue = '') {
     const normalizedBoothCode = window.normalizeBoothCode(boothCode);
     const matched = normalizedBoothCode.match(/^(\d+)/);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { handleConfigRoutes } from '../src/routes/config.mjs';
+import { handleFileRoutes } from '../src/routes/files.mjs';
 import { handleOrderRoutes } from '../src/routes/orders.mjs';
 
 function createOrderRouteEnv() {
@@ -180,6 +181,36 @@ async function runTests() {
       booths: 8
     }
   });
+
+  const rawUploadBody = new TextEncoder().encode('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF');
+  const uploadedObjects = [];
+  const uploadRequest = new Request('http://localhost/api/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/pdf',
+      'X-File-Name': encodeURIComponent('回归测试合同.pdf')
+    },
+    body: rawUploadBody
+  });
+  const uploadResponse = await handleFileRoutes({
+    request: uploadRequest,
+    env: {
+      BUCKET: {
+        async put(key, body, options) {
+          uploadedObjects.push({ key, size: body.byteLength, contentType: options?.httpMetadata?.contentType || '' });
+        }
+      }
+    },
+    url: new URL(uploadRequest.url),
+    currentUser: { role: 'admin', name: 'admin' },
+    corsHeaders
+  });
+  const uploadPayload = await uploadResponse.json();
+  assert.equal(uploadPayload.success, true);
+  assert.equal(uploadedObjects.length, 1);
+  assert.equal(uploadedObjects[0].size, rawUploadBody.byteLength);
+  assert.equal(uploadedObjects[0].contentType, 'application/pdf');
+  assert.ok(uploadedObjects[0].key.endsWith('.pdf'));
 }
 
 await runTests();

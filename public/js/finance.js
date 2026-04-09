@@ -956,19 +956,9 @@ window.triggerSilentUpload = function(orderId) {
 }
 window.handleSilentUpload = async function(input) {
     if(!input.files[0] || !window.currentSilentOrderId) return;
-    const fileError = window.validateContractUploadFile?.(input.files[0]);
-    if (fileError) {
-        window.showToast("上传失败: " + fileError, 'error');
-        input.value = '';
-        window.currentSilentOrderId = null;
-        return;
-    }
     window.showToast("正在上传合同并更新单据...");
-    const formData = new FormData(); formData.append('file', input.files[0]);
     try {
-        const upRes = await window.apiFetch('/api/upload', {method:'POST', body: formData});
-        await window.ensureApiSuccess(upRes, '云端存储失败');
-        const upData = await upRes.json();
+        const upData = await window.uploadContractFile(input.files[0]);
         const order = (window.allOrders || []).find(o => String(o.id) === String(window.currentSilentOrderId));
         const data = { project_id: document.getElementById('global-project-select').value, order_id: window.currentSilentOrderId, contact_person: order.contact_person, phone: order.phone, region: order.region, main_business: order.main_business, profile: order.profile, category: order.category, is_agent: order.is_agent === 1, agent_name: order.agent_name, contract_url: upData.fileKey };
         const updateRes = await window.apiFetch('/api/update-customer-info', {method:'POST', body: JSON.stringify(data)});
