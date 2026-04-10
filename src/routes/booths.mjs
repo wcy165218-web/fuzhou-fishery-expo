@@ -53,7 +53,7 @@ async function getActiveOrdersMap(env, projectId, boothIds) {
           FROM Orders
           WHERE project_id = ?
             AND booth_id IN (${placeholders})
-            AND status = '正常'
+            AND status NOT IN ('已退订', '已作废')
         `).bind(Number(projectId), ...boothIdChunk).all();
         (results.results || []).forEach((row) => {
             const boothId = normalizeBoothCode(row.booth_id);
@@ -65,6 +65,18 @@ async function getActiveOrdersMap(env, projectId, boothIds) {
         });
     }
     return orderMap;
+}
+
+async function hasActiveBoothOrder(env, projectId, boothId) {
+    const row = await env.DB.prepare(`
+      SELECT id
+      FROM Orders
+      WHERE project_id = ?
+        AND booth_id = ?
+        AND status NOT IN ('已退订', '已作废')
+      LIMIT 1
+    `).bind(Number(projectId), normalizeBoothCode(boothId)).first();
+    return !!row;
 }
 
 async function getMapManagedBoothIds(env, projectId, boothIds) {
@@ -167,11 +179,27 @@ export async function handleBoothRoutes({
         if (payload instanceof Response) return payload;
         const { project_id, id, type, area, base_price } = payload;
         const boothRow = await env.DB.prepare(`
-          SELECT source, booth_map_id, type, area
+          SELECT source, booth_map_id, type, area, base_price
           FROM Booths
           WHERE id = ? AND project_id = ?
         `).bind(id, project_id).first();
+        if (!boothRow) return errorResponse('展位不存在', 404, corsHeaders);
         const isMapManaged = boothRow && (String(boothRow.source || '') === 'map' || Number(boothRow.booth_map_id || 0) > 0);
+        const activeOrderLocked = await hasActiveBoothOrder(env, project_id, id);
+        if (activeOrderLocked && isMapManaged) {
+            return errorResponse('该展位已有正常订单且由展位图维护，请到展位图管理中仅修改展位类型或位置', 400, corsHeaders);
+        }
+        if (activeOrderLocked) {
+            if (!Number.isFinite(Number(area)) || Math.abs(Number(area) - Number(boothRow.area || 0)) >= 0.01) {
+                return errorResponse('该展位已有正常订单，仅允许修改展位类型，不能修改面积或规格', 400, corsHeaders);
+            }
+            if (Number(base_price || 0) !== Number(boothRow.base_price || 0)) {
+                return errorResponse('该展位已有正常订单，仅允许修改展位类型，不能修改单价', 400, corsHeaders);
+            }
+            await env.DB.prepare('UPDATE Booths SET type = ?, price_unit = ? WHERE id = ? AND project_id = ?')
+                .bind(type, type === '光地' ? '平米' : '个', id, project_id).run();
+            return new Response(JSON.stringify({ success: true, type_only: true }), { headers: corsHeaders });
+        }
         if (isMapManaged) {
             await env.DB.prepare('UPDATE Booths SET base_price = ? WHERE id = ? AND project_id = ?')
                 .bind(base_price, id, project_id).run();

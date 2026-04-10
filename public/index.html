@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>展位销售与财务管理系统</title>
-    <link rel="stylesheet" href="/assets/tailwind.css?v=20260410-booth-map-save-chunks">
+    <link rel="stylesheet" href="/assets/tailwind.css?v=20260410-booth-map-order-locks">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
             integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
             crossorigin="anonymous"></script>
@@ -750,7 +750,7 @@
 
     <div id="password-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-2">修改密码</h3><p id="password-modal-hint" class="text-xs text-slate-500 mb-4">新密码必须是新的 6 位数字，且不能继续使用默认密码 123456。</p><input type="password" id="modal-old-pass" placeholder="原密码" class="w-full border p-2 rounded mb-3 text-sm"><input type="password" id="modal-new-pass" placeholder="新密码（6位数字）" class="w-full border p-2 rounded mb-5 text-sm" maxlength="6" inputmode="numeric"><div class="flex justify-end gap-2"><button id="password-modal-cancel" onclick="window.closeModal('password-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-change-pass" onclick="window.submitPasswordChange()" class="btn-primary px-4 py-2 text-sm">确认</button></div></div></div>
     <div id="edit-project-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">编辑项目信息</h3><input type="hidden" id="edit-p-id"><div class="space-y-3"><input type="text" id="edit-p-name" placeholder="项目名称" class="w-full border p-2 rounded text-sm"><input type="number" id="edit-p-year" placeholder="年份" class="w-full border p-2 rounded text-sm"><div class="text-xs text-gray-500">开展日期: <input type="date" id="edit-p-start" class="w-full border p-2 rounded mt-1"></div><div class="text-xs text-gray-500">撤展日期: <input type="date" id="edit-p-end" class="w-full border p-2 rounded mt-1"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="window.closeModal('edit-project-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-save-project" onclick="window.submitEditProject()" class="btn-primary px-4 py-2 text-sm">保存</button></div></div></div>
-    <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-2">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><p id="eb-mode-hint" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">该展位由展位图维护，这里仅允许单独调整单价。</p><input type="hidden" id="eb-map-managed" value="0"><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="window.closeModal('edit-booth-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-save-booth" onclick="window.submitEditBooth()" class="btn-primary px-4 py-2 text-sm">保存修改</button></div></div></div>
+    <div id="edit-booth-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-2xl w-96"><h3 class="text-lg font-bold mb-4 text-indigo-700">修改展位信息</h3><p class="text-xs text-gray-500 mb-2">当前展位：<span id="eb-id" class="font-bold text-gray-800 text-base"></span></p><p id="eb-mode-hint" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">该展位由展位图维护，这里仅允许单独调整单价。</p><input type="hidden" id="eb-map-managed" value="0"><input type="hidden" id="eb-order-locked" value="0"><div class="space-y-3"><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">类型</span><select id="eb-type" class="w-full border p-2 rounded-r text-sm"><option>标摊</option><option>豪标</option><option>光地</option></select></div><div class="flex items-center"><span class="bg-gray-100 border border-r-0 p-2 rounded-l text-sm text-gray-600 w-20">总面积</span><input type="number" id="eb-area" class="w-full border p-2 text-sm"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500 text-sm">㎡</span></div><div class="flex items-center mt-2 border-t pt-2"><span class="bg-red-50 text-red-700 border border-r-0 border-red-200 p-2 rounded-l text-sm w-28">独立单价(元)</span><input type="number" id="eb-custom-price" placeholder="填0随全局" class="w-full border border-red-200 p-2 rounded-r text-sm"></div></div><div class="flex justify-end gap-2 mt-6"><button onclick="window.closeModal('edit-booth-modal')" class="btn-secondary px-4 py-2 text-sm">取消</button><button id="btn-save-booth" onclick="window.submitEditBooth()" class="btn-primary px-4 py-2 text-sm">保存修改</button></div></div></div>
 
     <div id="order-detail-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
@@ -2252,14 +2252,14 @@
         </main>
     </div>
 
-    <script src="./js/api.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/auth.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/config.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/booth.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/booth-map.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/order.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/finance.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/home.js?v=20260410-booth-map-save-chunks"></script>
-    <script src="./js/app.js?v=20260410-booth-map-save-chunks"></script>
+    <script src="./js/api.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/auth.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/config.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/booth.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/booth-map.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/order.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/finance.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/home.js?v=20260410-booth-map-order-locks"></script>
+    <script src="./js/app.js?v=20260410-booth-map-order-locks"></script>
 </body>
 </html>

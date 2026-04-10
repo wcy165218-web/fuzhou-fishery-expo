@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { handleBoothMapRoutes } from '../src/routes/booth-maps.mjs';
+import { handleBoothRoutes } from '../src/routes/booths.mjs';
 import { handleConfigRoutes } from '../src/routes/config.mjs';
 import { handleFileRoutes } from '../src/routes/files.mjs';
 import { handleOrderRoutes } from '../src/routes/orders.mjs';
@@ -91,6 +93,119 @@ function createConfigRouteEnv() {
         return statements.map((_, index) => ({
           meta: { changes: index + 1 }
         }));
+      }
+    }
+  };
+}
+
+function createOrderedBoothMapRouteEnv() {
+  const existingPointsJson = JSON.stringify([
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 }
+  ]);
+  const existingItem = {
+    id: 1,
+    project_id: 7,
+    map_id: 3,
+    booth_code: '1A01',
+    hall: '1号馆',
+    booth_type: '标摊',
+    opening_type: '单开口',
+    width_m: 3,
+    height_m: 3,
+    area: 9,
+    x: 100,
+    y: 100,
+    rotation: 0,
+    stroke_width: 2,
+    shape_type: 'rect',
+    points_json: existingPointsJson,
+    label_style_json: '{}',
+    z_index: 1,
+    hidden: 0,
+    active_order_count: 1
+  };
+  return {
+    DB: {
+      prepare(query) {
+        const sql = String(query || '');
+        return {
+          params: [],
+          bind(...params) {
+            this.params = params;
+            return this;
+          },
+          async first() {
+            if (sql.includes('FROM BoothMaps')) {
+              return {
+                id: 3,
+                project_id: 7,
+                name: '1号馆',
+                scale_pixels_per_meter: 40,
+                default_stroke_width: 2,
+                canvas_width: 1600,
+                canvas_height: 900,
+                display_config_json: '{}'
+              };
+            }
+            return null;
+          },
+          async all() {
+            if (sql.includes('FROM BoothMapItems bmi')) {
+              return { results: [existingItem] };
+            }
+            if (sql.includes('SELECT booth_code, hall, booth_type, opening_type')) {
+              return { results: [existingItem] };
+            }
+            if (sql.includes('FROM Orders')) {
+              return { results: [{ booth_id: '1A01' }] };
+            }
+            return { results: [] };
+          },
+          async run() {
+            throw new Error('ordered booth map save should be blocked before writes');
+          }
+        };
+      },
+      async batch() {
+        throw new Error('ordered booth map save should be blocked before batch writes');
+      }
+    }
+  };
+}
+
+function createOrderedBoothRouteEnv() {
+  return {
+    DB: {
+      prepare(query) {
+        const sql = String(query || '');
+        return {
+          params: [],
+          bind(...params) {
+            this.params = params;
+            return this;
+          },
+          async first() {
+            if (sql.includes('FROM Booths')) {
+              return {
+                source: 'manual',
+                booth_map_id: null,
+                type: '标摊',
+                area: 9,
+                base_price: 0
+              };
+            }
+            if (sql.includes('FROM Orders')) {
+              return { id: 101 };
+            }
+            return null;
+          },
+          async run() {
+            throw new Error('ordered booth edit should be blocked before writes');
+          }
+        };
       }
     }
   };
@@ -276,6 +391,65 @@ async function runTests() {
   assert.equal(jsonRetryPayload.fileKey, jsonUploadPayload.fileKey);
   assert.equal(jsonUploadedObjects.length, 2);
   assert.equal(jsonUploadedObjects[1].key, jsonUploadedObjects[0].key);
+
+  const orderedBoothMapRequest = new Request('http://localhost/api/save-booth-map-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId: 7,
+      mapId: 3,
+      replaceAll: false,
+      items: [
+        {
+          booth_code: '1A01',
+          hall: '1号馆',
+          booth_type: '标摊',
+          opening_type: '单开口',
+          width_m: 4,
+          height_m: 3,
+          x: 100,
+          y: 100,
+          rotation: 0,
+          stroke_width: 2,
+          shape_type: 'rect',
+          z_index: 1,
+          hidden: 0
+        }
+      ]
+    })
+  });
+  const orderedBoothMapResponse = await handleBoothMapRoutes({
+    request: orderedBoothMapRequest,
+    env: createOrderedBoothMapRouteEnv(),
+    url: new URL(orderedBoothMapRequest.url),
+    currentUser: { role: 'admin', name: 'admin' },
+    corsHeaders
+  });
+  const orderedBoothMapPayload = await orderedBoothMapResponse.json();
+  assert.equal(orderedBoothMapResponse.status, 400);
+  assert.match(orderedBoothMapPayload.error, /已有正常订单/);
+
+  const orderedBoothEditRequest = new Request('http://localhost/api/edit-booth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      project_id: 7,
+      id: '1A01',
+      type: '标摊',
+      area: 12,
+      base_price: 0
+    })
+  });
+  const orderedBoothEditResponse = await handleBoothRoutes({
+    request: orderedBoothEditRequest,
+    env: createOrderedBoothRouteEnv(),
+    url: new URL(orderedBoothEditRequest.url),
+    currentUser: { role: 'admin', name: 'admin' },
+    corsHeaders
+  });
+  const orderedBoothEditPayload = await orderedBoothEditResponse.json();
+  assert.equal(orderedBoothEditResponse.status, 400);
+  assert.match(orderedBoothEditPayload.error, /不能修改面积/);
 }
 
 await runTests();

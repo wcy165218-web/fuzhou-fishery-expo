@@ -42,6 +42,13 @@ window.getBoothMapState = function() {
     return window.boothMapEditor;
 }
 
+window.isBoothMapItemOrderLocked = function(item) {
+    if (!item) return false;
+    if (Number(item.active_order_count || 0) > 0) return true;
+    const runtimeItem = window.getBoothMapRuntimeItem?.(item.booth_code);
+    return ['reserved', 'deposit', 'full_paid'].includes(String(runtimeItem?.status_code || ''));
+}
+
 window.chunkBoothMapSaveItems = function(items = []) {
     const sourceItems = Array.isArray(items) ? items : [];
     const chunks = [];
@@ -2155,6 +2162,11 @@ window.onBoothMapPointerDown = function(event) {
         window.setSelectedBoothMapItems([itemId]);
         const selectedItem = window.getSelectedBoothMapItem();
         if (!selectedItem) return;
+        if (window.isBoothMapItemOrderLocked(selectedItem)) {
+            window.showToast('该展位已有正常订单，仅允许移动位置和修改展位类型，不能调整面积或规格', 'error');
+            window.renderCurrentBoothMap();
+            return;
+        }
         state.pointerMode = 'resize';
         state.pointerStartPoint = point;
         state.resizeContext = {
@@ -2415,6 +2427,7 @@ window.populateBoothMapPropertyPanel = function() {
     const openingWrap = document.getElementById('bm-field-opening-wrap');
     const snapToggleEl = document.getElementById('bm-toggle-snap');
     const canEditSingle = selectedItems.length === 1;
+    const orderLocked = !!item && window.isBoothMapItemOrderLocked(item);
     const selectionCount = selectedItems.length;
     const summary = window.getBoothMapSavableSummary();
     const saveStateText = selectionCount === 1
@@ -2433,6 +2446,10 @@ window.populateBoothMapPropertyPanel = function() {
             : 'btn-secondary w-full px-3 py-2.5 text-sm justify-center';
     }
     ['bm-field-code', 'bm-field-type', 'bm-field-opening', 'bm-field-width', 'bm-field-height'].forEach((id) => setDisabled(id, !canEditSingle));
+    if (orderLocked) {
+        ['bm-field-code', 'bm-field-opening', 'bm-field-width', 'bm-field-height'].forEach((id) => setDisabled(id, true));
+        setDisabled('bm-field-type', false);
+    }
 
     if (!item) {
         if (titleEl) titleEl.innerText = selectionCount > 1 ? `已选择 ${selectionCount} 个展位` : '未选择展位';
@@ -2449,8 +2466,10 @@ window.populateBoothMapPropertyPanel = function() {
 
     if (titleEl) titleEl.innerText = item.booth_code || '未命名展位';
     if (metaEl) {
-        metaEl.innerText = summary.blockedItems.find((entry) => String(entry.item.id) === String(item.id))?.error
-            || '可直接拖动当前展位移动位置，也可拖边线调整大小。';
+        metaEl.innerText = orderLocked
+            ? '该展位已有正常订单，仅允许修改展位类型和拖动位置；面积、规格、展位号和删除已锁定。'
+            : (summary.blockedItems.find((entry) => String(entry.item.id) === String(item.id))?.error
+                || '可直接拖动当前展位移动位置，也可拖边线调整大小。');
     }
     setValue('bm-field-code', item.booth_code || '');
     setValue('bm-field-type', item.booth_type || '标摊');
@@ -2495,6 +2514,11 @@ window.updateSelectedBoothMapField = function(field, value) {
     if (selectedItems.length !== 1) return;
     const item = selectedItems[0];
     if (!item) return;
+    if (window.isBoothMapItemOrderLocked(item) && field !== 'booth_type') {
+        window.showToast('该展位已有正常订单，仅允许修改展位类型，不能修改展位号、面积或规格', 'error');
+        window.populateBoothMapPropertyPanel();
+        return;
+    }
     if (field === 'booth_code') {
         const nextBoothCode = String(value || '').trim().toUpperCase();
         const duplicateItem = window.findDuplicateBoothMapItemByCode(nextBoothCode, item.id);
@@ -2653,6 +2677,7 @@ window.copySelectedBoothMapItem = function() {
         x: Number((Number(item.x || 0) + widthPx + offset).toFixed(2)),
         y: Number((Number(item.y || 0) + offset).toFixed(2)),
         z_index: (currentBoothMapItems || []).length + 1,
+        active_order_count: 0,
         label_style: window.cloneBoothMapLabelStyle(item.label_style),
         points_json: JSON.parse(JSON.stringify(item.points_json || [])),
         _dirty: true,
@@ -3067,7 +3092,7 @@ window.renderBoothMapItem = function(item, mode = 'editor') {
                 stroke-linejoin="round"
             ></polygon>
         `;
-    const handleMarkup = mode === 'editor' && selected && window.getBoothMapSelectionCount() === 1
+    const handleMarkup = mode === 'editor' && selected && window.getBoothMapSelectionCount() === 1 && !window.isBoothMapItemOrderLocked(item)
         ? window.renderBoothMapResizeHandles(widthPx, heightPx)
         : '';
     return `

@@ -225,7 +225,7 @@ export async function getProjectBoothOrdersMap(env, projectId, boothCodes = []) 
           SELECT booth_id, company_name, booth_display_name, paid_amount, total_amount, created_at
           FROM Orders
           WHERE project_id = ?
-            AND status = '正常'
+            AND status NOT IN ('已退订', '已作废')
             AND booth_id IN (${placeholders})
           ORDER BY datetime(created_at) ASC, id ASC
         `).bind(Number(projectId), ...boothCodeChunk).all();
@@ -258,7 +258,7 @@ export async function getBoothMapDetail(env, projectId, mapId, options = {}) {
       LEFT JOIN (
         SELECT project_id, booth_id, COUNT(*) AS active_order_count
         FROM Orders
-        WHERE project_id = ? AND status = '正常'
+        WHERE project_id = ? AND status NOT IN ('已退订', '已作废')
         GROUP BY project_id, booth_id
       ) oac ON oac.project_id = bmi.project_id AND oac.booth_id = bmi.booth_code
     ` : '';

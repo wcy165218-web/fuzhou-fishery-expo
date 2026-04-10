@@ -144,7 +144,7 @@ async function executeStatementsInChunks(env, statements = [], chunkSize = BATCH
     }
 }
 
-async function getReferencedBoothCodes(env, projectId, boothCodes) {
+async function getActiveReferencedBoothCodes(env, projectId, boothCodes) {
     const normalizedBoothCodes = Array.from(new Set(
         (Array.isArray(boothCodes) ? boothCodes : [])
             .map((code) => normalizeBoothCode(code))
@@ -159,6 +159,7 @@ async function getReferencedBoothCodes(env, projectId, boothCodes) {
           FROM Orders
           WHERE project_id = ?
             AND booth_id IN (${placeholders})
+            AND status NOT IN ('已退订', '已作废')
           GROUP BY booth_id
         `).bind(Number(projectId), ...boothCodeChunk).all();
         (results.results || []).forEach((row) => {
@@ -167,6 +168,61 @@ async function getReferencedBoothCodes(env, projectId, boothCodes) {
         });
     }
     return Array.from(referencedCodes);
+}
+
+async function getExistingBoothMapItemsByCode(env, projectId, mapId, boothCodes) {
+    const normalizedBoothCodes = Array.from(new Set(
+        (Array.isArray(boothCodes) ? boothCodes : [])
+            .map((code) => normalizeBoothCode(code))
+            .filter(Boolean)
+    ));
+    const rowsByCode = new Map();
+    if (normalizedBoothCodes.length === 0) return rowsByCode;
+    for (const boothCodeChunk of chunkItems(normalizedBoothCodes)) {
+        const placeholders = boothCodeChunk.map(() => '?').join(',');
+        const results = await env.DB.prepare(`
+          SELECT booth_code, hall, booth_type, opening_type, width_m, height_m, area,
+                 shape_type, points_json, hidden
+          FROM BoothMapItems
+          WHERE project_id = ?
+            AND map_id = ?
+            AND booth_code IN (${placeholders})
+        `).bind(Number(projectId), Number(mapId), ...boothCodeChunk).all();
+        (results.results || []).forEach((row) => {
+            const normalized = normalizeBoothCode(row.booth_code);
+            if (normalized) rowsByCode.set(normalized, row);
+        });
+    }
+    return rowsByCode;
+}
+
+function sameNumber(leftValue, rightValue) {
+    return Math.abs(Number(leftValue || 0) - Number(rightValue || 0)) < 0.01;
+}
+
+function normalizePointsJsonForCompare(value) {
+    return JSON.stringify(safeParseJson(value, []));
+}
+
+function findActiveBoothMapItemLockError(normalizedItems, activeBoothCodes, existingRowsByCode) {
+    for (const item of normalizedItems) {
+        if (!activeBoothCodes.has(item.booth_code)) continue;
+        const existing = existingRowsByCode.get(item.booth_code);
+        if (!existing) continue;
+        const changedSpec = !sameNumber(existing.width_m, item.width_m)
+            || !sameNumber(existing.height_m, item.height_m)
+            || !sameNumber(existing.area, item.area)
+            || String(existing.shape_type || 'rect') !== String(item.shape_type || 'rect')
+            || normalizePointsJsonForCompare(existing.points_json) !== normalizePointsJsonForCompare(item.points_json)
+            || Number(existing.hidden || 0) !== Number(item.hidden || 0);
+        const changedOpeningWithoutType = String(existing.booth_type || '') === String(item.booth_type || '')
+            && String(existing.opening_type || '') !== String(item.opening_type || '');
+        const changedHall = String(existing.hall || '') !== String(item.hall || '');
+        if (changedSpec || changedOpeningWithoutType || changedHall) {
+            return `展位 ${item.booth_code} 已有正常订单，仅允许修改展位类型和画布位置，不能修改面积、规格或隐藏状态`;
+        }
+    }
+    return '';
 }
 
 async function getOccupiedBoothMapRows(env, projectId, mapId, boothCodes) {
@@ -406,10 +462,10 @@ export async function handleBoothMapRoutes({
           WHERE map_id = ? AND project_id = ?
         `).bind(mapId, projectId).all()).results || []);
         const boothCodes = itemRows.map((row) => normalizeBoothCode(row.booth_code)).filter(Boolean);
-        const referencedBoothCodes = await getReferencedBoothCodes(env, projectId, boothCodes);
-        if (referencedBoothCodes.length > 0) {
-            const previewText = referencedBoothCodes.slice(0, 5).join('、');
-            const suffix = referencedBoothCodes.length > 5 ? ' 等' : '';
+        const activeReferencedBoothCodes = await getActiveReferencedBoothCodes(env, projectId, boothCodes);
+        if (activeReferencedBoothCodes.length > 0) {
+            const previewText = activeReferencedBoothCodes.slice(0, 5).join('、');
+            const suffix = activeReferencedBoothCodes.length > 5 ? ' 等' : '';
             return errorResponse(`以下展位已被订单引用，不能从展位图中删除：${previewText}${suffix}`, 400, corsHeaders);
         }
         const statements = [
@@ -545,6 +601,16 @@ export async function handleBoothMapRoutes({
                 normalizeBoothMapItemPayload(item, detail.map, index)
             );
             const boothCodes = normalizedItems.map((item) => item.booth_code);
+            const activeReferencedBoothCodes = await getActiveReferencedBoothCodes(env, projectId, boothCodes);
+            if (activeReferencedBoothCodes.length > 0) {
+                const existingRowsByCode = await getExistingBoothMapItemsByCode(env, projectId, mapId, activeReferencedBoothCodes);
+                const lockError = findActiveBoothMapItemLockError(
+                    normalizedItems,
+                    new Set(activeReferencedBoothCodes),
+                    existingRowsByCode
+                );
+                if (lockError) return errorResponse(lockError, 400, corsHeaders);
+            }
             const requestedDeletedBoothCodes = Array.from(new Set(
                 (Array.isArray(payload.deleted_booth_codes) ? payload.deleted_booth_codes : [])
                     .map((code) => normalizeBoothCode(code))
@@ -589,15 +655,15 @@ export async function handleBoothMapRoutes({
                 return errorResponse('本次展位图变更过大，请拆分后重试', 400, corsHeaders);
             }
 
-            const referencedRemovedBoothCodes = await getReferencedBoothCodes(env, projectId, removedBoothCodes);
-            if (referencedRemovedBoothCodes.length > 0) {
-                const previewText = referencedRemovedBoothCodes.slice(0, 5).join('、');
-                const suffix = referencedRemovedBoothCodes.length > 5 ? ' 等' : '';
+            const activeRemovedBoothCodes = await getActiveReferencedBoothCodes(env, projectId, removedBoothCodes);
+            if (activeRemovedBoothCodes.length > 0) {
+                const previewText = activeRemovedBoothCodes.slice(0, 5).join('、');
+                const suffix = activeRemovedBoothCodes.length > 5 ? ' 等' : '';
                 return errorResponse(`以下展位已被订单引用，不能从展位图中删除：${previewText}${suffix}`, 400, corsHeaders);
             }
-            const referencedRenamedBoothCodes = await getReferencedBoothCodes(env, projectId, renamedPreviousBoothCodes);
-            if (referencedRenamedBoothCodes.length > 0) {
-                return errorResponse(`展位 ${referencedRenamedBoothCodes[0]} 已被订单引用，暂时不能改展位号`, 400, corsHeaders);
+            const activeRenamedBoothCodes = await getActiveReferencedBoothCodes(env, projectId, renamedPreviousBoothCodes);
+            if (activeRenamedBoothCodes.length > 0) {
+                return errorResponse(`展位 ${activeRenamedBoothCodes[0]} 已被订单引用，暂时不能改展位号`, 400, corsHeaders);
             }
 
             const nowText = getChinaTimestamp();

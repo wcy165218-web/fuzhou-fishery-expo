@@ -239,7 +239,9 @@ window.renderBooths = function() {
             selectHtml += `</select>`; 
         }
         const actionHtml = isLockedByOrder
-            ? `<span class="badge-readonly">订单锁定</span>`
+            ? (isMapManaged
+                ? `<span class="badge-readonly" title="该展位由展位图维护，请到展位图管理中仅修改类型或位置">订单锁定</span>`
+                : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)}, false, true)' class="btn-soft-primary px-3 py-1 text-xs">改类型</button>`)
             : isMapManaged
                 ? `<div class="inline-flex items-center gap-2"><button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)}, true)' class="btn-soft-primary px-3 py-1 text-xs">改单价</button><span class="badge-readonly" title="展位号、面积和类型请回到展位图管理中维护">展位图维护</span></div>`
                 : `<button onclick='window.openEditBooth(${JSON.stringify(String(b.id))}, ${JSON.stringify(String(b.type))}, ${Number(b.area)}, ${Number(b.base_price || 0)}, false)' class="btn-soft-primary px-3 py-1 text-xs mr-2">修改</button><button onclick='window.deleteSingleBooth(${JSON.stringify(String(b.id))})' class="btn-soft-danger px-3 py-1 text-xs">删除</button>`;
@@ -332,25 +334,37 @@ window.batchDelete = async function() {
     }
 }
 
-window.openEditBooth = function(id, type, area, bp, mapManaged = false) {
+window.openEditBooth = function(id, type, area, bp, mapManaged = false, orderLocked = false) {
     document.getElementById('eb-id').innerText = id;
     document.getElementById('eb-type').value = type;
     document.getElementById('eb-area').value = area;
     document.getElementById('eb-custom-price').value = bp > 0 ? bp : '';
     document.getElementById('eb-map-managed').value = mapManaged ? '1' : '0';
+    document.getElementById('eb-order-locked').value = orderLocked ? '1' : '0';
     const hintEl = document.getElementById('eb-mode-hint');
     const typeEl = document.getElementById('eb-type');
     const areaEl = document.getElementById('eb-area');
-    if (hintEl) hintEl.classList.toggle('hidden', !mapManaged);
+    const priceEl = document.getElementById('eb-custom-price');
+    if (hintEl) {
+        hintEl.innerText = orderLocked
+            ? '该展位已有正常订单，仅允许修改展位类型，面积、规格和单价不可修改。'
+            : '该展位由展位图维护，这里仅允许单独调整单价。';
+        hintEl.classList.toggle('hidden', !mapManaged && !orderLocked);
+    }
     if (typeEl) {
         typeEl.disabled = !!mapManaged;
         typeEl.classList.toggle('bg-gray-100', !!mapManaged);
         typeEl.classList.toggle('cursor-not-allowed', !!mapManaged);
     }
     if (areaEl) {
-        areaEl.readOnly = !!mapManaged;
-        areaEl.classList.toggle('bg-gray-100', !!mapManaged);
-        areaEl.classList.toggle('cursor-not-allowed', !!mapManaged);
+        areaEl.readOnly = !!mapManaged || !!orderLocked;
+        areaEl.classList.toggle('bg-gray-100', !!mapManaged || !!orderLocked);
+        areaEl.classList.toggle('cursor-not-allowed', !!mapManaged || !!orderLocked);
+    }
+    if (priceEl) {
+        priceEl.readOnly = !!orderLocked;
+        priceEl.classList.toggle('bg-gray-100', !!orderLocked);
+        priceEl.classList.toggle('cursor-not-allowed', !!orderLocked);
     }
     document.getElementById('edit-booth-modal').classList.remove('hidden');
 }
@@ -362,6 +376,7 @@ window.submitEditBooth = async function() {
     const cp = parseFloat(document.getElementById('eb-custom-price').value);
     const finalCustomPrice = isNaN(cp) ? 0 : cp;
     const mapManaged = Number(document.getElementById('eb-map-managed')?.value || 0) === 1;
+    const orderLocked = Number(document.getElementById('eb-order-locked')?.value || 0) === 1;
 
     if (!mapManaged && (isNaN(area) || area <= 0)) return window.showToast("面积必须大于0", 'error');
 
@@ -374,7 +389,7 @@ window.submitEditBooth = async function() {
             '修改失败'
         );
         window.closeModal('edit-booth-modal'); 
-        window.showToast(mapManaged ? "展位单价修改成功" : "展位信息修改成功");
+        window.showToast(mapManaged ? "展位单价修改成功" : (orderLocked ? "展位类型修改成功" : "展位信息修改成功"));
         await window.loadBooths();
     });
 }
