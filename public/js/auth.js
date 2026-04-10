@@ -75,6 +75,51 @@ window.handleLogout = function() {
     location.reload(); 
 }
 
+window.resetMainContentTop = function() {
+    const mainEl = document.querySelector('#main-view main');
+    const contentEl = document.getElementById('main-content');
+    const scrollingEl = document.scrollingElement || document.documentElement;
+
+    window.scrollTo(0, 0);
+    [scrollingEl, document.documentElement, document.body, mainEl, contentEl].forEach((el) => {
+        if (el && typeof el.scrollTop === 'number') {
+            el.scrollTop = 0;
+            el.scrollLeft = 0;
+        }
+    });
+}
+
+window.queueMainContentTopReset = function() {
+    window.resetMainContentTop();
+    requestAnimationFrame(() => window.resetMainContentTop());
+    setTimeout(() => window.resetMainContentTop(), 80);
+    setTimeout(() => window.resetMainContentTop(), 250);
+}
+
+window.pinActiveSectionToTop = function(sectionId) {
+    const contentEl = document.getElementById('main-content');
+    if (contentEl) {
+        contentEl.style.alignContent = 'flex-start';
+        contentEl.style.alignItems = 'flex-start';
+        contentEl.style.display = 'grid';
+        contentEl.style.gridTemplateColumns = 'minmax(0, 1fr)';
+        contentEl.style.justifyItems = 'stretch';
+    }
+
+    document.querySelectorAll('.page-section').forEach((section) => {
+        const isActive = section.id === `sec-${sectionId}`;
+        section.classList.toggle('active', isActive);
+        section.style.display = isActive ? 'block' : 'none';
+        section.style.alignSelf = 'start';
+        section.style.gridColumn = '1';
+        section.style.gridRow = '1';
+        section.style.marginTop = '0';
+        section.style.minWidth = '0';
+        section.style.transform = 'none';
+        section.style.width = '100%';
+    });
+}
+
 window.enterMainView = function() { 
     document.getElementById('login-view').classList.add('hidden'); 
     document.getElementById('main-view').classList.remove('hidden'); 
@@ -107,9 +152,9 @@ window.openSection = function(sectionId, label) {
         window.isBoothMapNavExpanded = true;
     }
     window.renderNav();
-    document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-    document.getElementById(`sec-${sectionId}`).classList.add('active');
+    window.pinActiveSectionToTop(sectionId);
     document.getElementById('current-page-title').innerText = label;
+    window.queueMainContentTopReset();
 
     if(sectionId === 'home' && window.loadHomeDashboard) window.loadHomeDashboard();
     if(sectionId === 'config') {

@@ -545,6 +545,9 @@ window.loadOrderList = async function() {
 
         window.renderOrderList();
         window.renderOrderPagination();
+        if (document.getElementById('sec-order-list')?.classList.contains('active')) {
+            window.queueMainContentTopReset?.();
+        }
     } catch (error) {
         if (window.orderListRequestSeq !== requestSeq) return;
         window.allOrders = [];
@@ -553,6 +556,9 @@ window.loadOrderList = async function() {
         state.hasMore = false;
         window.renderOrderList();
         window.renderOrderPagination();
+        if (document.getElementById('sec-order-list')?.classList.contains('active')) {
+            window.queueMainContentTopReset?.();
+        }
         window.showToast(error.message || '加载订单列表失败', 'error');
     }
 }
@@ -606,6 +612,7 @@ window.renderOrderList = function() {
         const safeBoothDisplay = window.escapeHtml(boothDisplay);
         const safeRegion = window.escapeHtml(o.region || '未填');
         const safeBoothType = window.escapeHtml(o.booth_type || '');
+        const safeSalesName = window.escapeHtml(o.sales_name || '未填');
         // 【核心优化】：合同状态 UI 升级，明确展示状态，仅保留预览和重新上传
         let contractBtn = '';
         if (canManage && o.contract_url) {
@@ -635,38 +642,39 @@ window.renderOrderList = function() {
             `;
         }
 
-        const stickyActionCellClass = 'p-3 text-center whitespace-nowrap align-middle sticky right-0 bg-white sticky-action-shadow';
+        const stickyActionCellClass = 'order-actions-cell text-center whitespace-normal align-middle sticky right-0 bg-white sticky-action-shadow';
         const actionHtml = canManage
             ? `
                 <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "pay")' class="btn-primary px-3 py-1.5 text-xs shadow-sm">${window.renderIcon('wallet', 'h-3.5 w-3.5', 2)}<span>收款</span></button>
-                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "adj")' class="btn-soft-amber px-3 py-1.5 text-xs mx-1">${window.renderIcon('settings', 'h-3.5 w-3.5', 2)}<span>变更</span></button>
-                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "swap")' class="btn-secondary px-3 py-1.5 text-xs mr-1">${window.renderIcon('swap', 'h-3.5 w-3.5', 2)}<span>换展位</span></button>
-                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "exp")' class="btn-dark px-3 py-1.5 text-xs mr-2">${window.renderIcon('download', 'h-3.5 w-3.5', 2)}<span>代付</span></button>
+                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "adj")' class="btn-soft-amber px-3 py-1.5 text-xs">${window.renderIcon('settings', 'h-3.5 w-3.5', 2)}<span>变更</span></button>
+                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "swap")' class="btn-secondary px-3 py-1.5 text-xs">${window.renderIcon('swap', 'h-3.5 w-3.5', 2)}<span>换展位</span></button>
+                <button onclick='window.openFinanceDirectById(${JSON.stringify(String(o.id))}, "exp")' class="btn-dark px-3 py-1.5 text-xs">${window.renderIcon('download', 'h-3.5 w-3.5', 2)}<span>代付</span></button>
                 ${(window.currentUser.role === 'admin' || window.isOwnOrder(o)) ? `<button onclick='window.cancelOrder(${JSON.stringify(String(o.id))}, ${JSON.stringify(String(o.booth_id))})' class="btn-soft-danger px-3 py-1.5 text-xs shadow-sm">${window.renderIcon('close', 'h-3.5 w-3.5', 2.2)}<span>退订</span></button>` : ''}
             `
             : `
                 <button class="btn-muted px-3 py-1.5 text-xs">${window.renderIcon('wallet', 'h-3.5 w-3.5', 2)}<span>收款</span></button>
-                <button class="btn-muted px-3 py-1.5 text-xs mx-1">${window.renderIcon('settings', 'h-3.5 w-3.5', 2)}<span>变更</span></button>
-                <button class="btn-muted px-3 py-1.5 text-xs mr-1">${window.renderIcon('swap', 'h-3.5 w-3.5', 2)}<span>换展位</span></button>
-                <button class="btn-muted px-3 py-1.5 text-xs mr-2">${window.renderIcon('download', 'h-3.5 w-3.5', 2)}<span>代付</span></button>
+                <button class="btn-muted px-3 py-1.5 text-xs">${window.renderIcon('settings', 'h-3.5 w-3.5', 2)}<span>变更</span></button>
+                <button class="btn-muted px-3 py-1.5 text-xs">${window.renderIcon('swap', 'h-3.5 w-3.5', 2)}<span>换展位</span></button>
+                <button class="btn-muted px-3 py-1.5 text-xs">${window.renderIcon('download', 'h-3.5 w-3.5', 2)}<span>代付</span></button>
             `;
 
         return `
             <tr class="border-b hover:bg-blue-50 transition">
-                <td class="p-3 text-center align-middle">${payBadge}</td>
-                <td class="p-3 font-bold text-gray-600">${safeHall || '—'}</td>
-                <td class="p-3 font-bold text-blue-700 text-lg">${safeBoothId || `<span class="text-sm text-slate-500 font-semibold">${safeBoothDisplay}</span>`}</td>
-                <td class="p-3 text-xs text-gray-500 truncate max-w-[120px]" title="${safeRegion}">${safeRegion}</td>
-                <td class="p-3 font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline max-w-[220px] truncate" onclick='window.showOrderDetailById(${JSON.stringify(String(o.id))})' title="点击查看详情">${safeCompany}</td>
-                <td class="p-3 tabular-data">${o.area} ㎡</td>
-                <td class="p-3 text-xs text-gray-500">${safeBoothType}</td>
-                <td class="p-3 text-right font-bold text-gray-800 tabular-data">${window.formatCurrency(o.total_amount)}</td>
-                <td class="p-3 text-right font-bold text-green-600 tabular-data">${window.formatCurrency(o.paid_amount)}</td>
-                <td class="p-3 text-center align-middle">${contractBtn}</td>
-                <td class="${stickyActionCellClass}">${actionHtml}</td>
+                <td class="text-center align-middle">${payBadge}</td>
+                <td class="font-bold text-gray-600">${safeHall || '—'}</td>
+                <td class="font-bold text-blue-700 text-base">${safeBoothId || `<span class="text-sm text-slate-500 font-semibold">${safeBoothDisplay}</span>`}</td>
+                <td class="order-region-cell text-xs text-gray-500 truncate" title="${safeRegion}">${safeRegion}</td>
+                <td class="order-company-cell font-bold text-gray-800 cursor-pointer hover:text-blue-600 hover:underline" onclick='window.showOrderDetailById(${JSON.stringify(String(o.id))})' title="点击查看详情">${safeCompany}</td>
+                <td class="font-bold text-slate-600">${safeSalesName}</td>
+                <td class="tabular-data">${o.area} ㎡</td>
+                <td class="text-xs text-gray-500">${safeBoothType}</td>
+                <td class="text-right font-bold text-gray-800 tabular-data">${window.formatCurrency(o.total_amount)}</td>
+                <td class="text-right font-bold text-green-600 tabular-data">${window.formatCurrency(o.paid_amount)}</td>
+                <td class="text-center align-middle">${contractBtn}</td>
+                <td class="${stickyActionCellClass}"><div class="flex flex-wrap items-center justify-center gap-1.5">${actionHtml}</div></td>
             </tr>
         `;
-    }, '<tr><td colspan="11" class="p-6 text-center text-gray-400">暂无符合条件的订单</td></tr>');
+    }, '<tr><td colspan="12" class="p-6 text-center text-gray-400">暂无符合条件的订单</td></tr>');
 }
 
 window.showOrderDetailById = function(id) {

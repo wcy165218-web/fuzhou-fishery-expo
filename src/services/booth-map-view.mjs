@@ -222,7 +222,7 @@ export async function getProjectBoothOrdersMap(env, projectId, boothCodes = []) 
     for (const boothCodeChunk of chunkItems(normalizedBoothCodes)) {
         const placeholders = boothCodeChunk.map(() => '?').join(',');
         const results = await env.DB.prepare(`
-          SELECT booth_id, company_name, booth_display_name, paid_amount, total_amount, created_at
+          SELECT booth_id, company_name, booth_display_name, sales_name, paid_amount, total_amount, created_at
           FROM Orders
           WHERE project_id = ?
             AND status NOT IN ('已退订', '已作废')
@@ -304,6 +304,13 @@ export async function getBoothMapRuntimeView(env, projectId, mapId) {
             const activeOrders = ordersMap.get(normalizedBoothCode) || [];
             const statusMeta = deriveBoothRuntimeStatus(item.status || item.booth_status, activeOrders);
             const companyInfo = resolveBoothCompanyText(item.booth_type, activeOrders);
+            const orderSummaries = activeOrders.map((order) => ({
+                company_name: String(order.company_name || '').trim(),
+                sales_name: String(order.sales_name || '').trim(),
+                paid_amount: Number(order.paid_amount || 0),
+                total_amount: Number(order.total_amount || 0),
+                created_at: String(order.created_at || '')
+            }));
             return {
                 ...item,
                 active_order_count: activeOrders.length,
@@ -313,7 +320,8 @@ export async function getBoothMapRuntimeView(env, projectId, mapId) {
                 stroke_color: statusMeta.strokeColor,
                 booth_no_text: normalizedBoothCode,
                 company_text: companyInfo.companyText,
-                company_text_source: companyInfo.companyTextSource
+                company_text_source: companyInfo.companyTextSource,
+                order_summaries: orderSummaries
             };
         })
     };

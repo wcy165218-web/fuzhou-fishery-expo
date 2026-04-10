@@ -80,8 +80,6 @@ export function normalizeOrderListParams(urlObj, currentUser) {
 
 function appendOrderListFilters(whereClauses, params, filters, currentUser) {
     whereClauses.push("o.status NOT IN ('已退订', '已作废')");
-    whereClauses.push("(? = 'admin' OR o.sales_name = ? OR o.paid_amount >= o.total_amount)");
-    params.push(currentUser.role, currentUser.name);
 
     if (filters.selectedSales) {
         whereClauses.push('o.sales_name = ?');
@@ -208,7 +206,7 @@ export async function handleOrderRoutes({
             LEFT JOIN Booths b ON o.booth_id = b.id AND o.project_id = b.project_id
             LEFT JOIN OrderOverpaymentIssues oi ON oi.order_id = o.id
             WHERE ${whereClauses.join(' AND ')}
-            ORDER BY datetime(o.created_at) DESC, o.id DESC
+            ORDER BY CASE WHEN o.sales_name = ? THEN 0 ELSE 1 END ASC, datetime(o.created_at) DESC, o.id DESC
             LIMIT ? OFFSET ?
         `).bind(
             currentUser.role, currentUser.name,
@@ -218,6 +216,7 @@ export async function handleOrderRoutes({
             currentUser.role, currentUser.name,
             superAdminFlag, currentUser.name,
             ...filterParams,
+            currentUser.name,
             filters.pageSize,
             offset
         ).all();

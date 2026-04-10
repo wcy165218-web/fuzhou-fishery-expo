@@ -35,7 +35,11 @@ window.boothMapEditor = window.boothMapEditor || {
     previewPointerMode: '',
     previewPointerStartClient: null,
     previewPointerStartViewBox: null,
-    searchHighlightItemId: ''
+    searchHighlightItemId: '',
+    previewFilterMode: 'status',
+    previewStatusFilters: { available: true, reserved: true, deposit: true, full_paid: true, locked: true },
+    previewTypeFilters: { '标摊': true, '豪标': true, '光地': true },
+    previewHoveredBoothCode: ''
 };
 
 window.getBoothMapState = function() {
@@ -1396,6 +1400,9 @@ window.buildBoothMapPreviewExportSvg = async function() {
     const mapTitle = String(currentBoothMap.name || '未命名画布');
     const canvasWidth = Number(currentBoothMap.canvas_width || 1600);
     const canvasHeight = Number(currentBoothMap.canvas_height || 900);
+    const legendItems = window.getBoothMapActivePreviewLegend();
+    const legendItemWidth = 110;
+    const legendTotalWidth = legendItems.length * legendItemWidth;
     const footerHeight = 92;
     const backgroundRect = window.getBoothMapRenderedBackgroundRect(currentBoothMap);
     const backgroundDataUrl = currentBoothMap.background_image_key
@@ -1406,6 +1413,15 @@ window.buildBoothMapPreviewExportSvg = async function() {
         ${backgroundDataUrl ? `<image href="${backgroundDataUrl}" x="${backgroundRect.x}" y="${backgroundRect.y}" width="${backgroundRect.width}" height="${backgroundRect.height}" preserveAspectRatio="none" opacity="0.96"></image>` : ''}
         ${(currentBoothMapItems || []).sort((a, b) => Number(a.z_index || 0) - Number(b.z_index || 0)).map((item) => window.renderBoothMapItem(item, 'preview')).join('')}
     `;
+    const legendMarkup = legendItems.map((item, index) => {
+        const lx = canvasWidth - 28 - legendTotalWidth + index * legendItemWidth;
+        const ly = canvasHeight + 24;
+        const dotStroke = item.stroke ? `stroke="${item.stroke}" stroke-width="1.5"` : '';
+        return `
+            <circle cx="${lx}" cy="${ly}" r="6" fill="${item.fill}" ${dotStroke}></circle>
+            <text x="${lx + 12}" y="${ly + 1}" font-size="13" font-weight="700" fill="#334155" dominant-baseline="middle">${window.escapeBoothMapText(item.label)}</text>
+        `;
+    }).join('');
     const serializedSvg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${canvasWidth}" height="${canvasHeight + footerHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight + footerHeight}">
             <rect x="0" y="0" width="${canvasWidth}" height="${canvasHeight + footerHeight}" fill="#ffffff"></rect>
@@ -1414,6 +1430,7 @@ window.buildBoothMapPreviewExportSvg = async function() {
             <line x1="0" y1="${canvasHeight}" x2="${canvasWidth}" y2="${canvasHeight}" stroke="#cbd5e1" stroke-width="1"></line>
             <text x="28" y="${canvasHeight + 34}" font-size="24" font-weight="700" fill="#0f172a">${window.escapeBoothMapText(mapTitle)}</text>
             <text x="28" y="${canvasHeight + 66}" font-size="16" font-weight="500" fill="#64748b">导出时间：${window.escapeBoothMapText(exportTime)}</text>
+            ${legendMarkup}
             <text x="${canvasWidth - 28}" y="${canvasHeight + 66}" font-size="16" font-weight="500" fill="#64748b" text-anchor="end">福州渔博会展位图终版预览</text>
         </svg>
     `.trim();
@@ -2048,13 +2065,33 @@ window.onBoothMapPreviewPointerDown = function(event) {
     state.previewPointerMode = 'pan';
     state.previewPointerStartClient = { x: event.clientX, y: event.clientY };
     state.previewPointerStartViewBox = { ...state.previewViewBox };
+    window.hideBoothMapTooltip();
+    state.previewHoveredBoothCode = '';
 }
 
 window.onBoothMapPreviewPointerMove = function(event) {
     if (!currentBoothMap) return;
     const state = window.getBoothMapState();
     const svg = window.getBoothMapRuntimeSvg();
-    if (!svg || state.previewPointerMode !== 'pan' || !state.previewPointerStartClient || !state.previewPointerStartViewBox) return;
+    if (!svg) return;
+
+    /* tooltip on hover */
+    const target = event.target?.closest?.('[data-booth-code]');
+    const boothCode = target?.getAttribute?.('data-booth-code') || '';
+    if (boothCode && boothCode !== state.previewHoveredBoothCode) {
+        state.previewHoveredBoothCode = boothCode;
+        const item = (currentBoothMapItems || []).find((i) => window.normalizeBoothCode(i.booth_code) === boothCode);
+        if (item) window.showBoothMapTooltip(event, item);
+    } else if (boothCode && boothCode === state.previewHoveredBoothCode) {
+        const tooltip = document.getElementById('booth-map-tooltip');
+        if (tooltip && !tooltip.classList.contains('hidden')) window.positionBoothMapTooltip(event);
+    } else if (!boothCode && state.previewHoveredBoothCode) {
+        state.previewHoveredBoothCode = '';
+        window.hideBoothMapTooltip();
+    }
+
+    /* pan */
+    if (state.previewPointerMode !== 'pan' || !state.previewPointerStartClient || !state.previewPointerStartViewBox) return;
     const dx = (event.clientX - state.previewPointerStartClient.x) * (state.previewPointerStartViewBox.width / Math.max(svg.clientWidth, 1));
     const dy = (event.clientY - state.previewPointerStartClient.y) * (state.previewPointerStartViewBox.height / Math.max(svg.clientHeight, 1));
     state.previewViewBox.x = Number((state.previewPointerStartViewBox.x - dx).toFixed(2));
@@ -2067,6 +2104,156 @@ window.onBoothMapPreviewPointerUp = function() {
     state.previewPointerMode = '';
     state.previewPointerStartClient = null;
     state.previewPointerStartViewBox = null;
+}
+
+/* ── Preview filter management ── */
+
+window.switchBoothMapFilterMode = function(mode) {
+    const state = window.getBoothMapState();
+    state.previewFilterMode = mode === 'type' ? 'type' : 'status';
+    const statusGroup = document.getElementById('bm-filter-status-group');
+    const typeGroup = document.getElementById('bm-filter-type-group');
+    if (statusGroup) statusGroup.classList.toggle('hidden', mode === 'type');
+    if (typeGroup) typeGroup.classList.toggle('hidden', mode !== 'type');
+    window.renderCurrentBoothMap();
+}
+
+window.toggleBoothMapPreviewFilter = function(code, checked) {
+    const state = window.getBoothMapState();
+    state.previewStatusFilters[code] = !!checked;
+    window.renderCurrentBoothMap();
+}
+
+window.toggleBoothMapPreviewTypeFilter = function(type, checked) {
+    const state = window.getBoothMapState();
+    state.previewTypeFilters[type] = !!checked;
+    window.renderCurrentBoothMap();
+}
+
+window.isBoothMapItemVisibleInPreview = function(item) {
+    const state = window.getBoothMapState();
+    if (state.previewFilterMode === 'type') {
+        const boothType = String(item.booth_type || '').trim();
+        return !!state.previewTypeFilters[boothType];
+    }
+    const runtimeItem = window.getBoothMapRuntimeItem(item.booth_code);
+    const statusCode = runtimeItem?.status_code || 'available';
+    return !!state.previewStatusFilters[statusCode];
+}
+
+window.getBoothMapPreviewFilterColors = function() {
+    const state = window.getBoothMapState();
+    if (state.previewFilterMode === 'type') {
+        return {
+            '标摊': { fill: '#10b981', stroke: '#059669', label: '标摊' },
+            '豪标': { fill: '#8b5cf6', stroke: '#6d28d9', label: '升级标摊' },
+            '光地': { fill: '#f97316', stroke: '#c2410c', label: '光地' }
+        };
+    }
+    return null;
+}
+
+window.getBoothMapItemPreviewColors = function(item) {
+    const state = window.getBoothMapState();
+    if (state.previewFilterMode === 'type') {
+        const boothType = String(item.booth_type || '').trim();
+        const colorMap = window.getBoothMapPreviewFilterColors();
+        const entry = colorMap[boothType] || { fill: '#e2e8f0', stroke: '#94a3b8' };
+        return { fillColor: entry.fill, strokeColor: entry.stroke };
+    }
+    const runtimeItem = window.getBoothMapRuntimeItem(item.booth_code);
+    return {
+        fillColor: runtimeItem?.fill_color || '#ffffff',
+        strokeColor: runtimeItem?.stroke_color || '#15803d'
+    };
+}
+
+window.getBoothMapActivePreviewLegend = function() {
+    const state = window.getBoothMapState();
+    if (state.previewFilterMode === 'type') {
+        const items = [];
+        if (state.previewTypeFilters['标摊']) items.push({ label: '标摊', fill: '#10b981', stroke: '' });
+        if (state.previewTypeFilters['豪标']) items.push({ label: '升级标摊', fill: '#8b5cf6', stroke: '' });
+        if (state.previewTypeFilters['光地']) items.push({ label: '光地', fill: '#f97316', stroke: '' });
+        return items;
+    }
+    const items = [];
+    if (state.previewStatusFilters.available) items.push({ label: '可售', fill: '#ffffff', stroke: '#0f172a' });
+    if (state.previewStatusFilters.reserved) items.push({ label: '已预定', fill: '#f59e0b', stroke: '' });
+    if (state.previewStatusFilters.deposit) items.push({ label: '已付定金', fill: '#3b82f6', stroke: '' });
+    if (state.previewStatusFilters.full_paid) items.push({ label: '已付全款', fill: '#ef4444', stroke: '' });
+    if (state.previewStatusFilters.locked) items.push({ label: '已锁定', fill: '#6b7280', stroke: '' });
+    return items;
+}
+
+/* ── Preview tooltip ── */
+
+window.positionBoothMapTooltip = function(event) {
+    const tooltip = document.getElementById('booth-map-tooltip');
+    if (!tooltip || tooltip.classList.contains('hidden')) return;
+    const shell = tooltip.parentElement;
+    if (!shell) return;
+    const shellRect = shell.getBoundingClientRect();
+    tooltip.style.left = '0px';
+    tooltip.style.top = '0px';
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const offset = 18;
+    const edgeGap = 8;
+    let left = event.clientX - shellRect.left + offset;
+    let top = event.clientY - shellRect.top + offset;
+    if (left + tooltipRect.width + edgeGap > shellRect.width) {
+        left = Math.max(edgeGap, event.clientX - shellRect.left - tooltipRect.width - offset);
+    }
+    if (top + tooltipRect.height + edgeGap > shellRect.height) {
+        top = Math.max(edgeGap, event.clientY - shellRect.top - tooltipRect.height - offset);
+    }
+    tooltip.style.left = `${Math.max(edgeGap, left)}px`;
+    tooltip.style.top = `${Math.max(edgeGap, top)}px`;
+}
+
+window.showBoothMapTooltip = function(event, item) {
+    const tooltip = document.getElementById('booth-map-tooltip');
+    if (!tooltip) return;
+    const runtimeItem = window.getBoothMapRuntimeItem(item.booth_code);
+    const boothCode = window.normalizeBoothCode(item.booth_code) || '—';
+    const boothType = String(item.booth_type || '').trim() || '—';
+    const statusLabel = runtimeItem?.status_label || '可售';
+    const area = Number(item.area || 0);
+    const areaText = area > 0 ? `${area}㎡` : '—';
+    const orders = runtimeItem?.order_summaries || [];
+    let orderHtml = '';
+    if (orders.length > 0) {
+        orderHtml = orders.map((o) => {
+            const company = o.company_name || '未知企业';
+            const salesName = o.sales_name || '未填写';
+            const paid = Number(o.paid_amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0 });
+            const total = Number(o.total_amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0 });
+            return `
+                <div class="booth-map-tooltip-order">
+                    <div class="booth-map-tooltip-company">${window.escapeBoothMapText(company)}</div>
+                    <div class="booth-map-tooltip-line">业务员：${window.escapeBoothMapText(salesName)}</div>
+                    <div class="booth-map-tooltip-line">付款：¥${paid} / ¥${total}</div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        orderHtml = '<div class="booth-map-tooltip-empty">暂无订单</div>';
+    }
+    tooltip.innerHTML = `
+        <div class="booth-map-tooltip-title">${window.escapeBoothMapText(boothCode)} · ${window.escapeBoothMapText(boothType)} · ${window.escapeBoothMapText(statusLabel)}</div>
+        <div class="booth-map-tooltip-meta">面积：${window.escapeBoothMapText(areaText)}</div>
+        ${orderHtml}
+    `;
+    tooltip.classList.remove('hidden');
+    window.positionBoothMapTooltip(event);
+}
+
+window.hideBoothMapTooltip = function() {
+    const tooltip = document.getElementById('booth-map-tooltip');
+    if (tooltip) {
+        tooltip.classList.add('hidden');
+        tooltip.innerHTML = '';
+    }
 }
 
 window.onBoothMapPointerDown = function(event) {
@@ -3046,15 +3233,19 @@ window.renderBoothMapResizeHandles = function(widthPx, heightPx) {
 
 window.renderBoothMapItem = function(item, mode = 'editor') {
     const state = window.getBoothMapState();
+    if (mode === 'preview' && !window.isBoothMapItemVisibleInPreview(item)) {
+        return '';
+    }
     const { widthPx, heightPx } = window.getBoothMapItemSizePx(item);
     const runtimeItem = window.getBoothMapRuntimeItem(item.booth_code);
     const isSearchHighlighted = mode === 'editor' && String(state.searchHighlightItemId || '') === String(item.id);
+    const previewColors = mode === 'preview' ? window.getBoothMapItemPreviewColors(item) : null;
     const fillColor = mode === 'preview'
-        ? (runtimeItem?.fill_color || '#ffffff')
+        ? (previewColors.fillColor)
         : (isSearchHighlighted ? '#fca5a5' : '#e2e8f0');
     const isDirty = mode === 'editor' && !!item._dirty;
     const strokeColor = mode === 'preview'
-        ? (runtimeItem?.stroke_color || '#15803d')
+        ? (previewColors.strokeColor)
         : (isSearchHighlighted ? '#b91c1c' : (isDirty ? '#dc2626' : '#0f172a'));
     const selected = window.isBoothMapItemSelected(item.id);
     const centerX = widthPx / 2;
@@ -3095,8 +3286,9 @@ window.renderBoothMapItem = function(item, mode = 'editor') {
     const handleMarkup = mode === 'editor' && selected && window.getBoothMapSelectionCount() === 1 && !window.isBoothMapItemOrderLocked(item)
         ? window.renderBoothMapResizeHandles(widthPx, heightPx)
         : '';
+    const boothCodeAttr = mode === 'preview' ? ` data-booth-code="${window.escapeBoothMapText(window.normalizeBoothCode(item.booth_code))}"` : '';
     return `
-        <g data-item-id="${window.escapeBoothMapText(item.id)}" transform="translate(${Number(item.x || 0)} ${Number(item.y || 0)}) rotate(${Number(item.rotation || 0)} ${centerX} ${centerY})">
+        <g data-item-id="${window.escapeBoothMapText(item.id)}"${boothCodeAttr} transform="translate(${Number(item.x || 0)} ${Number(item.y || 0)}) rotate(${Number(item.rotation || 0)} ${centerX} ${centerY})">
             <defs>${clipMarkup}</defs>
             ${shapeMarkup}
             ${labelMarkup}

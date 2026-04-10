@@ -263,8 +263,25 @@ async function runTests() {
   });
   assert.equal(orderEnv.captured.firstCalls.length, 1);
   assert.equal(orderEnv.captured.allCalls.length, 1);
-  assert.deepEqual(orderEnv.captured.firstCalls[0].params.slice(0, 4), [7, 'admin', 'admin', '张三']);
+  assert.deepEqual(orderEnv.captured.firstCalls[0].params.slice(0, 4), [7, '张三', '%海鲜%', '%海鲜%']);
+  assert.match(orderEnv.captured.allCalls[0].sql, /ORDER BY CASE WHEN o\.sales_name = \? THEN 0 ELSE 1 END ASC/);
   assert.deepEqual(orderEnv.captured.allCalls[0].params.slice(-2), [50, 50]);
+
+  const salesOrderEnv = createOrderRouteEnv();
+  const salesOrderRequest = new Request(
+    'http://localhost/api/orders?projectId=7&page=1&pageSize=50',
+    { method: 'GET' }
+  );
+  await handleOrderRoutes({
+    request: salesOrderRequest,
+    env: salesOrderEnv,
+    url: new URL(salesOrderRequest.url),
+    currentUser: { role: 'sales', name: '李四' },
+    corsHeaders
+  });
+  assert.doesNotMatch(salesOrderEnv.captured.firstCalls[0].sql, /paid_amount >= o\.total_amount/);
+  assert.deepEqual(salesOrderEnv.captured.firstCalls[0].params, [7]);
+  assert.deepEqual(salesOrderEnv.captured.allCalls[0].params.slice(-3), ['李四', 50, 0]);
 
   const configEnv = createConfigRouteEnv();
   const clearRequest = new Request('http://localhost/api/clear-project-rollout-data', {
