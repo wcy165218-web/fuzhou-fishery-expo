@@ -57,7 +57,7 @@ export function buildCorsHeaders(request, url, env) {
 
     const headers = {
         'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-File-Name',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-File-Name, X-Upload-Id',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Pragma': 'no-cache',
         'Vary': 'Origin',

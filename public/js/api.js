@@ -93,20 +93,108 @@ window.validateContractUploadFile = function(file) {
     return '';
 }
 
+window.sendAuthorizedUploadViaXhr = function(body, { headers = {}, timeoutMs = 45000 } = {}) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload', true);
+        xhr.responseType = 'text';
+        xhr.timeout = timeoutMs;
+
+        const authUser = window.getCurrentAuthUser?.();
+        if (authUser?.token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${authUser.token}`);
+        }
+        Object.entries(headers || {}).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+                xhr.setRequestHeader(key, String(value));
+            }
+        });
+
+        xhr.onload = () => {
+            const responseText = typeof xhr.responseText === 'string' ? xhr.responseText : '';
+            resolve(new Response(responseText, {
+                status: xhr.status || 0,
+                statusText: xhr.statusText || '',
+                headers: {
+                    'Content-Type': xhr.getResponseHeader('Content-Type') || 'application/json'
+                }
+            }));
+        };
+        xhr.onerror = () => reject(new Error('网络请求失败，请稍后重试'));
+        xhr.ontimeout = () => reject(new Error('上传超时，请稍后重试'));
+        xhr.send(body);
+    });
+}
+
+window.readFileAsBase64 = function(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = String(reader.result || '');
+            const base64Value = dataUrl.includes(',') ? dataUrl.split(',').pop() : '';
+            if (!base64Value) {
+                reject(new Error('文件读取失败'));
+                return;
+            }
+            resolve(base64Value);
+        };
+        reader.onerror = () => reject(new Error('文件读取失败'));
+        reader.readAsDataURL(file);
+    });
+}
+
+window.createContractUploadId = function() {
+    const randomValue = window.crypto?.randomUUID?.()
+        || `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
+    return String(randomValue).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 96);
+}
+
 window.uploadContractFile = async function(file) {
     const fileError = window.validateContractUploadFile?.(file);
     if (fileError) throw new Error(fileError);
+    const uploadId = window.createContractUploadId();
     const formData = new FormData();
     formData.append('file', file, String(file.name || 'contract.pdf'));
-    const uploadData = await window.readApiSuccessJson(
-        await window.apiFetch('/api/upload', {
+    formData.append('uploadId', uploadId);
+    const contentBase64 = await window.readFileAsBase64(file);
+
+    const uploadAttempts = [
+        async () => window.apiFetch('/api/upload', {
             method: 'POST',
-            body: formData
+            body: JSON.stringify({
+                fileName: String(file.name || 'contract.pdf'),
+                mimeType: String(file.type || 'application/pdf').trim() || 'application/pdf',
+                uploadId,
+                contentBase64
+            })
         }),
-        '上传失败',
-        {}
-    );
-    return uploadData;
+        async () => window.sendAuthorizedUploadViaXhr(formData, { timeoutMs: 15000 }),
+        async () => window.sendAuthorizedUploadViaXhr(file, {
+            timeoutMs: 15000,
+            headers: {
+                'Content-Type': String(file.type || 'application/pdf').trim() || 'application/pdf',
+                'X-File-Name': encodeURIComponent(String(file.name || 'contract.pdf')),
+                'X-Upload-Id': uploadId
+            }
+        })
+    ];
+
+    let lastError = null;
+    for (let index = 0; index < uploadAttempts.length; index += 1) {
+        try {
+            const uploadData = await window.readApiSuccessJson(
+                await uploadAttempts[index](),
+                '上传失败',
+                {}
+            );
+            return uploadData;
+        } catch (error) {
+            lastError = error;
+            console.warn(`Contract upload attempt ${index + 1} failed:`, error);
+        }
+    }
+
+    throw lastError || new Error('上传失败');
 }
 
 window.deriveHallFromBoothCode = function(boothCode, fallbackValue = '') {

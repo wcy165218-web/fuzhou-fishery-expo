@@ -1,7 +1,7 @@
 import { errorResponse } from './response.mjs';
 
 export const DEFAULT_JSON_BODY_LIMIT = 256 * 1024;
-export const CONTRACT_UPLOAD_BODY_LIMIT = 7 * 1024 * 1024;
+export const CONTRACT_UPLOAD_BODY_LIMIT = 9 * 1024 * 1024;
 export const BOOTH_MAP_IMAGE_UPLOAD_BODY_LIMIT = 11 * 1024 * 1024;
 export const REQUEST_BODY_TOO_LARGE_MESSAGE = '请求体过大，请压缩后重试';
 export const REQUEST_BODY_INVALID_MESSAGE = '请求体格式错误，请检查后重试';

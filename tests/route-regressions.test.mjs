@@ -211,6 +211,71 @@ async function runTests() {
   assert.equal(uploadedObjects[0].size, rawUploadBody.byteLength);
   assert.equal(uploadedObjects[0].contentType, 'application/pdf');
   assert.ok(uploadedObjects[0].key.endsWith('.pdf'));
+
+  const jsonUploadedObjects = [];
+  const retryUploadId = 'retry-upload-id-12345';
+  const jsonUploadRequest = new Request('http://localhost/api/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      fileName: 'JSON回归测试合同.pdf',
+      mimeType: 'application/pdf',
+      uploadId: retryUploadId,
+      contentBase64: Buffer.from(rawUploadBody).toString('base64')
+    })
+  });
+  const jsonUploadResponse = await handleFileRoutes({
+    request: jsonUploadRequest,
+    env: {
+      BUCKET: {
+        async put(key, body, options) {
+          jsonUploadedObjects.push({ key, size: body.byteLength, contentType: options?.httpMetadata?.contentType || '' });
+        }
+      }
+    },
+    url: new URL(jsonUploadRequest.url),
+    currentUser: { role: 'admin', name: 'admin' },
+    corsHeaders
+  });
+  const jsonUploadPayload = await jsonUploadResponse.json();
+  assert.equal(jsonUploadPayload.success, true);
+  assert.equal(jsonUploadedObjects.length, 1);
+  assert.equal(jsonUploadedObjects[0].size, rawUploadBody.byteLength);
+  assert.equal(jsonUploadedObjects[0].contentType, 'application/pdf');
+  assert.ok(jsonUploadedObjects[0].key.endsWith('.pdf'));
+
+  const jsonRetryRequest = new Request('http://localhost/api/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      fileName: 'JSON回归测试合同.pdf',
+      mimeType: 'application/pdf',
+      uploadId: retryUploadId,
+      contentBase64: Buffer.from(rawUploadBody).toString('base64')
+    })
+  });
+  const jsonRetryResponse = await handleFileRoutes({
+    request: jsonRetryRequest,
+    env: {
+      BUCKET: {
+        async put(key, body, options) {
+          jsonUploadedObjects.push({ key, size: body.byteLength, contentType: options?.httpMetadata?.contentType || '' });
+        }
+      }
+    },
+    url: new URL(jsonRetryRequest.url),
+    currentUser: { role: 'admin', name: 'admin' },
+    corsHeaders
+  });
+  const jsonRetryPayload = await jsonRetryResponse.json();
+  assert.equal(jsonRetryPayload.success, true);
+  assert.equal(jsonRetryPayload.fileKey, jsonUploadPayload.fileKey);
+  assert.equal(jsonUploadedObjects.length, 2);
+  assert.equal(jsonUploadedObjects[1].key, jsonUploadedObjects[0].key);
 }
 
 await runTests();
