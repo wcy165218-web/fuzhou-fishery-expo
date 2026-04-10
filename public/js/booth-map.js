@@ -3303,19 +3303,18 @@ window.saveBoothMapQuick = async function() {
         return window.showToast(summary.blockedItems[0]?.error || '当前没有可保存的展位', 'error');
     }
 
-    const canReplaceAll = summary.blockedItems.length === 0;
-    const targetItems = canReplaceAll ? (currentBoothMapItems || []) : summary.savableItems;
+    const targetItems = summary.savableItems;
 
     try {
         await window.withButtonLoading('btn-save-booth-map', async () => {
             const itemData = await window.persistBoothMapChanges({
                 items: targetItems,
-                replaceAll: canReplaceAll,
+                replaceAll: false,
                 deletedBoothCodes
             });
             const savedIdSet = new Set(summary.savableItems.map((item) => String(item.id)));
             (currentBoothMapItems || []).forEach((item) => {
-                if (canReplaceAll || savedIdSet.has(String(item.id))) {
+                if (savedIdSet.has(String(item.id))) {
                     item._dirty = false;
                     item._persistedBoothCode = window.normalizeBoothCode(item.booth_code);
                     item.area = window.calculateBoothMapItemArea(item);
