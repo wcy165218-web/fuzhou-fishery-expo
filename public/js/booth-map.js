@@ -1,4 +1,6 @@
 // ================= js/booth-map.js =================
+const BOOTH_MAP_INCREMENTAL_SAVE_CHUNK_SIZE = 250;
+
 window.boothMapEditor = window.boothMapEditor || {
     initialized: false,
     activeTab: 'editor',
@@ -38,6 +40,15 @@ window.boothMapEditor = window.boothMapEditor || {
 
 window.getBoothMapState = function() {
     return window.boothMapEditor;
+}
+
+window.chunkBoothMapSaveItems = function(items = []) {
+    const sourceItems = Array.isArray(items) ? items : [];
+    const chunks = [];
+    for (let index = 0; index < sourceItems.length; index += BOOTH_MAP_INCREMENTAL_SAVE_CHUNK_SIZE) {
+        chunks.push(sourceItems.slice(index, index + BOOTH_MAP_INCREMENTAL_SAVE_CHUNK_SIZE));
+    }
+    return chunks;
 }
 
 window.getBoothMapSvg = function() {
@@ -3307,11 +3318,17 @@ window.saveBoothMapQuick = async function() {
 
     try {
         await window.withButtonLoading('btn-save-booth-map', async () => {
-            const itemData = await window.persistBoothMapChanges({
-                items: targetItems,
-                replaceAll: false,
-                deletedBoothCodes
-            });
+            const itemChunks = window.chunkBoothMapSaveItems(targetItems);
+            const deletedChunks = window.chunkBoothMapSaveItems(deletedBoothCodes);
+            const totalBatches = Math.max(itemChunks.length, deletedChunks.length, 1);
+            let itemData = {};
+            for (let batchIndex = 0; batchIndex < totalBatches; batchIndex += 1) {
+                itemData = await window.persistBoothMapChanges({
+                    items: itemChunks[batchIndex] || [],
+                    replaceAll: false,
+                    deletedBoothCodes: deletedChunks[batchIndex] || []
+                });
+            }
             const savedIdSet = new Set(summary.savableItems.map((item) => String(item.id)));
             (currentBoothMapItems || []).forEach((item) => {
                 if (savedIdSet.has(String(item.id))) {
